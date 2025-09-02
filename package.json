@@ -1,0 +1,16 @@
+{
+  "name": "my-fullstack-app",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+    "dev:frontend": "cd frontend && pnpm dev",
+    "dev:backend": "cd backend && uv run uvicorn main:app --reload",
+    "build": "pnpm run build:frontend && pnpm run build:backend",
+    "build:frontend": "cd frontend && pnpm build",
+    "build:backend": "cd backend && echo \"Backend build step not yet implemented\"",
+    "install:all": "pnpm install && cd backend && uv sync --quiet"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
