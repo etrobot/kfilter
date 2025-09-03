@@ -1,58 +1,141 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom/client'
-import { Button } from '@/components/ui/button'
+import { DashboardHeader } from './components/DashboardHeader'
+import { TaskProgressCard } from './components/TaskProgressCard'
+import { ResultsTable } from './components/ResultsTable'
+import { api, createTaskStatusPoller } from './services/api'
+import { FactorRecord, TaskResult, TaskMeta } from './types'
 import './index.css'
 
 function App() {
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
+  const pollerCleanupRef = useRef<(() => void) | null>(null)
+  const [results, setResults] = useState<FactorRecord[]>([])
+  const [currentTask, setCurrentTask] = useState<TaskResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<TaskMeta | null>(null)
 
-  const fetchBackendData = async () => {
-    setLoading(true)
+  const runCalculation = async () => {
     setError(null)
+    setCurrentTask(null)
+    // stop any existing poller
+    if (pollerCleanupRef.current) {
+      try { pollerCleanupRef.current() } catch {}
+      pollerCleanupRef.current = null
+    }
     try {
-      const response = await fetch('http://localhost:8000/')
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const result = await response.json()
-      setData(result)
+      const response = await api.startAnalysis()
+      
+      // Start polling for task status
+      const cleanup = createTaskStatusPoller(
+        response.task_id,
+        (task) => setCurrentTask(task),
+        (task) => {
+          setResults(task.data || [])
+          setMeta({ 
+            task_id: task.task_id, 
+            created_at: task.created_at, 
+            count: task.count 
+          })
+          setCurrentTask(null)
+        },
+        (errorMsg) => {
+          setError(errorMsg)
+          setCurrentTask(null)
+        }
+      )
+      pollerCleanupRef.current = cleanup
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchBackendData()
+    let cancelled = false
+
+    const init = async () => {
+      // 1) Load last results for display
+      try {
+        const result: any = await api.getLatestResults()
+        if (!cancelled && result && result.data) {
+          setResults(result.data)
+          setMeta({
+            task_id: result.task_id,
+            created_at: result.created_at,
+            count: result.count,
+          })
+        }
+      } catch {
+        // Ignore errors when loading last results
+      }
+
+      // 2) Proactively check active tasks on page load and start polling
+      try {
+        const tasks = await api.getAllTasks()
+        if (!cancelled && Array.isArray(tasks) && tasks.length > 0) {
+          const active = tasks
+            .filter(t => t.status === 'running' || t.status === 'pending')
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          if (active.length > 0) {
+            const latest = active[0]
+            setCurrentTask(latest)
+
+            // stop any existing poller first
+            if (pollerCleanupRef.current) {
+              try { pollerCleanupRef.current() } catch {}
+              pollerCleanupRef.current = null
+            }
+
+            const cleanup = createTaskStatusPoller(
+              latest.task_id,
+              (task) => setCurrentTask(task),
+              (task) => {
+                setResults(task.data || [])
+                setMeta({
+                  task_id: task.task_id,
+                  created_at: task.created_at,
+                  count: task.count,
+                })
+                setCurrentTask(null)
+              },
+              (errorMsg) => {
+                setError(errorMsg)
+                setCurrentTask(null)
+              }
+            )
+            pollerCleanupRef.current = cleanup
+          }
+        }
+      } catch {
+        // Ignore errors when checking tasks
+      }
+    }
+
+    init()
+
+    return () => {
+      cancelled = true
+      if (pollerCleanupRef.current) {
+        try { pollerCleanupRef.current() } catch {}
+        pollerCleanupRef.current = null
+      }
+    }
   }, [])
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Backend Response</h1>
-      
-      {loading && <p>Loading...</p>}
-      
+    <div className="p-8 space-y-6">
+      <DashboardHeader 
+        meta={meta} 
+        currentTask={currentTask} 
+        onRunCalculation={runCalculation} 
+      />
+
+      {currentTask && <TaskProgressCard task={currentTask} />}
+
       {error && (
-        <div className="text-red-500 mb-4">
-          <p>Error: {error}</p>
-        </div>
+        <div className="text-red-500">错误: {error}</div>
       )}
-      
-      {data && (
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold mb-2">Response:</h2>
-          <pre className="bg-gray-100 p-4 rounded">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </div>
-      )}
-      
-      <Button onClick={fetchBackendData} disabled={loading}>
-        {loading ? 'Loading...' : 'Refresh Data'}
-      </Button>
+
+      <ResultsTable data={results} />
     </div>
   )
 }
