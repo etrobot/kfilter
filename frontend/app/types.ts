@@ -43,6 +43,7 @@ export type TaskResult = {
   created_at: string
   completed_at?: string
   top_n: number
+  selected_factors?: string[]
   data?: FactorRecord[]
   count?: number
   error?: string

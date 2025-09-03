@@ -26,10 +26,13 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  async startAnalysis(topN: number = 100): Promise<RunResponse> {
+  async startAnalysis(topN: number = 100, selectedFactors?: string[]): Promise<RunResponse> {
     return apiCall<RunResponse>('/run', {
       method: 'POST',
-      body: JSON.stringify({ top_n: topN }),
+      body: JSON.stringify({ 
+        top_n: topN,
+        selected_factors: selectedFactors 
+      }),
     })
   },
 

@@ -172,9 +172,9 @@ def calculate_support_factor(history: Dict[str, pd.DataFrame], period: int = 5) 
     return pd.DataFrame(support_data)
 
 
-def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], task_id: Optional[str] = None) -> pd.DataFrame:
+def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], task_id: Optional[str] = None, selected_factors: Optional[List[str]] = None) -> pd.DataFrame:
     """Compute comprehensive factors for stock analysis via pluggable factor modules"""
-    from factors import compute_all_factors
+    from factors import compute_all_factors, compute_selected_factors
 
     logger.info("Computing factors using modular plugins...")
 
@@ -184,8 +184,13 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
     # Filter history to only include top stocks
     filtered_history = {code: df for code, df in history.items() if code in top_spot["代码"].values}
 
-    # Compute all registered factor dataframes
-    factors_df = compute_all_factors(filtered_history, top_spot)
+    # Compute selected or all registered factor dataframes
+    if selected_factors:
+        factors_df = compute_selected_factors(filtered_history, top_spot, selected_factors)
+        logger.info(f"Computing selected factors: {selected_factors}")
+    else:
+        factors_df = compute_all_factors(filtered_history, top_spot)
+        logger.info("Computing all available factors")
 
     if factors_df is None or factors_df.empty:
         logger.warning("No factor data calculated")

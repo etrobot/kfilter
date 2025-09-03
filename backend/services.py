@@ -28,7 +28,7 @@ from market_data_processor import (
 logger = logging.getLogger(__name__)
 
 
-def run_analysis_task(task_id: str, top_n: int):
+def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None):
     """Background task for running stock analysis with database integration"""
     task = get_task(task_id)
     if not task:
@@ -112,8 +112,9 @@ def run_analysis_task(task_id: str, top_n: int):
     history_for_factors = load_daily_data_for_analysis(stock_codes, limit=60)
     
     # Step 8: Compute factors
-    update_task_progress(task_id, 0.85, "计算动量和支撑因子")
-    df = compute_factors(top_spot, history_for_factors, task_id=task_id)
+    factor_msg = f"计算{'选定' if selected_factors else '所有'}因子"
+    update_task_progress(task_id, 0.85, factor_msg)
+    df = compute_factors(top_spot, history_for_factors, task_id=task_id, selected_factors=selected_factors)
     
     update_task_progress(task_id, 0.95, "数据清理和格式化")
     
@@ -142,11 +143,11 @@ def run_analysis_task(task_id: str, top_n: int):
     logger.info(f"Analysis completed successfully with database integration. Found {len(data)} results")
 
 
-def run_analysis_wrapper(task_id: str, top_n: int):
+def run_analysis_wrapper(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None):
     """Wrapper to handle task errors properly"""
     error_occurred = False
     try:
-        run_analysis_task(task_id, top_n)
+        run_analysis_task(task_id, top_n, selected_factors)
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}")
         handle_task_error(task_id, e)
@@ -156,7 +157,7 @@ def run_analysis_wrapper(task_id: str, top_n: int):
         logger.error(f"Task {task_id} encountered an error and was marked as failed")
 
 
-def create_analysis_task(top_n: int = 100) -> str:
+def create_analysis_task(top_n: int = 100, selected_factors: Optional[List[str]] = None) -> str:
     """Create and start a new analysis task"""
     task_id = str(uuid4())
     
@@ -166,13 +167,14 @@ def create_analysis_task(top_n: int = 100) -> str:
         progress=0.0,
         message="任务已创建，等待开始",
         created_at=datetime.now().isoformat(),
-        top_n=top_n
+        top_n=top_n,
+        selected_factors=selected_factors
     )
     
     add_task(task)
     
     # Start background thread with error wrapper
-    thread = threading.Thread(target=run_analysis_wrapper, args=(task_id, top_n))
+    thread = threading.Thread(target=run_analysis_wrapper, args=(task_id, top_n, selected_factors))
     thread.daemon = True
     thread.start()
     

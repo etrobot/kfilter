@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import RunResponse, TaskResult, Message, create_db_and_tables
+from models import RunRequest, RunResponse, TaskResult, Message, create_db_and_tables
 from api import read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks
 from factors import list_factors
 
@@ -38,8 +38,8 @@ def root():
 
 
 @app.post("/run", response_model=RunResponse)
-def run(top_n: int = 100) -> RunResponse:
-    return run_analysis(top_n)
+def run(request: RunRequest) -> RunResponse:
+    return run_analysis(request)
 
 
 @app.get("/task/{task_id}", response_model=TaskResult)

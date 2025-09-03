@@ -9,7 +9,7 @@ import pandas as pd
 
 from models import Factor
 
-__all__ = ["list_factors", "compute_all_factors"]
+__all__ = ["list_factors", "compute_all_factors", "compute_selected_factors"]
 
 
 def _iter_factor_modules() -> List[str]:
@@ -54,6 +54,35 @@ def compute_all_factors(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.
             logging.getLogger(__name__).warning(f"Factor {factor.id} failed: {e}")
     if not dfs:
         return pd.DataFrame()
+    result = dfs[0]
+    for df in dfs[1:]:
+        result = result.merge(df, on='代码', how='outer')
+    return result
+
+
+def compute_selected_factors(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None, selected_factor_ids: Optional[List[str]] = None) -> pd.DataFrame:
+    """Compute only selected factor DataFrames and outer-join them by '代码'."""
+    if selected_factor_ids is None:
+        return compute_all_factors(history, top_spot)
+    
+    dfs: List[pd.DataFrame] = []
+    all_factors = list_factors()
+    selected_factors = [f for f in all_factors if f.id in selected_factor_ids]
+    
+    for factor in selected_factors:
+        try:
+            df = factor.compute(history, top_spot)
+            if df is not None and not df.empty:
+                if '代码' not in df.columns:
+                    continue
+                dfs.append(df)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Factor {factor.id} failed: {e}")
+    
+    if not dfs:
+        return pd.DataFrame()
+    
     result = dfs[0]
     for df in dfs[1:]:
         result = result.merge(df, on='代码', how='outer')

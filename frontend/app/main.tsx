@@ -15,39 +15,33 @@ function App() {
   const [meta, setMeta] = useState<TaskMeta | null>(null)
   const [factorMeta, setFactorMeta] = useState<FactorMeta[]>([])
 
-  const runCalculation = async () => {
+  const handleRunAnalysis = async (taskId: string) => {
     setError(null)
-    setCurrentTask(null)
     // stop any existing poller
     if (pollerCleanupRef.current) {
       try { pollerCleanupRef.current() } catch {}
       pollerCleanupRef.current = null
     }
-    try {
-      const response = await api.startAnalysis()
-      
-      // Start polling for task status
-      const cleanup = createTaskStatusPoller(
-        response.task_id,
-        (task) => setCurrentTask(task),
-        (task) => {
-          setResults(task.data || [])
-          setMeta({ 
-            task_id: task.task_id, 
-            created_at: task.created_at, 
-            count: task.count 
-          })
-          setCurrentTask(null)
-        },
-        (errorMsg) => {
-          setError(errorMsg)
-          setCurrentTask(null)
-        }
-      )
-      pollerCleanupRef.current = cleanup
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
+    
+    // Start polling for the new task status
+    const cleanup = createTaskStatusPoller(
+      taskId,
+      (task) => setCurrentTask(task),
+      (task) => {
+        setResults(task.data || [])
+        setMeta({ 
+          task_id: task.task_id, 
+          created_at: task.created_at, 
+          count: task.count 
+        })
+        setCurrentTask(null)
+      },
+      (errorMsg) => {
+        setError(errorMsg)
+        setCurrentTask(null)
+      }
+    )
+    pollerCleanupRef.current = cleanup
   }
 
   useEffect(() => {
@@ -137,7 +131,6 @@ function App() {
       <DashboardHeader 
         meta={meta} 
         currentTask={currentTask} 
-        onRunCalculation={runCalculation} 
       />
 
       {currentTask && <TaskProgressCard task={currentTask} />}
@@ -146,7 +139,11 @@ function App() {
         <div className="text-red-500">错误: {error}</div>
       )}
 
-      <ResultsTable data={results} factorMeta={factorMeta} />
+      <ResultsTable 
+        data={results} 
+        factorMeta={factorMeta} 
+        onRunAnalysis={handleRunAnalysis}
+      />
     </div>
   )
 }

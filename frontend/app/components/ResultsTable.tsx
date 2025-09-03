@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Play } from 'lucide-react'
 import { ScoreBar } from './ScoreBar'
+import { FactorSelectionDialog } from './FactorSelectionDialog'
+import { Button } from './ui/button'
 import { FactorRecord, FactorMeta, ColumnSpec } from '../types'
+import { api } from '../services/api'
 
 type SortField = string | null
 type SortDirection = 'asc' | 'desc'
@@ -9,11 +12,14 @@ type SortDirection = 'asc' | 'desc'
 interface ResultsTableProps {
   data: FactorRecord[]
   factorMeta?: FactorMeta[]
+  onRunAnalysis?: (taskId: string) => void
 }
 
-export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
+export function ResultsTable({ data, factorMeta = [], onRunAnalysis }: ResultsTableProps) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [showFactorDialog, setShowFactorDialog] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
   
   const getXueqiuUrl = (stockCode: string) => {
     const code = stockCode.replace(/\D/g, '')
@@ -103,6 +109,19 @@ export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
     return `${baseClassName} ${isActive ? 'bg-gray-50' : ''}`
   }
 
+  // Helper function to check if a column has any non-empty values in the data
+  const hasDataInColumn = (columnKey: string): boolean => {
+    if (data.length === 0) return false
+    return data.some(record => {
+      const value = getValue(record, columnKey)
+      // Check for meaningful values - 0 is a valid value for factors
+      if (value === null || value === undefined) return false
+      if (typeof value === 'string' && value.trim() === '') return false
+      if (typeof value === 'number' && isNaN(value)) return false
+      return true
+    })
+  }
+
   // Build dynamic factor columns from metadata
   const factorColumns: ColumnSpec[] = []
   factorMeta.forEach(f => {
@@ -112,6 +131,32 @@ export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
       }
     })
   })
+
+  // Filter out columns that have no data
+  const filteredFactorColumns = factorColumns.filter(col => hasDataInColumn(col.key))
+
+  // Separate factor columns from score columns for better organization
+  const factorValueColumns = filteredFactorColumns.filter(col => col.type !== 'score')
+  const scoreColumns = filteredFactorColumns.filter(col => col.type === 'score')
+
+  const handleRunClick = () => {
+    setShowFactorDialog(true)
+  }
+
+  const handleFactorConfirm = async (selectedFactors: string[]) => {
+    try {
+      setIsRunning(true)
+      const response = await api.startAnalysis(100, selectedFactors)
+      if (onRunAnalysis) {
+        onRunAnalysis(response.task_id)
+      }
+    } catch (error) {
+      console.error('Failed to start analysis:', error)
+      alert('启动分析失败，请重试')
+    } finally {
+      setIsRunning(false)
+    }
+  }
 
   const renderCell = (record: FactorRecord, col: ColumnSpec) => {
     const value = getValue(record, col.key)
@@ -130,6 +175,19 @@ export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
   }
 
   return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">分析结果</h2>
+        <Button 
+          onClick={handleRunClick}
+          disabled={isRunning}
+          className="flex items-center gap-2"
+        >
+          <Play className="w-4 h-4" />
+          {isRunning ? '运行中...' : '运行'}
+        </Button>
+      </div>
+      
       <div className="overflow-auto border rounded max-h-[70vh]">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-10">
@@ -144,24 +202,29 @@ export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
               <th className={getColumnClassName('区间涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('区间涨跌幅')}>
                 区间涨跌幅{renderSortIcon('区间涨跌幅')}
               </th>
-              {factorColumns.map((col) => (
+              {/* Dynamic factor value columns */}
+              {factorValueColumns.map((col) => (
                 <th
                   key={col.key}
                   className={getColumnClassName(col.key, `text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted`)}
-                  onClick={() => handleSort(col.key)}
+                  onClick={() => col.sortable !== false ? handleSort(col.key) : undefined}
                 >
-                  {col.label}{renderSortIcon(col.key)}
+                  {col.label}{col.sortable !== false ? renderSortIcon(col.key) : null}
                 </th>
               ))}
               <th className={getColumnClassName('换手板', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('换手板')}>
                 换手板{renderSortIcon('换手板')}
               </th>
-              <th className={getColumnClassName('动量评分', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('动量评分')}>
-                动量评分{renderSortIcon('动量评分')}
-              </th>
-              <th className={getColumnClassName('支撑评分', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('支撑评分')}>
-                支撑评分{renderSortIcon('支撑评分')}
-              </th>
+              {/* Dynamic score columns */}
+              {scoreColumns.map((col) => (
+                <th
+                  key={col.key}
+                  className={getColumnClassName(col.key, `text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted`)}
+                  onClick={() => col.sortable !== false ? handleSort(col.key) : undefined}
+                >
+                  {col.label}{col.sortable !== false ? renderSortIcon(col.key) : null}
+                </th>
+              ))}
               <th className={getColumnClassName('综合评分', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('综合评分')}>
                 综合评分{renderSortIcon('综合评分')}
               </th>
@@ -171,10 +234,6 @@ export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
             {getSortedData().map((record, index) => {
               const currentPrice = record.当前价格 || record.收盘 || 0
               const changePct = record.涨跌幅 || 0
-              const momentum = record.动量因子 || record.动量 || 0
-              const support = record.支撑因子 || record.支撑位 || 0
-              const momentumScore = record.动量评分 || 0
-              const supportScore = record.支撑位评分 || record.支撑评分 || 0
               const compositeScore = record.综合评分 || 0
               const hsCount = record.换手板 || 0
               
@@ -191,22 +250,37 @@ export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
                   <td className={getColumnClassName('区间涨跌幅', `p-2 text-right ${changePct >= 0 ? 'text-red-500' : 'text-green-500'}`)}>
                     {changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%
                   </td>
-                  <td className={getColumnClassName('动量因子', "p-2 text-right")}>{(momentum * 100).toFixed(2)}%</td>
-                  <td className={getColumnClassName('支撑因子', "p-2 text-right")}>{(support * 100).toFixed(2)}%</td>
+                  {/* Dynamic factor value columns */}
+                  {factorValueColumns.map((col) => (
+                    <td key={col.key} className={getColumnClassName(col.key, "p-2 text-right")}>
+                      {renderCell(record, col)}
+                    </td>
+                  ))}
                   <td className={getColumnClassName('换手板', "p-2 text-right")}>{hsCount}</td>
-                  <td className={getColumnClassName('动量评分', "p-2")}><ScoreBar value={momentumScore} color="bg-emerald-500" /></td>
-                  <td className={getColumnClassName('支撑评分', "p-2")}><ScoreBar value={supportScore} color="bg-blue-500" /></td>
+                  {/* Dynamic score columns */}
+                  {scoreColumns.map((col) => (
+                    <td key={col.key} className={getColumnClassName(col.key, "p-2")}>
+                      {renderCell(record, col)}
+                    </td>
+                  ))}
                   <td className={getColumnClassName('综合评分', "p-2")}><ScoreBar value={compositeScore} color="bg-purple-500" /></td>
                 </tr>
               )
             })}
             {data.length === 0 && (
               <tr>
-                <td className="p-4 text-center text-muted-foreground" colSpan={10}>暂无数据，请点击"运行"</td>
+                <td className="p-4 text-center text-muted-foreground" colSpan={6 + filteredFactorColumns.length}>暂无数据，请点击"运行"</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      
+      <FactorSelectionDialog
+        open={showFactorDialog}
+        onOpenChange={setShowFactorDialog}
+        onConfirm={handleFactorConfirm}
+      />
+    </div>
   )
 }

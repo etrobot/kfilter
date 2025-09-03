@@ -23,9 +23,14 @@ class Task(BaseModel):
     created_at: str
     completed_at: Optional[str] = None
     top_n: int
+    selected_factors: Optional[List[str]] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
+
+class RunRequest(BaseModel):
+    top_n: int = 100
+    selected_factors: Optional[List[str]] = None
 
 class RunResponse(BaseModel):
     task_id: str
@@ -41,6 +46,7 @@ class TaskResult(BaseModel):
     created_at: str
     completed_at: Optional[str]
     top_n: int
+    selected_factors: Optional[List[str]] = None
     data: Optional[List[Dict[str, Any]]] = None
     count: Optional[int] = None
     error: Optional[str] = None
