@@ -4,7 +4,7 @@ import { DashboardHeader } from './components/DashboardHeader'
 import { TaskProgressCard } from './components/TaskProgressCard'
 import { ResultsTable } from './components/ResultsTable'
 import { api, createTaskStatusPoller } from './services/api'
-import { FactorRecord, TaskResult, TaskMeta } from './types'
+import { FactorRecord, TaskResult, TaskMeta, FactorMeta } from './types'
 import './index.css'
 
 function App() {
@@ -13,6 +13,7 @@ function App() {
   const [currentTask, setCurrentTask] = useState<TaskResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [meta, setMeta] = useState<TaskMeta | null>(null)
+  const [factorMeta, setFactorMeta] = useState<FactorMeta[]>([])
 
   const runCalculation = async () => {
     setError(null)
@@ -53,6 +54,16 @@ function App() {
     let cancelled = false
 
     const init = async () => {
+      // 0) Load factor metadata first
+      try {
+        const res = await api.getFactors()
+        if (!cancelled && res && Array.isArray(res.items)) {
+          setFactorMeta(res.items)
+        }
+      } catch {
+        // ignore
+      }
+
       // 1) Load last results for display
       try {
         const result: any = await api.getLatestResults()
@@ -135,7 +146,7 @@ function App() {
         <div className="text-red-500">错误: {error}</div>
       )}
 
-      <ResultsTable data={results} />
+      <ResultsTable data={results} factorMeta={factorMeta} />
     </div>
   )
 }

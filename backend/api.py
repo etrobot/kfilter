@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from models import RunResponse, TaskResult, TaskStatus, Message
 from utils import get_task, get_all_tasks, get_last_completed_task
 from services import create_analysis_task
+from factors import list_factors
 
 
 def read_root():

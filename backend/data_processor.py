@@ -173,18 +173,24 @@ def calculate_support_factor(history: Dict[str, pd.DataFrame], period: int = 5) 
 
 
 def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], task_id: Optional[str] = None) -> pd.DataFrame:
-    """Compute comprehensive factors for stock analysis"""
-    logger.info("Computing momentum and support factors...")
-    
+    """Compute comprehensive factors for stock analysis via pluggable factor modules"""
+    from factors import compute_all_factors
+
+    logger.info("Computing factors using modular plugins...")
+
     if task_id:
-        update_task_progress(task_id, 0.7, "计算动量因子和支撑因子")
-    
+        update_task_progress(task_id, 0.7, "计算各类因子")
+
     # Filter history to only include top stocks
     filtered_history = {code: df for code, df in history.items() if code in top_spot["代码"].values}
-    
-    # Calculate individual factors
-    momentum_df = calculate_momentum_factor(filtered_history, period=20)
-    support_df = calculate_support_factor(filtered_history, period=5)
+
+    # Compute all registered factor dataframes
+    factors_df = compute_all_factors(filtered_history, top_spot)
+
+    if factors_df is None or factors_df.empty:
+        logger.warning("No factor data calculated")
+        # Still return basic info if available
+        factors_df = pd.DataFrame({"代码": list(filtered_history.keys())})
 
     # Calculate count of '换手板' occurrences within the analysis window
     hs_counts = []
@@ -197,18 +203,13 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
                 count = 0
         hs_counts.append({"代码": code, "换手板": count})
     hs_counts_df = pd.DataFrame(hs_counts)
-    
-    if momentum_df.empty and support_df.empty:
-        logger.warning("No factor data calculated")
-        return pd.DataFrame()
-    
-    # Merge factors
-    result = momentum_df.merge(support_df, on="代码", how="outer")
-    
+
+    result = factors_df
+
     # Merge '换手板' counts
     if not hs_counts_df.empty:
         result = result.merge(hs_counts_df, on="代码", how="left")
-    
+
     # Add current price, stock name and other basic info
     current_data = []
     for code in result["代码"].tolist():
@@ -223,25 +224,30 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
                 "当前价格": float(df_sorted["收盘"].iloc[-1]),
                 "涨跌幅": float(df_sorted["涨跌幅"].iloc[-1]) if "涨跌幅" in df_sorted.columns else 0
             })
-    
+
     current_df = pd.DataFrame(current_data)
     if not current_df.empty:
         result = result.merge(current_df, on="代码", how="left")
-    
-    # Calculate factor scores (percentile ranking)
-    if "动量因子" in result.columns:
-        result["动量评分"] = result["动量因子"].rank(ascending=True, pct=True)
-    
-    if "支撑因子" in result.columns:
-        result["支撑评分"] = result["支撑因子"].rank(ascending=True, pct=True)
-    
-    # Calculate composite score
-    if "动量评分" in result.columns and "支撑评分" in result.columns:
-        result["综合评分"] = (result["动量评分"] * 0.6 + result["支撑评分"] * 0.4)
+
+    # Generic score computation: for any column ending with '因子', compute a percentile rank score with suffix '评分'
+    score_columns = []
+    for col in list(result.columns):
+        if isinstance(col, str) and col.endswith("因子"):
+            score_col = col.replace("因子", "评分")
+            try:
+                result[score_col] = result[col].rank(ascending=True, pct=True)
+                score_columns.append(score_col)
+            except Exception:
+                # ignore non-numeric
+                pass
+
+    # Composite score: average of all available score columns if any
+    if score_columns:
+        result["综合评分"] = result[score_columns].mean(axis=1)
         result = result.sort_values("综合评分", ascending=False)
-    
+
     if task_id:
         update_task_progress(task_id, 0.9, "计算因子评分")
-    
+
     logger.info(f"Calculated factors for {len(result)} stocks with 换手板 counts")
     return result

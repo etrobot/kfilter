@@ -1,4 +1,4 @@
-import { TaskResult, RunResponse } from '../types'
+import { TaskResult, RunResponse, FactorListResponse } from '../types'
 
 const API_BASE_URL = 'http://localhost:8000'
 
@@ -43,6 +43,10 @@ export const api = {
 
   async getAllTasks(): Promise<TaskResult[]> {
     return apiCall<TaskResult[]>('/tasks')
+  },
+
+  async getFactors(): Promise<FactorListResponse> {
+    return apiCall<FactorListResponse>('/factors')
   },
 }
 

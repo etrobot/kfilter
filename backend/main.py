@@ -3,10 +3,12 @@ import logging
 import warnings
 from typing import List
 from fastapi import FastAPI
+from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import RunResponse, TaskResult, Message, create_db_and_tables
 from api import read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks
+from factors import list_factors
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -53,3 +55,19 @@ def get_results():
 @app.get("/tasks", response_model=List[TaskResult])
 def list_tasks() -> List[TaskResult]:
     return list_all_tasks()
+
+
+@app.get("/factors")
+def get_factors() -> Dict[str, object]:
+    """Return factor metadata for frontend dynamic rendering"""
+    factors = list_factors()
+    # Normalize to simple JSON metadata
+    items = []
+    for f in factors:
+        items.append({
+            "id": f.id,
+            "name": f.name,
+            "description": f.description,
+            "columns": f.columns,
+        })
+    return {"items": items}

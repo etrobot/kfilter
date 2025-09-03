@@ -13,7 +13,25 @@ export type FactorRecord = {
   综合评分?: number
   涨跌幅?: number
   换手板?: number
+  [key: string]: any
 }
+
+export type ColumnSpec = {
+  key: string
+  label: string
+  type: 'number' | 'integer' | 'percent' | 'string' | 'score'
+  description?: string
+  sortable?: boolean
+}
+
+export type FactorMeta = {
+  id: string
+  name: string
+  description?: string
+  columns: ColumnSpec[]
+}
+
+export type FactorListResponse = { items: FactorMeta[] }
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 

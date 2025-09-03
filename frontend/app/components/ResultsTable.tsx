@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { ScoreBar } from './ScoreBar'
-import { FactorRecord } from '../types'
+import { FactorRecord, FactorMeta, ColumnSpec } from '../types'
 
-type SortField = '名称' | '当前价格' | '区间涨跌幅' | '动量因子' | '支撑因子' | '换手板' | '动量评分' | '支撑评分' | '综合评分'
+type SortField = string | null
 type SortDirection = 'asc' | 'desc'
 
 interface ResultsTableProps {
   data: FactorRecord[]
+  factorMeta?: FactorMeta[]
 }
 
-export function ResultsTable({ data }: ResultsTableProps) {
+export function ResultsTable({ data, factorMeta = [] }: ResultsTableProps) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   
@@ -56,53 +57,25 @@ export function ResultsTable({ data }: ResultsTableProps) {
     }
   }
 
+  const getValue = (record: FactorRecord, key: string): any => {
+    switch (key) {
+      case '名称':
+        return record.名称 || record.代码
+      case '当前价格':
+        return record.当前价格 || record.收盘 || 0
+      case '区间涨跌幅':
+        return record.涨跌幅 || 0
+      default:
+        return (record as any)[key]
+    }
+  }
+
   const getSortedData = () => {
     if (!sortField) return data
 
     return [...data].sort((a, b) => {
-      let aValue: any
-      let bValue: any
-
-      switch (sortField) {
-        case '名称':
-          aValue = a.名称 || a.代码
-          bValue = b.名称 || b.代码
-          break
-        case '当前价格':
-          aValue = a.当前价格 || a.收盘 || 0
-          bValue = b.当前价格 || b.收盘 || 0
-          break
-        case '区间涨跌幅':
-          aValue = a.涨跌幅 || 0
-          bValue = b.涨跌幅 || 0
-          break
-        case '动量因子':
-          aValue = a.动量因子 || a.动量 || 0
-          bValue = b.动量因子 || b.动量 || 0
-          break
-        case '支撑因子':
-          aValue = a.支撑因子 || a.支撑位 || 0
-          bValue = b.支撑因子 || b.支撑位 || 0
-          break
-        case '换手板':
-          aValue = a.换手板 || 0
-          bValue = b.换手板 || 0
-          break
-        case '动量评分':
-          aValue = a.动量评分 || 0
-          bValue = b.动量评分 || 0
-          break
-        case '支撑评分':
-          aValue = a.支撑位评分 || a.支撑评分 || 0
-          bValue = b.支撑位评分 || b.支撑评分 || 0
-          break
-        case '综合评分':
-          aValue = a.综合评分 || 0
-          bValue = b.综合评分 || 0
-          break
-        default:
-          return 0
-      }
+      const aValue: any = getValue(a, sortField)
+      const bValue: any = getValue(b, sortField)
 
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortDirection === 'asc' 
@@ -110,7 +83,7 @@ export function ResultsTable({ data }: ResultsTableProps) {
           : bValue.localeCompare(aValue, 'zh-CN')
       }
 
-      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+      return sortDirection === 'asc' ? (Number(aValue) - Number(bValue)) : (Number(bValue) - Number(aValue))
     })
   }
 
@@ -130,6 +103,32 @@ export function ResultsTable({ data }: ResultsTableProps) {
     return `${baseClassName} ${isActive ? 'bg-gray-50' : ''}`
   }
 
+  // Build dynamic factor columns from metadata
+  const factorColumns: ColumnSpec[] = []
+  factorMeta.forEach(f => {
+    (f.columns || []).forEach(c => {
+      if (!factorColumns.find(x => x.key === c.key)) {
+        factorColumns.push(c)
+      }
+    })
+  })
+
+  const renderCell = (record: FactorRecord, col: ColumnSpec) => {
+    const value = getValue(record, col.key)
+    switch (col.type) {
+      case 'percent':
+        return `${(Number(value || 0) * 100).toFixed(2)}%`
+      case 'score':
+        return <ScoreBar value={Number(value || 0)} />
+      case 'integer':
+        return Number(value || 0)
+      case 'number':
+        return Number(value || 0).toFixed(2)
+      default:
+        return String(value ?? '')
+    }
+  }
+
   return (
       <div className="overflow-auto border rounded max-h-[70vh]">
         <table className="min-w-full text-sm">
@@ -145,12 +144,15 @@ export function ResultsTable({ data }: ResultsTableProps) {
               <th className={getColumnClassName('区间涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('区间涨跌幅')}>
                 区间涨跌幅{renderSortIcon('区间涨跌幅')}
               </th>
-              <th className={getColumnClassName('动量因子', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('动量因子')}>
-                动量因子{renderSortIcon('动量因子')}
-              </th>
-              <th className={getColumnClassName('支撑因子', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('支撑因子')}>
-                支撑因子{renderSortIcon('支撑因子')}
-              </th>
+              {factorColumns.map((col) => (
+                <th
+                  key={col.key}
+                  className={getColumnClassName(col.key, `text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted`)}
+                  onClick={() => handleSort(col.key)}
+                >
+                  {col.label}{renderSortIcon(col.key)}
+                </th>
+              ))}
               <th className={getColumnClassName('换手板', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('换手板')}>
                 换手板{renderSortIcon('换手板')}
               </th>

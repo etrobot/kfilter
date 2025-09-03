@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import date as dt_date, datetime as dt_datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, create_engine, Session
+import pandas as pd
 
 
 class TaskStatus(str, Enum):
@@ -135,6 +136,17 @@ def create_db_and_tables():
         # 迁移失败不应阻断服务启动，打印警告即可
         import logging
         logging.getLogger(__name__).warning(f"Schema migration check failed: {e}")
+
+
+# ---- Factor plugin types ----
+
+class Factor(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    columns: List[Dict[str, Any]] = []  # ColumnSpec dicts
+    # compute(history, top_spot) -> pd.DataFrame with '代码' and defined columns
+    compute: Callable[[Dict[str, pd.DataFrame], Optional[pd.DataFrame]], pd.DataFrame]
 
 
 def get_session():
