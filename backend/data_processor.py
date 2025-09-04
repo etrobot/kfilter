@@ -60,7 +60,7 @@ def fetch_spot() -> pd.DataFrame:
     return df
 
 
-def fetch_history(codes: List[str], days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
+def fetch_history(codes: List[str], days: int = 120, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
     """Fetch historical data for multiple stocks"""
     if not HAS_AKSHARE:
         raise RuntimeError("akshare is not available. Please install akshare to use this feature.")

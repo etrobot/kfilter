@@ -35,6 +35,21 @@ export type FactorListResponse = { items: FactorMeta[] }
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 
+export type ExtendedRankingItem = {
+  code: string
+  name?: string
+  limit_up_count: number
+  concept_code?: string
+  concept_name?: string
+  concept_codes?: string[]
+  concept_names?: string[]
+}
+
+export type ExtendedAnalysis = {
+  top_sector_codes?: string[]
+  limit_up_ranking?: ExtendedRankingItem[]
+}
+
 export type TaskResult = {
   task_id: string
   status: TaskStatus
@@ -46,6 +61,7 @@ export type TaskResult = {
   selected_factors?: string[]
   data?: FactorRecord[]
   count?: number
+  extended?: ExtendedAnalysis
   error?: string
 }
 

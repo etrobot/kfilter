@@ -12,7 +12,8 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
     rows: List[dict] = []
     
     for code, df in history.items():
-        if df is None or df.empty or len(df) < 60:  # Need at least 60 days for MA60
+        # Require at least 5 days so we can compute MA5; higher MAs will be ignored if insufficient
+        if df is None or df.empty or len(df) < 5:
             continue
             
         df_sorted = df.sort_values("日期")

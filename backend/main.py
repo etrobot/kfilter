@@ -10,7 +10,7 @@ from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResu
 from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
-    list_all_concept_tasks, get_concepts_list
+    list_all_concept_tasks, get_concepts_list, stop_analysis
 )
 from factors import list_factors
 
@@ -49,6 +49,11 @@ def run(request: RunRequest) -> RunResponse:
 @app.get("/task/{task_id}", response_model=TaskResult)
 def get_task(task_id: str) -> TaskResult:
     return get_task_status(task_id)
+
+
+@app.post("/task/{task_id}/stop", response_model=TaskResult)
+def stop_task(task_id: str) -> TaskResult:
+    return stop_analysis(task_id)
 
 
 @app.get("/results", response_model=TaskResult | Message)

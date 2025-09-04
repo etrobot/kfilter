@@ -40,6 +40,11 @@ export const api = {
     return apiCall<TaskResult>(`/task/${taskId}`)
   },
 
+  async stopTask(taskId: string): Promise<TaskResult> {
+    return apiCall<TaskResult>(`/task/${taskId}/stop`, { method: 'POST' })
+  },
+
+
   async getLatestResults(): Promise<TaskResult> {
     return apiCall<TaskResult>('/results')
   },

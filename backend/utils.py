@@ -1,8 +1,13 @@
 from __future__ import annotations
 import logging
+import threading
 from datetime import datetime
 from typing import Dict, Optional
 from models import Task, TaskStatus, ConceptTask
+
+# Types
+from typing import Optional as _Optional
+import threading as _threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,6 +16,10 @@ logger = logging.getLogger(__name__)
 # Global task storage
 TASKS: Dict[str, Task] = {}
 LAST_COMPLETED_TASK: Optional[Task] = None
+
+# Thread and cancellation management for analysis tasks
+TASK_THREADS: Dict[str, _threading.Thread] = {}
+TASK_STOP_EVENTS: Dict[str, _threading.Event] = {}
 
 # Global concept task storage
 CONCEPT_TASKS: Dict[str, ConceptTask] = {}

@@ -7,6 +7,8 @@ from utils import (
     get_concept_task, get_all_concept_tasks, get_last_completed_concept_task
 )
 from services import create_analysis_task
+from utils import TASK_STOP_EVENTS, get_task
+
 from concept_service import create_concept_collection_task, get_concepts_from_db
 from factors import list_factors
 
@@ -23,6 +25,38 @@ def run_analysis(request: RunRequest) -> RunResponse:
         task_id=task_id,
         status=TaskStatus.PENDING,
         message="分析任务已启动"
+    )
+
+
+def stop_analysis(task_id: str) -> TaskResult:
+    """Signal a running task to stop and return its status"""
+    task = get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    stop_event = TASK_STOP_EVENTS.get(task_id)
+    if not stop_event:
+        raise HTTPException(status_code=400, detail="Task is not cancellable or already finished")
+
+    # Signal cancellation
+    stop_event.set()
+
+    # Reflect status change immediately; the worker will mark completed/cancelled later.
+    task.status = TaskStatus.RUNNING  # keep running until worker finalizes
+    task.message = "已请求停止，正在清理..."
+    return TaskResult(
+        task_id=task.task_id,
+        status=task.status,
+        progress=task.progress,
+        message=task.message,
+        created_at=task.created_at,
+        completed_at=task.completed_at,
+        top_n=task.top_n,
+        selected_factors=task.selected_factors,
+        data=task.result["data"] if task.result else None,
+        count=task.result["count"] if task.result else None,
+        extended=task.result.get("extended") if task.result else None,
+        error=task.error
     )
 
 
@@ -43,6 +77,7 @@ def get_task_status(task_id: str) -> TaskResult:
         selected_factors=task.selected_factors,
         data=task.result["data"] if task.result else None,
         count=task.result["count"] if task.result else None,
+        extended=task.result.get("extended") if task.result else None,
         error=task.error
     )
 
@@ -64,6 +99,7 @@ def get_latest_results() -> TaskResult | Message:
         selected_factors=last_task.selected_factors,
         data=last_task.result["data"] if last_task.result else None,
         count=last_task.result["count"] if last_task.result else None,
+        extended=last_task.result.get("extended") if last_task.result else None,
         error=last_task.error
     )
 
@@ -83,6 +119,7 @@ def list_all_tasks() -> List[TaskResult]:
             selected_factors=task.selected_factors,
             data=task.result["data"] if task.result else None,
             count=task.result["count"] if task.result else None,
+            extended=task.result.get("extended") if task.result else None,
             error=task.error
         ) for task in all_tasks.values()
     ]

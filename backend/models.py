@@ -13,6 +13,7 @@ class TaskStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class Task(BaseModel):
@@ -49,6 +50,7 @@ class TaskResult(BaseModel):
     selected_factors: Optional[List[str]] = None
     data: Optional[List[Dict[str, Any]]] = None
     count: Optional[int] = None
+    extended: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 

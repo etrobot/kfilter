@@ -19,6 +19,19 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [meta, setMeta] = useState<TaskMeta | null>(null)
   const [factorMeta, setFactorMeta] = useState<FactorMeta[]>([])
+  const [extended, setExtended] = useState<any>(null)
+
+  const handleStopAnalysis = () => {
+    if (pollerCleanupRef.current) {
+      try { 
+        pollerCleanupRef.current() 
+        pollerCleanupRef.current = null
+        setCurrentTask(null)
+      } catch (e) {
+        console.error('Error stopping analysis:', e)
+      }
+    }
+  }
 
   const handleRunAnalysis = async (taskId: string) => {
     setError(null)
@@ -39,6 +52,7 @@ function App() {
           created_at: task.created_at, 
           count: task.count 
         })
+        setExtended((task as any).extended || null)
         setCurrentTask(null)
       },
       (errorMsg) => {
@@ -73,6 +87,7 @@ function App() {
             created_at: result.created_at,
             count: result.count,
           })
+          setExtended((result as any).extended || null)
         }
       } catch {
         // Ignore errors when loading last results
@@ -105,6 +120,7 @@ function App() {
                   created_at: task.created_at,
                   count: task.count,
                 })
+                setExtended((task as any).extended || null)
                 setCurrentTask(null)
               },
               (errorMsg) => {
@@ -179,7 +195,11 @@ function App() {
             <ResultsTable 
               data={results} 
               factorMeta={factorMeta} 
+              extended={extended}
               onRunAnalysis={handleRunAnalysis}
+              onStopAnalysis={handleStopAnalysis}
+              currentTaskId={currentTask?.task_id}
+              isTaskRunning={currentTask?.status === 'running' || currentTask?.status === 'pending'}
             />
           </div>
         ) : (
