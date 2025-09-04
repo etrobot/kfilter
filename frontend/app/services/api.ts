@@ -1,4 +1,4 @@
-import { TaskResult, RunResponse, FactorListResponse } from '../types'
+import { TaskResult, RunResponse, FactorListResponse, ConceptTaskResult, ConceptListResponse } from '../types'
 
 const API_BASE_URL = 'http://localhost:8000'
 
@@ -51,6 +51,29 @@ export const api = {
   async getFactors(): Promise<FactorListResponse> {
     return apiCall<FactorListResponse>('/factors')
   },
+
+  // Concept APIs
+  async collectConcepts(): Promise<RunResponse> {
+    return apiCall<RunResponse>('/concepts/collect', {
+      method: 'POST',
+    })
+  },
+
+  async getConceptTaskStatus(taskId: string): Promise<ConceptTaskResult> {
+    return apiCall<ConceptTaskResult>(`/concepts/task/${taskId}`)
+  },
+
+  async getLatestConceptResults(): Promise<ConceptTaskResult> {
+    return apiCall<ConceptTaskResult>('/concepts/results')
+  },
+
+  async getAllConceptTasks(): Promise<ConceptTaskResult[]> {
+    return apiCall<ConceptTaskResult[]>('/concepts/tasks')
+  },
+
+  async getConcepts(): Promise<ConceptListResponse> {
+    return apiCall<ConceptListResponse>('/concepts')
+  },
 }
 
 export function createTaskStatusPoller(
@@ -70,6 +93,33 @@ export function createTaskStatusPoller(
       } else if (taskResult.status === 'failed') {
         clearInterval(pollInterval)
         onError(taskResult.error || '任务执行失败')
+      }
+    } catch (err) {
+      clearInterval(pollInterval)
+      onError(err instanceof Error ? err.message : 'An error occurred')
+    }
+  }, 1000)
+
+  return () => clearInterval(pollInterval)
+}
+
+export function createConceptTaskStatusPoller(
+  taskId: string,
+  onUpdate: (task: ConceptTaskResult) => void,
+  onComplete: (task: ConceptTaskResult) => void,
+  onError: (error: string) => void
+): () => void {
+  const pollInterval = setInterval(async () => {
+    try {
+      const taskResult = await api.getConceptTaskStatus(taskId)
+      onUpdate(taskResult)
+
+      if (taskResult.status === 'completed') {
+        clearInterval(pollInterval)
+        onComplete(taskResult)
+      } else if (taskResult.status === 'failed') {
+        clearInterval(pollInterval)
+        onError(taskResult.error || '概念数据采集失败')
       }
     } catch (err) {
       clearInterval(pollInterval)

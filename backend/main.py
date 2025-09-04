@@ -6,8 +6,12 @@ from fastapi import FastAPI
 from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import RunRequest, RunResponse, TaskResult, Message, create_db_and_tables
-from api import read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks
+from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, create_db_and_tables
+from api import (
+    read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
+    collect_concepts, get_concept_task_status, get_latest_concept_results, 
+    list_all_concept_tasks, get_concepts_list
+)
 from factors import list_factors
 
 # Configure logging
@@ -71,3 +75,35 @@ def get_factors() -> Dict[str, object]:
             "columns": f.columns,
         })
     return {"items": items}
+
+
+# Concept routes
+
+@app.post("/concepts/collect", response_model=RunResponse)
+def collect_concept_data() -> RunResponse:
+    """Start concept data collection"""
+    return collect_concepts()
+
+
+@app.get("/concepts/task/{task_id}", response_model=ConceptTaskResult)
+def get_concept_task(task_id: str) -> ConceptTaskResult:
+    """Get concept task status"""
+    return get_concept_task_status(task_id)
+
+
+@app.get("/concepts/results", response_model=ConceptTaskResult | Message)
+def get_concept_results():
+    """Get latest concept collection results"""
+    return get_latest_concept_results()
+
+
+@app.get("/concepts/tasks", response_model=List[ConceptTaskResult])
+def list_concept_tasks() -> List[ConceptTaskResult]:
+    """List all concept tasks"""
+    return list_all_concept_tasks()
+
+
+@app.get("/concepts")
+def get_concepts():
+    """Get list of all concepts"""
+    return get_concepts_list()

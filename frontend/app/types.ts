@@ -60,3 +60,29 @@ export type TaskMeta = {
   created_at?: string
   count?: number
 }
+
+export type ConceptRecord = {
+  code: string
+  name: string
+  market_cap?: number
+  stock_count: number
+  created_at?: string
+  updated_at?: string
+}
+
+export type ConceptTaskResult = {
+  task_id: string
+  status: TaskStatus
+  progress: number
+  message: string
+  created_at: string
+  completed_at?: string
+  concepts_count?: number
+  stocks_count?: number
+  error?: string
+}
+
+export type ConceptListResponse = {
+  concepts: ConceptRecord[]
+  total: number
+}

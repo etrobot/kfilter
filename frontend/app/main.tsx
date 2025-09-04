@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom/client'
+import { BarChart3, Lightbulb } from 'lucide-react'
 import { DashboardHeader } from './components/DashboardHeader'
 import { TaskProgressCard } from './components/TaskProgressCard'
 import { ResultsTable } from './components/ResultsTable'
+import { ConceptsPage } from './components/ConceptsPage'
 import { api, createTaskStatusPoller } from './services/api'
 import { FactorRecord, TaskResult, TaskMeta, FactorMeta } from './types'
 import './index.css'
 
+type Page = 'dashboard' | 'concepts'
+
 function App() {
   const pollerCleanupRef = useRef<(() => void) | null>(null)
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [results, setResults] = useState<FactorRecord[]>([])
   const [currentTask, setCurrentTask] = useState<TaskResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -127,23 +132,60 @@ function App() {
   }, [])
 
   return (
-    <div className="p-8 space-y-6">
-      <DashboardHeader 
-        meta={meta} 
-        currentTask={currentTask} 
-      />
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Left Sidebar */}
+      <nav className="bg-white shadow-md w-20 flex flex-col">
+        <div className="flex flex-col space-y-4 p-4">
+          <button
+            onClick={() => setCurrentPage('dashboard')}
+            className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+              currentPage === 'dashboard'
+                ? 'bg-indigo-100 text-indigo-600'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <BarChart3 size={24} />
+            <span className="text-xs mt-1">分析</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage('concepts')}
+            className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+              currentPage === 'concepts'
+                ? 'bg-indigo-100 text-indigo-600'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Lightbulb size={24} />
+            <span className="text-xs mt-1">概念</span>
+          </button>
+        </div>
+      </nav>
 
-      {currentTask && <TaskProgressCard task={currentTask} />}
+      {/* Main Content */}
+      <div className="flex-1">
+        {currentPage === 'dashboard' ? (
+          <div className="p-8 space-y-6">
+            <DashboardHeader 
+              meta={meta} 
+              currentTask={currentTask} 
+            />
 
-      {error && (
-        <div className="text-red-500">错误: {error}</div>
-      )}
+            {currentTask && <TaskProgressCard task={currentTask} />}
 
-      <ResultsTable 
-        data={results} 
-        factorMeta={factorMeta} 
-        onRunAnalysis={handleRunAnalysis}
-      />
+            {error && (
+              <div className="text-red-500">错误: {error}</div>
+            )}
+
+            <ResultsTable 
+              data={results} 
+              factorMeta={factorMeta} 
+              onRunAnalysis={handleRunAnalysis}
+            />
+          </div>
+        ) : (
+          <ConceptsPage />
+        )}
+      </div>
     </div>
   )
 }

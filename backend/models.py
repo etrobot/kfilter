@@ -120,6 +120,51 @@ class MonthlyMarketData(SQLModel, table=True):
     change_pct: float = Field(description="涨跌百分比")
 
 
+class ConceptInfo(SQLModel, table=True):
+    """概念信息表"""
+    __tablename__ = "concept_info"
+    
+    code: str = Field(primary_key=True, description="板块代码")
+    name: str = Field(description="板块名称")
+    market_cap: Optional[float] = Field(default=None, description="总市值")
+    stock_count: int = Field(default=0, description="成分股数量")
+    created_at: dt_datetime = Field(default_factory=dt_datetime.now, description="创建时间")
+    updated_at: dt_datetime = Field(default_factory=dt_datetime.now, description="更新时间")
+
+
+class ConceptStock(SQLModel, table=True):
+    """概念成分股表"""
+    __tablename__ = "concept_stock"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    concept_code: str = Field(foreign_key="concept_info.code", description="板块代码")
+    stock_code: str = Field(foreign_key="stock_basic_info.code", description="股票代码")
+    created_at: dt_datetime = Field(default_factory=dt_datetime.now, description="创建时间")
+
+
+class ConceptTask(BaseModel):
+    task_id: str
+    status: TaskStatus
+    progress: float  # 0.0 to 1.0
+    message: str
+    created_at: str
+    completed_at: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class ConceptTaskResult(BaseModel):
+    task_id: str
+    status: TaskStatus
+    progress: float
+    message: str
+    created_at: str
+    completed_at: Optional[str]
+    concepts_count: Optional[int] = None
+    stocks_count: Optional[int] = None
+    error: Optional[str] = None
+
+
 # 数据库连接配置
 DATABASE_URL = "sqlite:///./stock_data.db"
 engine = create_engine(DATABASE_URL, echo=True)
