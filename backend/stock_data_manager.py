@@ -52,7 +52,8 @@ def save_spot_as_daily_data(spot_data: pd.DataFrame, date_override: Optional[dat
                 continue
 
             change_pct = float(row.get("涨跌幅", 0)) if pd.notna(row.get("涨跌幅", None)) else 0
-            limit_status = 1 if change_pct >= 9.9 else (-1 if change_pct <= -9.9 else 0)
+            # 直接使用同花顺涨停池数据判断涨停状态
+            limit_status = 1 if code in limit_map else 0
             limit_text = limit_map.get(code) if limit_status == 1 else None
 
             daily = DailyMarketData(
@@ -133,18 +134,11 @@ def save_daily_data(history_data: Dict[str, pd.DataFrame], task_id: str = None):
                 ).first()
 
                 if existing is None:
-                    # 计算涨跌停状态
+                    # 计算涨跌停状态 - 直接使用同花顺涨停池数据
                     limit_status = 0
                     if code in limit_map:
-                        # 同花顺涨停池权威优先
+                        # 同花顺涨停池中的股票确认为涨停
                         limit_status = 1
-                    else:
-                        if "涨跌幅" in row and pd.notna(row["涨跌幅"]):
-                            change_pct = float(row["涨跌幅"])
-                            if change_pct >= 9.9:  # 涨停
-                                limit_status = 1
-                            elif change_pct <= -9.9:  # 跌停
-                                limit_status = -1
 
                     # 仅当保存当天数据时，尝试补充涨停文本（并且记录日期是今天）
                     limit_text = None
