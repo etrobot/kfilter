@@ -32,6 +32,7 @@ class Task(BaseModel):
 class RunRequest(BaseModel):
     top_n: int = 100
     selected_factors: Optional[List[str]] = None
+    collect_latest_data: bool = True
 
 class RunResponse(BaseModel):
     task_id: str
@@ -84,7 +85,7 @@ class DailyMarketData(SQLModel, table=True):
     low_price: float = Field(description="最低价")
     close_price: float = Field(description="收盘价")
     volume: float = Field(description="成交量")
-    amount: float = Field(description="成交额")
+    amount: Optional[float] = Field(description="成交额")
     change_pct: float = Field(description="涨跌百分比")
     limit_status: int = Field(default=0, description="涨跌停状态: -1跌停, 0正常, 1涨停")
     limit_up_text: Optional[str] = Field(default=None, description="涨停类型文本，换手板/T字板/一字板")
@@ -102,7 +103,7 @@ class WeeklyMarketData(SQLModel, table=True):
     low_price: float = Field(description="最低价")
     close_price: float = Field(description="收盘价")
     volume: float = Field(description="成交量")
-    amount: float = Field(description="成交额")
+    amount: Optional[float] = Field(description="成交额")
     change_pct: float = Field(description="涨跌百分比")
 
 
@@ -118,7 +119,7 @@ class MonthlyMarketData(SQLModel, table=True):
     low_price: float = Field(description="最低价")
     close_price: float = Field(description="收盘价")
     volume: float = Field(description="成交量")
-    amount: float = Field(description="成交额")
+    amount: Optional[float] = Field(description="成交额")
     change_pct: float = Field(description="涨跌百分比")
 
 

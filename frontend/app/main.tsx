@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BarChart3, Lightbulb } from 'lucide-react'
-import { DashboardHeader } from './components/DashboardHeader'
+import { BarChart3, Lightbulb, TrendingUp } from 'lucide-react'
+import { PageHeader } from './components/PageHeader'
 import { TaskProgressCard } from './components/TaskProgressCard'
 import { ResultsTable } from './components/ResultsTable'
 import { ConceptsPage } from './components/ConceptsPage'
+import { DashboardPage } from './components/DashboardPage'
 import { api, createTaskStatusPoller } from './services/api'
+import { publish, EVENTS } from './services/eventBus'
 import { FactorRecord, TaskResult, TaskMeta, FactorMeta } from './types'
 import './index.css'
 
-type Page = 'dashboard' | 'concepts'
+type Page = 'ranking' | 'concepts' | 'dashboard'
 
 function App() {
   const pollerCleanupRef = useRef<(() => void) | null>(null)
@@ -54,6 +56,8 @@ function App() {
         })
         setExtended((task as any).extended || null)
         setCurrentTask(null)
+        // Notify dashboard to refresh
+        try { publish(EVENTS.ANALYSIS_COMPLETED, { taskId: task.task_id }) } catch {}
       },
       (errorMsg) => {
         setError(errorMsg)
@@ -122,6 +126,8 @@ function App() {
                 })
                 setExtended((task as any).extended || null)
                 setCurrentTask(null)
+                // Notify dashboard to refresh
+                try { publish(EVENTS.ANALYSIS_COMPLETED, { taskId: task.task_id }) } catch {}
               },
               (errorMsg) => {
                 setError(errorMsg)
@@ -160,6 +166,17 @@ function App() {
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
+            <TrendingUp size={24} />
+            <span className="text-xs mt-1">面板</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage('ranking')}
+            className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+              currentPage === 'ranking'
+                ? 'bg-indigo-100 text-indigo-600'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
             <BarChart3 size={24} />
             <span className="text-xs mt-1">分析</span>
           </button>
@@ -179,9 +196,9 @@ function App() {
 
       {/* Main Content */}
       <div className="flex-1">
-        {currentPage === 'dashboard' ? (
+        {currentPage === 'ranking' ? (
           <div className="p-8 space-y-6">
-            <DashboardHeader 
+            <PageHeader 
               meta={meta} 
               currentTask={currentTask} 
             />
@@ -202,8 +219,12 @@ function App() {
               isTaskRunning={currentTask?.status === 'running' || currentTask?.status === 'pending'}
             />
           </div>
-        ) : (
+        ) : currentPage === 'concepts' ? (
           <ConceptsPage />
+        ) : (
+          <DashboardPage 
+            currentTask={currentTask}
+          />
         )}
       </div>
     </div>

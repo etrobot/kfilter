@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, date, timedelta
+from typing import Optional, List
 from uuid import uuid4
 
 import numpy as np
@@ -30,7 +31,7 @@ from market_data_processor import (
 logger = logging.getLogger(__name__)
 
 
-def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, stop_event: Optional[threading.Event] = None):
+def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True, stop_event: Optional[threading.Event] = None):
     """Background task for running stock analysis with database integration"""
     task = get_task(task_id)
     if not task:
@@ -53,30 +54,99 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     
     logger.info(f"Starting stock analysis for top {top_n} stocks...")
     
-    # Step 1: Fetch spot data
-    update_task_progress(task_id, 0.05, "获取实时行情数据")
-    if check_cancel():
-        return
-    spot = fetch_spot()
-    
-    # Step 2: Save/update basic stock info
-    update_task_progress(task_id, 0.1, "保存股票基本信息")
-    if check_cancel():
-        return
-    save_stock_basic_info(spot)
-    
-    # Step 3: Get top stocks by trading volume
-    update_task_progress(task_id, 0.15, "筛选热门股票")
-    if check_cancel():
-        return
-    columns_to_select = ["代码", "名称"] if "名称" in spot.columns else ["代码"]
-    if "成交额" in spot.columns:
-        top_spot = spot.nlargest(top_n, "成交额").copy()
+    if collect_latest_data:
+        # Step 1: Fetch spot data
+        update_task_progress(task_id, 0.05, "获取实时行情数据")
+        if check_cancel():
+            return
+        spot = fetch_spot()
+        
+        # Step 2: Save/update basic stock info
+        update_task_progress(task_id, 0.1, "保存股票基本信息")
+        if check_cancel():
+            return
+        save_stock_basic_info(spot)
+        
+        # Step 3: Get top stocks by trading volume
+        update_task_progress(task_id, 0.15, "筛选热门股票")
+        if check_cancel():
+            return
+        columns_to_select = ["代码", "名称"] if "名称" in spot.columns else ["代码"]
+        if "成交额" in spot.columns:
+            top_spot = spot.nlargest(top_n, "成交额").copy()
+        else:
+            top_spot = spot.head(top_n).copy()
+        
+        logger.info(f"Selected top {len(top_spot)} stocks by trading volume")
+        stock_codes = top_spot["代码"].tolist()
     else:
-        top_spot = spot.head(top_n).copy()
-    
-    logger.info(f"Selected top {len(top_spot)} stocks by trading volume")
-    stock_codes = top_spot["代码"].tolist()
+        # Skip hot spot data collection, use existing data from database
+        update_task_progress(task_id, 0.15, "使用历史数据进行分析（跳过热点数据采集）")
+        if check_cancel():
+            return
+        
+        # Get stock codes from database (most recent stocks with data)
+        from sqlmodel import Session, select, func
+        from models import engine, StockBasicInfo, DailyMarketData
+        
+        with Session(engine) as session:
+            # Get stocks with sufficient historical data (at least 35 days for factor calculation)
+            # First, find stocks with enough data records
+            stocks_with_data = session.exec(
+                select(DailyMarketData.code, func.count(DailyMarketData.id).label('record_count'))
+                .group_by(DailyMarketData.code)
+                .having(func.count(DailyMarketData.id) >= 35)  # Minimum for factor calculation
+                .order_by(func.count(DailyMarketData.id).desc())
+                .limit(top_n * 2)  # Get more candidates
+            ).all()
+            
+            if stocks_with_data:
+                # Get the most recent date for these stocks
+                candidate_codes = [code for code, _ in stocks_with_data]
+                recent_date = session.exec(
+                    select(func.max(DailyMarketData.date))
+                    .where(DailyMarketData.code.in_(candidate_codes))
+                ).first()
+                
+                if recent_date:
+                    # Get top stocks by volume/amount from most recent trading day among candidates
+                    recent_stocks = session.exec(
+                        select(DailyMarketData.code, DailyMarketData.amount, StockBasicInfo.name)
+                        .join(StockBasicInfo, DailyMarketData.code == StockBasicInfo.code)
+                        .where(
+                            DailyMarketData.date == recent_date,
+                            DailyMarketData.code.in_(candidate_codes)
+                        )
+                        .order_by(DailyMarketData.amount.desc())
+                        .limit(top_n)
+                    ).all()
+                    
+                    if recent_stocks:
+                        import pandas as pd
+                        top_spot = pd.DataFrame([
+                            {"代码": code, "名称": name, "成交额": amount}
+                            for code, amount, name in recent_stocks
+                        ])
+                        stock_codes = top_spot["代码"].tolist()
+                        logger.info(f"Selected top {len(top_spot)} stocks with sufficient data from database (date: {recent_date})")
+                    else:
+                        # Fallback: use first N stocks with sufficient data
+                        import pandas as pd
+                        fallback_stocks = session.exec(
+                            select(StockBasicInfo.code, StockBasicInfo.name)
+                            .where(StockBasicInfo.code.in_(candidate_codes))
+                            .limit(top_n)
+                        ).all()
+                        top_spot = pd.DataFrame([
+                            {"代码": code, "名称": name}
+                            for code, name in fallback_stocks
+                        ])
+                        stock_codes = top_spot["代码"].tolist()
+                        logger.info(f"Using fallback: selected {len(top_spot)} stocks with sufficient data")
+                else:
+                    raise Exception("No recent data found for stocks with sufficient history.")
+            else:
+                raise Exception("No stocks found with sufficient historical data (>=35 days). Please run with 'collect_latest_data=True' first.")
     
     # Step 4: Check for missing daily data
     update_task_progress(task_id, 0.2, "检查历史数据完整性")
@@ -108,12 +178,13 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         update_task_progress(task_id, 0.4, "所有股票数据都是最新的")
         logger.info("All stock data is up to date")
     
-    # Step 5a: Save today's spot into daily table with limit-up text
-    try:
-        from stock_data_manager import save_spot_as_daily_data
-        save_spot_as_daily_data(top_spot)
-    except Exception as e:
-        logger.warning(f"Skip saving spot as daily due to error: {e}")
+    # Step 5a: Save today's spot into daily table with limit-up text (only if we collected fresh data)
+    if collect_latest_data:
+        try:
+            from stock_data_manager import save_spot_as_daily_data
+            save_spot_as_daily_data(top_spot)
+        except Exception as e:
+            logger.warning(f"Skip saving spot as daily due to error: {e}")
 
     if check_cancel():
         return
@@ -294,11 +365,11 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     logger.info(f"Analysis completed successfully with database integration. Found {len(data)} results; extended={bool(extended)}")
 
 
-def run_analysis_wrapper(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, stop_event: Optional[threading.Event] = None):
+def run_analysis_wrapper(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True, stop_event: Optional[threading.Event] = None):
     """Wrapper to handle task errors properly and cleanup registries"""
     error_occurred = False
     try:
-        run_analysis_task(task_id, top_n, selected_factors, stop_event=stop_event)
+        run_analysis_task(task_id, top_n, selected_factors, collect_latest_data, stop_event=stop_event)
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}")
         handle_task_error(task_id, e)
@@ -315,7 +386,7 @@ def run_analysis_wrapper(task_id: str, top_n: int, selected_factors: Optional[Li
         logger.error(f"Task {task_id} encountered an error and was marked as failed")
 
 
-def create_analysis_task(top_n: int = 100, selected_factors: Optional[List[str]] = None) -> str:
+def create_analysis_task(top_n: int = 100, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True) -> str:
     """Create and start a new analysis task"""
     task_id = str(uuid4())
     
@@ -336,7 +407,7 @@ def create_analysis_task(top_n: int = 100, selected_factors: Optional[List[str]]
     TASK_STOP_EVENTS[task_id] = stop_event
     
     # Start background thread with error wrapper
-    thread = threading.Thread(target=run_analysis_wrapper, args=(task_id, top_n, selected_factors, stop_event))
+    thread = threading.Thread(target=run_analysis_wrapper, args=(task_id, top_n, selected_factors, collect_latest_data, stop_event))
     thread.daemon = True
     TASK_THREADS[task_id] = thread
     thread.start()

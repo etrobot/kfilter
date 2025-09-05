@@ -19,7 +19,7 @@ def read_root():
 
 def run_analysis(request: RunRequest) -> RunResponse:
     """Start comprehensive stock analysis as background task"""
-    task_id = create_analysis_task(request.top_n, request.selected_factors)
+    task_id = create_analysis_task(request.top_n, request.selected_factors, request.collect_latest_data)
     
     return RunResponse(
         task_id=task_id,
@@ -201,3 +201,9 @@ def get_concepts_list():
         "concepts": concepts,
         "total": len(concepts)
     }
+
+
+def get_kline_amplitude_dashboard(n_days: int = 30):
+    """Get K-line amplitude analysis data for dashboard"""
+    from dashboard_service import get_kline_amplitude_analysis
+    return get_kline_amplitude_analysis(n_days)

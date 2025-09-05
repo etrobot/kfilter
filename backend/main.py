@@ -10,7 +10,7 @@ from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResu
 from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
-    list_all_concept_tasks, get_concepts_list, stop_analysis
+    list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard
 )
 from factors import list_factors
 
@@ -112,3 +112,11 @@ def list_concept_tasks() -> List[ConceptTaskResult]:
 def get_concepts():
     """Get list of all concepts"""
     return get_concepts_list()
+
+
+# Dashboard routes
+
+@app.get("/dashboard/kline-amplitude")
+def get_dashboard_kline_amplitude(n_days: int = 30):
+    """Get K-line amplitude analysis for dashboard"""
+    return get_kline_amplitude_dashboard(n_days)

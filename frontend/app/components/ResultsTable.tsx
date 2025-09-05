@@ -53,9 +53,9 @@ export function ResultsTable({
     }
   }
 
-  const handleFactorConfirm = async (selectedFactors: string[]) => {
+  const handleFactorConfirm = async (selectedFactors: string[], collectLatestData: boolean) => {
     try {
-      const response = await api.startAnalysis(100, selectedFactors)
+      const response = await api.startAnalysis(100, selectedFactors, collectLatestData)
       if (onRunAnalysis) {
         onRunAnalysis(response.task_id)
       }

@@ -15,7 +15,7 @@ import { api } from '../services/api'
 interface FactorSelectionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (selectedFactors: string[]) => void
+  onConfirm: (selectedFactors: string[], collectLatestData: boolean) => void
 }
 
 export function FactorSelectionDialog({ 
@@ -25,6 +25,7 @@ export function FactorSelectionDialog({
 }: FactorSelectionDialogProps) {
   const [factors, setFactors] = useState<FactorMeta[]>([])
   const [selectedFactors, setSelectedFactors] = useState<string[]>([])
+  const [collectLatestData, setCollectLatestData] = useState(true)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function FactorSelectionDialog({
       alert('请至少选择一个因子')
       return
     }
-    onConfirm(selectedFactors)
+    onConfirm(selectedFactors, collectLatestData)
     onOpenChange(false)
   }
 
@@ -142,6 +143,28 @@ export function FactorSelectionDialog({
               )}
             </>
           )}
+          
+          {/* 数据采集选项 */}
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-start space-x-3">
+              <Checkbox
+                id="collect-latest-data"
+                checked={collectLatestData}
+                onCheckedChange={(checked) => setCollectLatestData(checked as boolean)}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <label
+                  htmlFor="collect-latest-data"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  采集最新数据
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  勾选后会获取最新的热点数据，不勾选则直接使用日K线历史数据进行因子计算
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <DialogFooter>

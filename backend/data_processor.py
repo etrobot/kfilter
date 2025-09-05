@@ -24,7 +24,7 @@ def fetch_spot() -> pd.DataFrame:
         raise RuntimeError("akshare is not available. Please install akshare to use this feature.")
     
     logger.info("Fetching real-time spot data from akshare...")
-    df = ak.stock_zh_a_spot_em()
+    df = ak.stock_zh_a_spot()
     
     # Standardize column names
     column_mapping = {
