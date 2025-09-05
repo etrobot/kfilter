@@ -24,7 +24,17 @@ def fetch_spot() -> pd.DataFrame:
         raise RuntimeError("akshare is not available. Please install akshare to use this feature.")
     
     logger.info("Fetching real-time spot data from akshare...")
-    df = ak.stock_zh_a_spot()
+    
+    # Try stock_zh_a_spot_em first, fallback to stock_zh_a_spot if rejected
+    try:
+        df = ak.stock_zh_a_spot_em()
+        logger.info("Successfully used stock_zh_a_spot_em")
+    except Exception as e:
+        logger.warning(f"stock_zh_a_spot_em failed: {e}, falling back to stock_zh_a_spot")
+        df = ak.stock_zh_a_spot()
+        # Remove market prefix (first two characters) from stock codes
+        if "代码" in df.columns:
+            df["代码"] = df["代码"].astype(str).str[2:]
     
     # Standardize column names
     column_mapping = {
@@ -60,7 +70,7 @@ def fetch_spot() -> pd.DataFrame:
     return df
 
 
-def fetch_history(codes: List[str], days: int = 120, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
+def fetch_history(codes: List[str], days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
     """Fetch historical data for multiple stocks"""
     if not HAS_AKSHARE:
         raise RuntimeError("akshare is not available. Please install akshare to use this feature.")
@@ -77,8 +87,11 @@ def fetch_history(codes: List[str], days: int = 120, task_id: Optional[str] = No
             progress = 0.2 + (0.5 * i / len(codes))  # 20%-70% of total progress
             update_task_progress(task_id, progress, f"获取历史数据 {i+1}/{len(codes)}: {code}")
         
+        # Clean code - remove market prefix if it exists (e.g., sz301550 -> 301550)
+        clean_code = code[2:] if len(code) > 6 and code[:2] in ['sz', 'sh', 'bj'] else code
+        
         # Use the more reliable historical data interface
-        df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
+        df = ak.stock_zh_a_hist(symbol=clean_code, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
         
         if not df.empty:
             # Standardize column names

@@ -94,7 +94,7 @@ def get_missing_daily_data(stock_codes: List[str]) -> Dict[str, date]:
             
             if result is None:
                 # 该股票没有任何数据，从60天前开始获取
-                missing_data[code] = today - timedelta(days=120)
+                missing_data[code] = today - timedelta(days=60)
             else:
                 # 检查最新日期是否是今天
                 latest_date = result
@@ -270,7 +270,7 @@ def backfill_limit_up_texts_using_ths(lookback_days: int = 180) -> int:
     return updated
 
 
-def load_daily_data_for_analysis(stock_codes: List[str], limit: int = 120) -> Dict[str, pd.DataFrame]:
+def load_daily_data_for_analysis(stock_codes: List[str], limit: int = 60) -> Dict[str, pd.DataFrame]:
     """从数据库加载日K数据用于因子分析"""
     history_data = {}
     
