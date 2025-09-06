@@ -232,36 +232,3 @@ def get_monthly_data(stock_codes: List[str], limit: int = None) -> pd.DataFrame:
                 })
     
     return pd.DataFrame(monthly_data)
-
-
-def calculate_technical_indicators(df: pd.DataFrame, periods: List[int] = [5, 10, 20, 60]) -> pd.DataFrame:
-    """计算技术指标"""
-    if df.empty or "收盘" not in df.columns:
-        return df
-    
-    df = df.copy()
-    df = df.sort_values("日期")
-    
-    # 移动平均线
-    for period in periods:
-        df[f"MA{period}"] = df["收盘"].rolling(window=period).mean()
-    
-    # RSI
-    def calculate_rsi(prices, period=14):
-        delta = prices.diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        avg_gain = gain.rolling(window=period).mean()
-        avg_loss = loss.rolling(window=period).mean()
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
-    
-    df["RSI"] = calculate_rsi(df["收盘"])
-    
-    # 布林带
-    df["BB_MIDDLE"] = df["收盘"].rolling(window=20).mean()
-    bb_std = df["收盘"].rolling(window=20).std()
-    df["BB_UPPER"] = df["BB_MIDDLE"] + (bb_std * 2)
-    df["BB_LOWER"] = df["BB_MIDDLE"] - (bb_std * 2)
-    
-    return df

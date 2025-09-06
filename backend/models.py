@@ -169,7 +169,7 @@ class ConceptTaskResult(BaseModel):
 
 
 # 数据库连接配置
-DATABASE_URL = "sqlite:///./stock_data.db"
+DATABASE_URL = "sqlite:///data_management/stock_data.db"
 engine = create_engine(DATABASE_URL, echo=True)
 
 

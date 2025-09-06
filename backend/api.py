@@ -6,10 +6,10 @@ from utils import (
     get_task, get_all_tasks, get_last_completed_task,
     get_concept_task, get_all_concept_tasks, get_last_completed_concept_task
 )
-from services import create_analysis_task
+from data_management.services import create_analysis_task
 from utils import TASK_STOP_EVENTS, get_task
 
-from concept_service import create_concept_collection_task, get_concepts_from_db
+from data_management.concept_service import create_concept_collection_task, get_concepts_from_db
 from factors import list_factors
 
 
@@ -205,5 +205,5 @@ def get_concepts_list():
 
 def get_kline_amplitude_dashboard(n_days: int = 30):
     """Get K-line amplitude analysis data for dashboard"""
-    from dashboard_service import get_kline_amplitude_analysis
+    from data_management.dashboard_service import get_kline_amplitude_analysis
     return get_kline_amplitude_analysis(n_days)

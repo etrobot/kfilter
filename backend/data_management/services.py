@@ -16,13 +16,13 @@ from utils import (
     TASK_STOP_EVENTS,
     TASK_THREADS
 )
-from data_processor import fetch_spot, fetch_history, compute_factors
-from stock_data_manager import (
+from market_data import fetch_spot, fetch_history, compute_factors
+from .stock_data_manager import (
     save_daily_data,
     save_stock_basic_info,
     load_daily_data_for_analysis
 )
-from market_data_processor import (
+from market_data import (
     calculate_and_save_weekly_data,
     calculate_and_save_monthly_data
 )
@@ -91,7 +91,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     
     # 获取最新交易日和涨停数据（每次任务都重新获取）
     try:
-        from stock_data_manager import get_latest_trade_date_and_limit_map
+        from .stock_data_manager import get_latest_trade_date_and_limit_map
         update_task_progress(task_id, 0.02, "获取最新交易日和涨停数据")
         if check_cancel():
             return
@@ -258,7 +258,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
 
     # Step 5b: Backfill missing limit-up texts for recent trading days
     try:
-        from stock_data_manager import backfill_limit_up_texts_using_ths
+        from .stock_data_manager import backfill_limit_up_texts_using_ths
         update_task_progress(task_id, 0.45, "回填历史涨停板类型")
         if check_cancel():
             return

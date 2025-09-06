@@ -26,7 +26,7 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
             else:
                 # 获取最新交易日
                 try:
-                    from stock_data_manager import get_latest_trade_date_and_limit_map
+                    from .stock_data_manager import get_latest_trade_date_and_limit_map
                     end_date, _ = get_latest_trade_date_and_limit_map()
                 except Exception as e:
                     raise Exception(f"无法获取最新交易日期：{e}")

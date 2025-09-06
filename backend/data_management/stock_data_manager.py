@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from models import (
     engine, StockBasicInfo, DailyMarketData
 )
-from ths_api import uplimit10jqka, build_limit_up_map
+from market_data.ths_api import uplimit10jqka, build_limit_up_map
 
 logger = logging.getLogger(__name__)
 
