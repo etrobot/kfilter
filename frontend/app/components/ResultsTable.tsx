@@ -66,7 +66,7 @@ export function ResultsTable({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <div className="flex bg-muted rounded p-1 text-sm">

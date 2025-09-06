@@ -6,9 +6,11 @@ import { TaskProgressCard } from './components/TaskProgressCard'
 import { ResultsTable } from './components/ResultsTable'
 import { ConceptsPage } from './components/ConceptsPage'
 import { DashboardPage } from './components/DashboardPage'
+import { MobileNavigation } from './components/MobileNavigation'
 import { api, createTaskStatusPoller } from './services/api'
 import { publish, EVENTS } from './services/eventBus'
 import { FactorRecord, TaskResult, TaskMeta, FactorMeta } from './types'
+import { useIsMobile } from './hooks/use-mobile'
 import './index.css'
 
 type Page = 'ranking' | 'concepts' | 'dashboard'
@@ -22,6 +24,7 @@ function App() {
   const [meta, setMeta] = useState<TaskMeta | null>(null)
   const [factorMeta, setFactorMeta] = useState<FactorMeta[]>([])
   const [extended, setExtended] = useState<any>(null)
+  const isMobile = useIsMobile()
 
   const handleStopAnalysis = () => {
     if (pollerCleanupRef.current) {
@@ -154,48 +157,50 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Sidebar */}
-      <nav className="bg-white shadow-md w-20 flex flex-col">
-        <div className="flex flex-col space-y-4 p-4">
-          <button
-            onClick={() => setCurrentPage('dashboard')}
-            className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-              currentPage === 'dashboard'
-                ? 'bg-indigo-100 text-indigo-600'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <TrendingUp size={24} />
-            <span className="text-xs mt-1">面板</span>
-          </button>
-          <button
-            onClick={() => setCurrentPage('ranking')}
-            className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-              currentPage === 'ranking'
-                ? 'bg-indigo-100 text-indigo-600'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <BarChart3 size={24} />
-            <span className="text-xs mt-1">分析</span>
-          </button>
-          <button
-            onClick={() => setCurrentPage('concepts')}
-            className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-              currentPage === 'concepts'
-                ? 'bg-indigo-100 text-indigo-600'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Lightbulb size={24} />
-            <span className="text-xs mt-1">概念</span>
-          </button>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-gray-50 flex w-full">
+      {/* Desktop Sidebar - hidden on mobile */}
+      {!isMobile && (
+        <nav className="bg-white shadow-md w-20 flex flex-col">
+          <div className="flex flex-col space-y-4 p-4">
+            <button
+              onClick={() => setCurrentPage('dashboard')}
+              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+                currentPage === 'dashboard'
+                  ? 'bg-indigo-100 text-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <TrendingUp size={24} />
+              <span className="text-xs mt-1">面板</span>
+            </button>
+            <button
+              onClick={() => setCurrentPage('ranking')}
+              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+                currentPage === 'ranking'
+                  ? 'bg-indigo-100 text-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <BarChart3 size={24} />
+              <span className="text-xs mt-1">分析</span>
+            </button>
+            <button
+              onClick={() => setCurrentPage('concepts')}
+              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+                currentPage === 'concepts'
+                  ? 'bg-indigo-100 text-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Lightbulb size={24} />
+              <span className="text-xs mt-1">概念</span>
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* Main Content */}
-      <div className="flex-1">
+      <div className={`flex-1 ${isMobile ? 'pb-16' : ''} w-full`}>
         {currentPage === 'ranking' ? (
           <div className="p-8 space-y-6">
             <PageHeader 
@@ -227,6 +232,14 @@ function App() {
           />
         )}
       </div>
+
+      {/* Mobile Navigation */}
+      {isMobile && (
+        <MobileNavigation 
+          currentPage={currentPage} 
+          setCurrentPage={setCurrentPage} 
+        />
+      )}
     </div>
   )
 }

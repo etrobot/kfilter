@@ -59,7 +59,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
     return (
       <div className="bg-white p-2 rounded-lg shadow-md">
-        <h3 className="mb-4">K线实体幅度排序 (过去{nDays}天最长)</h3>
+        <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -267,7 +267,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
           <div>
             {renderBarChart()}
           </div>
-          <div className="flex gap-4">
+          <div className="md:flex md:gap-4">
             <div className="flex-1">{renderTrendChart()}</div>
             <div className="flex-1">{renderStockList()}</div>
           </div>

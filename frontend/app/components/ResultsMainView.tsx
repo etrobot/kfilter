@@ -31,7 +31,7 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
         return record.名称 || record.代码
       case '当前价格':
         return record.当前价格 || record.收盘 || 0
-      case '区间涨跌幅':
+      case '涨跌幅':
         return record.涨跌幅 || 0
       default:
         return (record as any)[key]
@@ -96,7 +96,7 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
 
   // Derive any missing factor columns from the actual data as a fallback
   const knownBaseKeys = new Set<string>([
-    '代码', '名称', '当前价格', '收盘', '区间涨跌幅', '涨跌幅', '换手板', '综合评分'
+    '代码', '名称', '当前价格', '收盘', '涨跌幅', '涨跌幅', '换手板', '综合评分'
   ])
   if (data && data.length > 0) {
     const existingKeys = new Set(factorColumns.map(c => c.key))
@@ -144,42 +144,42 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
   return (
     <div className="overflow-auto border rounded max-h-[70vh]">
       <table className="min-w-full text-sm">
-        <thead className="sticky top-0 z-10">
+        <thead className="sticky top-0 z-30">
           <tr className="bg-muted">
-            <th className="text-center p-2 w-16 bg-muted">序号</th>
-            <th className={getColumnClassName('名称', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('名称')}>
+            <th className="text-center p-2 bg-muted sticky left-0 z-30 border-r whitespace-nowrap">序号</th>
+            <th className={getColumnClassName('名称', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted sticky left-[40px] z-30 border-r whitespace-nowrap")} onClick={() => handleSort('名称')}>
               股票{renderSortIcon('名称')}
             </th>
-            <th className={getColumnClassName('当前价格', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('当前价格')}>
+            <th className={getColumnClassName('当前价格', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('当前价格')}>
               当前价格{renderSortIcon('当前价格')}
             </th>
-            <th className={getColumnClassName('区间涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('区间涨跌幅')}>
-              区间涨跌幅{renderSortIcon('区间涨跌幅')}
+            <th className={getColumnClassName('涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('涨跌幅')}>
+              涨跌幅{renderSortIcon('涨跌幅')}
             </th>
             {/* Dynamic factor value columns */}
             {factorValueColumns.map((col) => (
               <th
                 key={col.key}
-                className={getColumnClassName(col.key, `text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted`)}
+                className={getColumnClassName(col.key, `text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap`)}
                 onClick={() => col.sortable !== false ? handleSort(col.key) : undefined}
               >
                 {col.label}{col.sortable !== false ? renderSortIcon(col.key) : null}
               </th>
             ))}
-            <th className={getColumnClassName('换手板', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('换手板')}>
+            <th className={getColumnClassName('换手板', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('换手板')}>
               换手板{renderSortIcon('换手板')}
             </th>
             {/* Dynamic score columns */}
             {scoreColumns.map((col) => (
               <th
                 key={col.key}
-                className={getColumnClassName(col.key, `text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted`)}
+                className={getColumnClassName(col.key, `text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap w-32`)}
                 onClick={() => col.sortable !== false ? handleSort(col.key) : undefined}
               >
                 {col.label}{col.sortable !== false ? renderSortIcon(col.key) : null}
               </th>
             ))}
-            <th className={getColumnClassName('综合评分', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted")} onClick={() => handleSort('综合评分')}>
+            <th className={getColumnClassName('综合评分', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap w-32")} onClick={() => handleSort('综合评分')}>
               综合评分{renderSortIcon('综合评分')}
             </th>
           </tr>
@@ -193,12 +193,12 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
 
             return (
               <tr key={record.代码} className="border-t">
-                <td className="p-2 text-center text-gray-500 font-mono">{index + 1}</td>
-                <td className={getColumnClassName('名称', "p-2")}>
+                <td className="p-2 text-center text-gray-500 font-mono sticky left-0 bg-white z-20 border-r">{index + 1}</td>
+                <td className={getColumnClassName('名称', "p-2 sticky left-[40px] bg-white z-20 border-r")}>
                   <StockLink code={record.代码} name={record.名称} />
                 </td>
                 <td className={getColumnClassName('当前价格', "p-2 text-right")}>{currentPrice.toFixed(2)}</td>
-                <td className={getColumnClassName('区间涨跌幅', `p-2 text-right ${changePct >= 0 ? 'text-red-500' : 'text-green-500'}`)}>
+                <td className={getColumnClassName('涨跌幅', `p-2 text-right ${changePct >= 0 ? 'text-red-500' : 'text-green-500'}`)}>
                   {changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%
                 </td>
                 {/* Dynamic factor value columns */}
@@ -210,11 +210,11 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
                 <td className={getColumnClassName('换手板', "p-2 text-right")}>{hsCount}</td>
                 {/* Dynamic score columns */}
                 {scoreColumns.map((col) => (
-                  <td key={col.key} className={getColumnClassName(col.key, "p-2")}>
+                  <td key={col.key} className={getColumnClassName(col.key, "p-2 w-32")}>
                     {renderCell(record, col)}
                   </td>
                 ))}
-                <td className={getColumnClassName('综合评分', "p-2")}><ScoreBar value={compositeScore} color="bg-purple-500" /></td>
+                <td className={getColumnClassName('综合评分', "p-2 w-32")}><ScoreBar value={compositeScore} color="bg-purple-500" /></td>
               </tr>
             )
           })}
