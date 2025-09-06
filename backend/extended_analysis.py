@@ -90,12 +90,12 @@ def get_top_limit_up_stocks_in_sectors(latest_trade_date: date, session) -> List
         for code_val, _ in rows:
             counts[code_val] = counts.get(code_val, 0) + 1
         
-        # Build stock-to-concepts mapping
-        stock_concepts = defaultdict(list)
+        # Build stock-to-concepts mapping (only for top concepts initially)
+        stock_concepts_top = defaultdict(list)
         for s in stocks:
             concept_name = concept_map.get(s.concept_code)
             if concept_name:
-                stock_concepts[s.stock_code].append((s.concept_code, concept_name))
+                stock_concepts_top[s.stock_code].append((s.concept_code, concept_name))
         
         # Build result list
         result = []
@@ -103,12 +103,13 @@ def get_top_limit_up_stocks_in_sectors(latest_trade_date: date, session) -> List
             if limit_count <= 0:
                 continue
                 
-            stock_concept_list = stock_concepts.get(stock_code, [])
-            if not stock_concept_list:
+            # Get ALL concepts for this stock (not just top 10)
+            all_concepts = get_stock_concepts(stock_code, session)
+            if not all_concepts:
                 continue
             
-            concept_codes = [cc for cc, _ in stock_concept_list]
-            concept_names = [cn for _, cn in stock_concept_list]
+            concept_codes = [cc for cc, _ in all_concepts]
+            concept_names = [cn for _, cn in all_concepts]
             
             result.append({
                 "code": stock_code,

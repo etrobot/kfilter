@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import uuid4
 
 import numpy as np
@@ -30,6 +30,40 @@ from extended_analysis import build_extended_analysis
 
 logger = logging.getLogger(__name__)
 
+# In-memory storage for calculation results
+ANALYSIS_RESULTS_CACHE: Dict[str, Dict[str, Any]] = {}
+CACHE_LOCK = threading.Lock()
+
+
+def get_cached_analysis_results(task_id: Optional[str] = None) -> Dict[str, Any]:
+    """Get cached analysis results. If task_id is provided, get specific task results."""
+    with CACHE_LOCK:
+        if task_id:
+            return ANALYSIS_RESULTS_CACHE.get(task_id, {})
+        return dict(ANALYSIS_RESULTS_CACHE)
+
+
+def get_latest_analysis_results() -> Optional[Dict[str, Any]]:
+    """Get the most recent analysis results based on completion timestamp."""
+    with CACHE_LOCK:
+        if not ANALYSIS_RESULTS_CACHE:
+            return None
+        
+        # Find the task with the most recent completion time
+        latest_task_id = max(
+            ANALYSIS_RESULTS_CACHE.keys(),
+            key=lambda tid: ANALYSIS_RESULTS_CACHE[tid].get('completed_at', '')
+        )
+        return ANALYSIS_RESULTS_CACHE[latest_task_id]
+
+
+def clear_analysis_cache(task_id: Optional[str] = None) -> None:
+    """Clear cached analysis results. If task_id is provided, clear specific task only."""
+    with CACHE_LOCK:
+        if task_id:
+            ANALYSIS_RESULTS_CACHE.pop(task_id, None)
+        else:
+            ANALYSIS_RESULTS_CACHE.clear()
 
 
 def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True, stop_event: Optional[threading.Event] = None):
@@ -300,6 +334,22 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         "count": len(data),
         "extended": extended or None,
     }
+
+    # Store results in memory cache for frontend access
+    with CACHE_LOCK:
+        ANALYSIS_RESULTS_CACHE[task_id] = {
+            "task_id": task_id,
+            "status": task.status.value,
+            "progress": task.progress,
+            "message": task.message,
+            "completed_at": task.completed_at,
+            "created_at": task.created_at,
+            "top_n": task.top_n,
+            "selected_factors": task.selected_factors,
+            "data": data,
+            "count": len(data),
+            "extended": extended or None,
+        }
 
     set_last_completed_task(task)
     logger.info(f"Analysis completed successfully with database integration. Found {len(data)} results; extended={bool(extended)}")
