@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from './ui/button'
 import { TaskProgressCard } from './TaskProgressCard'
 import { api, createConceptTaskStatusPoller } from '../services/api'
@@ -145,11 +145,11 @@ export function ConceptsPage() {
       )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden border">
-        <div className="overflow-auto max-h-[70vh]">
+        <div className="overflow-auto max-h-[70vh] relative">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-gray-50">
+            <thead className="sticky top-0 z-30 bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap sticky left-0 z-20 bg-gray-50 border-r">
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap sticky left-0 z-40 bg-gray-50 border-r border-b">
                   板块信息
                 </th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">

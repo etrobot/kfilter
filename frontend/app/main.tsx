@@ -7,6 +7,8 @@ import { ResultsTable } from './components/ResultsTable'
 import { ConceptsPage } from './components/ConceptsPage'
 import { DashboardPage } from './components/DashboardPage'
 import { MobileNavigation } from './components/MobileNavigation'
+import { PWAInstallPrompt } from './components/PWAInstallPrompt'
+import { PWAUpdatePrompt } from './components/PWAUpdatePrompt'
 import { api, createTaskStatusPoller } from './services/api'
 import { publish, EVENTS } from './services/eventBus'
 import { FactorRecord, TaskResult, TaskMeta, FactorMeta } from './types'
@@ -24,7 +26,31 @@ function App() {
   const [meta, setMeta] = useState<TaskMeta | null>(null)
   const [factorMeta, setFactorMeta] = useState<FactorMeta[]>([])
   const [extended, setExtended] = useState<any>(null)
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false)
   const isMobile = useIsMobile()
+
+  // PWA Update functionality
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      // Register service worker
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('SW registered: ', registration)
+        })
+        .catch((registrationError) => {
+          console.log('SW registration failed: ', registrationError)
+        })
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        setShowUpdatePrompt(true)
+      })
+    }
+  }, [])
+
+  const handlePWAUpdate = () => {
+    setShowUpdatePrompt(false)
+    window.location.reload()
+  }
 
   const handleStopAnalysis = () => {
     if (pollerCleanupRef.current) {
@@ -240,6 +266,10 @@ function App() {
           setCurrentPage={setCurrentPage} 
         />
       )}
+
+      {/* PWA Components */}
+      <PWAInstallPrompt />
+      <PWAUpdatePrompt show={showUpdatePrompt} onUpdate={handlePWAUpdate} />
     </div>
   )
 }
