@@ -69,13 +69,12 @@ export function ResultsTable({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold">分析</h2>
           <div className="flex bg-muted rounded p-1 text-sm">
             <button
               className={`px-3 py-1 rounded ${activeTab === 'main' ? 'bg-white shadow' : ''}`}
               onClick={() => setActiveTab('main')}
             >
-              结果
+              分析结果
             </button>
             <button
               className={`px-3 py-1 rounded ${activeTab === 'extended' ? 'bg-white shadow' : ''}`}

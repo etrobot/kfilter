@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import threading
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from typing import Optional, List
 from uuid import uuid4
 
@@ -18,7 +18,6 @@ from utils import (
 )
 from data_processor import fetch_spot, fetch_history, compute_factors
 from stock_data_manager import (
-    get_missing_daily_data,
     save_daily_data,
     save_stock_basic_info,
     load_daily_data_for_analysis
@@ -27,8 +26,10 @@ from market_data_processor import (
     calculate_and_save_weekly_data,
     calculate_and_save_monthly_data
 )
+from extended_analysis import build_extended_analysis
 
 logger = logging.getLogger(__name__)
+
 
 
 def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True, stop_event: Optional[threading.Event] = None):
@@ -54,9 +55,27 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     
     logger.info(f"Starting stock analysis for top {top_n} stocks...")
     
+    # 获取最新交易日和涨停数据（每次任务都重新获取）
+    try:
+        from stock_data_manager import get_latest_trade_date_and_limit_map
+        update_task_progress(task_id, 0.02, "获取最新交易日和涨停数据")
+        if check_cancel():
+            return
+        
+        # 强制重新获取最新数据，不使用缓存
+        latest_trade_date, _ = get_latest_trade_date_and_limit_map(use_cache=False)
+        logger.info(f"Latest trade date: {latest_trade_date}")
+    except Exception as e:
+        error_msg = f"无法获取最新交易日期：{e}"
+        logger.error(error_msg)
+        task.status = TaskStatus.FAILED
+        task.message = error_msg
+        task.completed_at = datetime.now().isoformat()
+        return
+    
     if collect_latest_data:
         # Step 1: Fetch spot data
-        update_task_progress(task_id, 0.05, "获取实时行情数据")
+        update_task_progress(task_id, 0.05, f"获取实时行情数据 {latest_trade_date}")
         if check_cancel():
             return
         spot = fetch_spot()
@@ -71,7 +90,6 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         update_task_progress(task_id, 0.15, "筛选热门股票")
         if check_cancel():
             return
-        columns_to_select = ["代码", "名称"] if "名称" in spot.columns else ["代码"]
         if "成交额" in spot.columns:
             top_spot = spot.nlargest(top_n, "成交额").copy()
         else:
@@ -148,44 +166,59 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
             else:
                 raise Exception("No stocks found with sufficient historical data (>=35 days). Please run with 'collect_latest_data=True' first.")
     
-    # Step 4: Check for missing daily data
-    update_task_progress(task_id, 0.2, "检查历史数据完整性")
+    # Step 4: Check database for existing historical data
+    update_task_progress(task_id, 0.2, "检查数据库历史数据完整性")
     if check_cancel():
         return
-    missing_data = get_missing_daily_data(stock_codes)
+        
+    # Check if we have sufficient historical data in database for these stocks
+    from sqlmodel import Session, select, func
+    from models import engine, DailyMarketData
     
-    if missing_data:
-        update_task_progress(task_id, 0.25, f"需要补充 {len(missing_data)} 个股票的历史数据")
-        logger.info(f"Found {len(missing_data)} stocks with missing data")
+    need_fetch_history = False
+    if collect_latest_data:
+        # Check if we have recent data for all selected stocks
+        with Session(engine) as session:
+            # Check how many stocks have data in the last 7 days
+            recent_cutoff = latest_trade_date - timedelta(days=7)
+            stocks_with_recent_data = session.exec(
+                select(func.count(func.distinct(DailyMarketData.code)))
+                .where(
+                    DailyMarketData.code.in_(stock_codes),
+                    DailyMarketData.date >= recent_cutoff
+                )
+            ).first() or 0
+            
+            # If less than 80% of stocks have recent data, fetch from external API
+            if stocks_with_recent_data < len(stock_codes) * 0.8:
+                need_fetch_history = True
+                logger.info(f"Only {stocks_with_recent_data}/{len(stock_codes)} stocks have recent data, will fetch from external API")
+            else:
+                logger.info(f"Database has sufficient recent data ({stocks_with_recent_data}/{len(stock_codes)} stocks), skipping external fetch")
+    
+    if need_fetch_history:
+        update_task_progress(task_id, 0.25, "从外部API获取历史数据")
         if check_cancel():
             return
         
-        # Step 5: Fetch missing historical data
-        history = {}
-        for code, start_date in missing_data.items():
+        # 直接获取所有股票的最近60天数据并upsert
+        history = fetch_history(stock_codes, days=60, task_id=task_id)
+        
+        if history:
+            update_task_progress(task_id, 0.35, "保存历史数据到数据库")
             if check_cancel():
                 return
-            days_needed = (date.today() - start_date).days
-            code_history = fetch_history([code], days=days_needed, task_id=task_id)
-            history.update(code_history)
-        
-        # Step 6: Save historical data to database
-        update_task_progress(task_id, 0.4, "保存历史数据到数据库")
-        if check_cancel():
-            return
-        save_daily_data(history, task_id)
+            save_daily_data(history)
+            logger.info(f"Upserted historical data for {len(history)} stocks")
+        else:
+            logger.warning("No historical data fetched")
     else:
-        update_task_progress(task_id, 0.4, "所有股票数据都是最新的")
-        logger.info("All stock data is up to date")
+        # Skip external API call since database has sufficient data
+        update_task_progress(task_id, 0.35, "使用数据库中的历史数据（跳过外部API调用）")
+        logger.info("Using existing database historical data, skipping external API fetch")
     
-    # Step 5a: Save today's spot into daily table with limit-up text (only if we collected fresh data)
-    if collect_latest_data:
-        try:
-            from stock_data_manager import save_spot_as_daily_data
-            save_spot_as_daily_data(top_spot)
-        except Exception as e:
-            logger.warning(f"Skip saving spot as daily due to error: {e}")
-
+    update_task_progress(task_id, 0.4, "历史数据更新完成")
+    
     if check_cancel():
         return
 
@@ -203,17 +236,23 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     if check_cancel():
         return
 
-    # Step 5: Calculate and save weekly data
-    update_task_progress(task_id, 0.5, "计算并保存周K线数据")
-    if check_cancel():
-        return
-    calculate_and_save_weekly_data(stock_codes, task_id)
-    
-    # Step 6: Calculate and save monthly data
-    update_task_progress(task_id, 0.6, "计算并保存月K线数据")
-    if check_cancel():
-        return
-    calculate_and_save_monthly_data(stock_codes, task_id)
+    # Step 5: Calculate and save weekly/monthly data only when new data was fetched
+    if need_fetch_history:
+        # Step 5a: Calculate and save weekly data
+        update_task_progress(task_id, 0.5, "计算并保存周K线数据")
+        if check_cancel():
+            return
+        calculate_and_save_weekly_data(stock_codes, task_id)
+        
+        # Step 5b: Calculate and save monthly data
+        update_task_progress(task_id, 0.6, "计算并保存月K线数据")
+        if check_cancel():
+            return
+        calculate_and_save_monthly_data(stock_codes, task_id)
+    else:
+        # Skip weekly/monthly calculation when using existing data
+        update_task_progress(task_id, 0.6, "使用现有数据，跳过周K线和月K线计算")
+        logger.info("Skipping weekly/monthly data calculation since using existing database data")
     
     # Step 7: Load data from database for factor calculation
     update_task_progress(task_id, 0.7, "从数据库加载数据进行因子计算")
@@ -249,106 +288,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         return
 
     # Extended analysis: build a limit-up ranking within top concepts
-    extended = {}
-    try:
-        from sqlmodel import Session, select
-        from models import engine, ConceptInfo, ConceptStock, DailyMarketData
-        with Session(engine) as session:
-            # 1) Top 10 concepts by stock_count desc (or market_cap if available)
-            top_concepts = session.exec(
-                select(ConceptInfo).order_by(ConceptInfo.stock_count.desc()).limit(10)
-            ).all() or []
-            concept_codes = [c.code for c in top_concepts]
-            extended["top_sector_codes"] = concept_codes
-
-            if concept_codes:
-                # 2) For those concepts, get all constituent stocks
-                stocks = session.exec(
-                    select(ConceptStock).where(ConceptStock.concept_code.in_(concept_codes))
-                ).all() or []
-                concept_map = {c.code: c.name for c in top_concepts}
-
-                # 3) Count limit-up occurrences for each stock in recent window
-                # use already imported date, timedelta
-                today = date.today()
-                window_start = today - timedelta(days=180)
-                # Build counts using DailyMarketData where limit_status == 1
-                # We'll fetch all records for candidate stocks then count
-                # Prepare per-stock counts
-                counts = {}
-                # Get distinct stock codes
-                stock_codes = list({s.stock_code for s in stocks})
-                if stock_codes:
-                    # Query all limit-up rows for those stocks in the window
-                    rows = session.exec(
-                        select(DailyMarketData.code, DailyMarketData.date)
-                        .where(
-                            DailyMarketData.code.in_(stock_codes),
-                            DailyMarketData.date >= window_start,
-                            DailyMarketData.date <= today,
-                            DailyMarketData.limit_status == 1,
-                        )
-                    ).all() or []
-                    for code_val, _ in rows:
-                        counts[code_val] = counts.get(code_val, 0) + 1
-
-                # 4) For each concept, find the stock with max limit_up_count
-                from collections import defaultdict
-                concept_best = defaultdict(list)  # concept_code -> [(code, count)]
-                for s in stocks:
-                    cnt = counts.get(s.stock_code, 0)
-                    concept_best[s.concept_code].append((s.stock_code, cnt))
-                ranking_candidates = []
-                for ccode, items in concept_best.items():
-                    if not items:
-                        continue
-                    # Best stock in this concept by limit_up_count desc
-                    best_code, best_cnt = sorted(items, key=lambda x: x[1], reverse=True)[0]
-                    # Skip concepts whose best stock has 0 limit-ups in window
-                    if best_cnt <= 0:
-                        continue
-                    ranking_candidates.append((best_code, best_cnt, ccode))
-
-                # 5) Aggregate per stock: merge all concepts the stock belongs to (only those with >0)
-                from collections import defaultdict
-                agg: dict[str, dict] = {}
-                for code_val, cnt, ccode in ranking_candidates:
-                    if cnt <= 0:
-                        continue
-                    if code_val not in agg:
-                        agg[code_val] = {
-                            "code": code_val,
-                            "limit_up_count": int(cnt),
-                            "concept_codes": [ccode],
-                            "concept_names": [concept_map.get(ccode)] if concept_map.get(ccode) else []
-                        }
-                    else:
-                        # Same stock from another concept, keep the max cnt and append concept
-                        agg[code_val]["limit_up_count"] = max(int(cnt), agg[code_val]["limit_up_count"])
-                        if ccode not in agg[code_val]["concept_codes"]:
-                            agg[code_val]["concept_codes"].append(ccode)
-                            cname = concept_map.get(ccode)
-                            if cname:
-                                agg[code_val]["concept_names"].append(cname)
-
-                # 6) Build final ranking list sorted by limit_up_count desc
-                final_ranking = []
-                # Resolve stock name from current data
-                name_map = {r.get("代码"): r.get("名称") for r in data if r.get("代码")}
-                for code_val, info in agg.items():
-                    final_ranking.append({
-                        "code": code_val,
-                        "name": name_map.get(code_val),
-                        "limit_up_count": info["limit_up_count"],
-                        "concept_code": info["concept_codes"][0] if info.get("concept_codes") else None,
-                        "concept_name": info["concept_names"][0] if info.get("concept_names") else None,
-                        "concept_codes": info.get("concept_codes"),
-                        "concept_names": info.get("concept_names"),
-                    })
-
-                extended["limit_up_ranking"] = final_ranking
-    except Exception as e:
-        logger.warning(f"Extended analysis failed: {e}")
+    extended = build_extended_analysis(latest_trade_date, data)
 
     # Complete task
     task.status = TaskStatus.COMPLETED

@@ -8,6 +8,7 @@ import logging
 import sys
 from datetime import date
 import pandas as pd
+import akshare as ak
 
 # 设置日志
 logging.basicConfig(
@@ -287,4 +288,5 @@ def main():
 
 
 if __name__ == "__main__":
-    success = main()
+    df=ak.stock_zh_a_hist(symbol="000001", period="daily", start_date="20250101", end_date="20250906")
+    print(df)

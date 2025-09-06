@@ -1,4 +1,3 @@
-import React from 'react'
 import { ExtendedAnalysis } from '../types'
 import { StockLink } from './StockLink'
 

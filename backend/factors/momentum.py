@@ -13,92 +13,81 @@ except ImportError:
     HAS_TALIB = False
 
 
-def calculate_ma_ratio_diff(close: pd.Series, short_ma: int, long_ma: int) -> float:
-    """Calculate (MA_short/MA_long - 1) relative difference"""
-    min_required = max(short_ma, long_ma)
-    if len(close) < min_required:
+def calculate_momentum_simple(df: pd.DataFrame) -> float:
+    """Calculate (昨开-昨收)/(昨低-今低)-1"""
+    if len(df) < 2:
         return 0.0
     
-    ma_short = close.rolling(window=short_ma).mean().iloc[-1]
-    ma_long = close.rolling(window=long_ma).mean().iloc[-1]
+    # Convert date column to datetime for proper sorting if needed
+    df_copy = df.copy()
+    if not pd.api.types.is_datetime64_any_dtype(df_copy['日期']):
+        df_copy['日期'] = pd.to_datetime(df_copy['日期'])
     
-    if pd.isna(ma_short) or pd.isna(ma_long) or ma_long == 0:
+    # Sort by date (most recent last)
+    df_sorted = df_copy.sort_values("日期", ascending=True)
+    df_sorted = df_sorted.reset_index(drop=True)
+    
+    # Get yesterday's and today's data
+    yesterday = df_sorted.iloc[-2]
+    today = df_sorted.iloc[-1]
+    
+    yesterday_open = yesterday["开盘"]
+    yesterday_close = yesterday["收盘"]
+    yesterday_low = yesterday["最低"]
+    today_low = today["最低"]
+    
+    # Check for invalid data
+    if pd.isna(yesterday_open) or pd.isna(yesterday_close) or pd.isna(yesterday_low) or pd.isna(today_low):
         return 0.0
     
-    return (ma_short / ma_long) - 1
+    yesterday_open = float(yesterday_open)
+    yesterday_close = float(yesterday_close)
+    yesterday_low = float(yesterday_low)
+    today_low = float(today_low)
+    
+    denominator = yesterday_low - today_low
+    if denominator == 0:
+        return 0.0
+    
+    return (yesterday_open - yesterday_close) / denominator - 1
 
 
-def compute_momentum(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None, 
-                    short_ma: int = 5, long_ma: int = 20) -> pd.DataFrame:
-    """Calculate momentum factor using MA: (MA_short/MA_long - 1) / avg(MA_short/MA_long - 1)
+def compute_momentum(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    """Calculate momentum factor using formula: (昨开-昨收)/(昨低-今低)-1
     
     Args:
         history: Historical price data
         top_spot: Optional spot data (unused)
-        short_ma: Short period moving average (default: 5)
-        long_ma: Long period moving average (default: 20)
     """
     rows: List[dict] = []
-    ma_ratio_diffs: List[float] = []
     
-    min_required = max(short_ma, long_ma)
-    
-    # First pass: calculate (MA_short/MA_long - 1) for all stocks
-    stock_ma_data = {}
     for code, df in history.items():
-        if df is None or df.empty or len(df) < min_required:
+        if df is None or df.empty or len(df) < 2:
             continue
         
-        df_sorted = df.sort_values("日期")
-        close = df_sorted["收盘"]
-        
-        ma_ratio_diff = calculate_ma_ratio_diff(close, short_ma, long_ma)
-        if ma_ratio_diff is not None:
-            stock_ma_data[code] = ma_ratio_diff
-            ma_ratio_diffs.append(ma_ratio_diff)
-    
-    # Calculate average (MA_short/MA_long - 1)
-    avg_ma_ratio_diff = np.mean(ma_ratio_diffs) if ma_ratio_diffs else 1.0
-    if avg_ma_ratio_diff == 0:
-        avg_ma_ratio_diff = 1.0  # Avoid division by zero
-    
-    # Second pass: calculate momentum factor
-    for code, ma_ratio_diff in stock_ma_data.items():
-        momentum = ma_ratio_diff / avg_ma_ratio_diff
+        momentum = calculate_momentum_simple(df)
         rows.append({
             "代码": code, 
-            "动量因子": momentum,
-            f"MA{short_ma}/MA{long_ma}相对差值": ma_ratio_diff
+            "动量因子": momentum
         })
     
-    return pd.DataFrame(rows)
-
-
-# Configuration
-DEFAULT_SHORT_MA = 3
-DEFAULT_LONG_MA = 30
-
-def compute_momentum_with_default_params(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    """Wrapper function that uses the default MA parameters"""
-    result = compute_momentum(history, top_spot, DEFAULT_SHORT_MA, DEFAULT_LONG_MA)
+    # Sort by momentum factor from high to low
+    df_result = pd.DataFrame(rows)
+    if not df_result.empty:
+        df_result = df_result.sort_values("动量因子", ascending=False)
     
-    # Rename the dynamic column to a fixed name for the factor definition
-    dynamic_col = f"MA{DEFAULT_SHORT_MA}/MA{DEFAULT_LONG_MA}相对差值"
-    if dynamic_col in result.columns:
-        result = result.rename(columns={dynamic_col: "MA相对差值"})
-    
-    return result
+    return df_result
+
 
 MOMENTUM_FACTOR = Factor(
     id="momentum",
     name="动量因子",
-    description=f"基于移动平均线的动量因子：(MA{DEFAULT_SHORT_MA}/MA{DEFAULT_LONG_MA}-1)/avg(MA{DEFAULT_SHORT_MA}/MA{DEFAULT_LONG_MA}-1)",
+    description="简单动量因子：(昨开-昨收)/(昨低-今低)-1，从大到小排序",
     columns=[
         {"key": "动量因子", "label": "动量因子", "type": "number", "sortable": True},
         {"key": "动量评分", "label": "动量评分", "type": "score", "sortable": True},
-        {"key": "MA相对差值", "label": f"MA{DEFAULT_SHORT_MA}/MA{DEFAULT_LONG_MA}相对差值", "type": "number", "sortable": True},
     ],
-    compute=lambda history, top_spot=None: compute_momentum_with_default_params(history, top_spot),
+    compute=lambda history, top_spot=None: compute_momentum(history, top_spot),
 )
 
 MODULE_FACTORS = [MOMENTUM_FACTOR]

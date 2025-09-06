@@ -14,22 +14,26 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
     
     try:
         with Session(engine) as session:
-            # Get date range
-            end_date = date.today()
-            start_date = end_date - timedelta(days=n_days * 2)  # Get more data to ensure we have enough trading days
-            
-            # Get latest spot data to identify hot stocks
+            # Get latest trade date from database
             latest_date_result = session.exec(
                 select(DailyMarketData.date)
                 .order_by(DailyMarketData.date.desc())
                 .limit(1)
             ).first()
             
-            if not latest_date_result:
-                logger.warning("No market data found")
-                return {"stocks": [], "top_5": []}
+            if latest_date_result:
+                end_date = latest_date_result
+            else:
+                # 获取最新交易日
+                try:
+                    from stock_data_manager import get_latest_trade_date_and_limit_map
+                    end_date, _ = get_latest_trade_date_and_limit_map()
+                except Exception as e:
+                    raise Exception(f"无法获取最新交易日期：{e}")
             
-            latest_date = latest_date_result
+            start_date = end_date - timedelta(days=n_days * 2)  # Get more data to ensure we have enough trading days
+            
+            latest_date = end_date
             
             # Get top stocks by trading volume on latest date
             hot_stocks = session.exec(

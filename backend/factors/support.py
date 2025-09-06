@@ -15,8 +15,15 @@ def days_from_longest_candle(candles, window_size):
     
     # 找到最大实体的索引（使用相对昨收的幅度）
     # 从索引1开始，因为索引0是用来提供昨收数据的
-    max_body_idx = max(range(1, len(extended_window)), 
-                      key=lambda i: calculate_relative_body_length(extended_window, i))
+    # 从后往前遍历，这样相同长度时会选择最近的K线
+    max_body_length = 0
+    max_body_idx = 1  # 默认第一个可用索引
+    
+    for i in range(len(extended_window) - 1, 0, -1):  # 从后往前遍历
+        body_length = calculate_relative_body_length(extended_window, i)
+        if body_length > max_body_length:  # > 确保找到真正的最大值，从后往前所以最近的会被选中
+            max_body_length = body_length
+            max_body_idx = i
     
     # 返回天数差（调整索引，因为我们从1开始计算）
     return len(extended_window) - max_body_idx
@@ -26,15 +33,8 @@ def calculate_relative_body_length(window, idx):
     """计算K线实体相对昨收的幅度"""
     candle = window[idx]
     
-    # 获取昨收价格（前一天的收盘价）
-    # 现在每个K线都有昨收数据，不需要特殊处理
-    prev_close = window[idx - 1]['close']
-    
-    if prev_close == 0:
-        return 0.0
-    
-    # 计算实体相对昨收的幅度
-    body_length_ratio = abs(candle['close'] - candle['open']) / prev_close
+    # 计算实体长度
+    body_length_ratio = int(abs(candle['close'] - candle['open'])*100/window[-1]['close'])
     return body_length_ratio
 
 
@@ -53,7 +53,12 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
         if df is None or df.empty or len(df) < window_size + 1:
             continue
             
-        df_sorted = df.sort_values("日期")
+        # Convert date column to datetime for proper sorting if needed
+        df_copy = df.copy()
+        if not pd.api.types.is_datetime64_any_dtype(df_copy['日期']):
+            df_copy['日期'] = pd.to_datetime(df_copy['日期'])
+        
+        df_sorted = df_copy.sort_values("日期", ascending=True)
         
         # Convert DataFrame to list of candle dictionaries
         candles = []
