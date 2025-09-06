@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from './ui/button'
 import { TaskProgressCard } from './TaskProgressCard'
+import { AuthDialog } from './AuthDialog'
 import { api, createConceptTaskStatusPoller } from '../services/api'
 import { ConceptRecord, ConceptTaskResult } from '../types'
+import { AuthService } from '../services/auth'
 
 export function ConceptsPage() {
   const pollerCleanupRef = useRef<(() => void) | null>(null)
@@ -10,6 +12,7 @@ export function ConceptsPage() {
   const [currentTask, setCurrentTask] = useState<ConceptTaskResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
 
   const loadConcepts = async () => {
     try {
@@ -17,6 +20,15 @@ export function ConceptsPage() {
       setConcepts(response.concepts)
     } catch (err) {
       console.error('Failed to load concepts:', err)
+    }
+  }
+
+  const handleCollectConceptsClick = () => {
+    // 检查是否已认证
+    if (AuthService.isAuthenticated()) {
+      handleCollectConcepts()
+    } else {
+      setShowAuthDialog(true)
     }
   }
 
@@ -53,6 +65,11 @@ export function ConceptsPage() {
       setError(err instanceof Error ? err.message : '启动采集任务失败')
       setLoading(false)
     }
+  }
+
+  const handleAuthSuccess = () => {
+    AuthService.setAuth()
+    handleCollectConcepts()
   }
 
   useEffect(() => {
@@ -129,7 +146,7 @@ export function ConceptsPage() {
           </p>
         </div>
         <Button 
-          onClick={handleCollectConcepts} 
+          onClick={handleCollectConceptsClick} 
           disabled={loading}
         >
           {loading ? '采集中...' : '采集概念数据'}
@@ -194,6 +211,14 @@ export function ConceptsPage() {
           </table>
         </div>
       </div>
+
+      <AuthDialog
+        open={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        onSuccess={handleAuthSuccess}
+        title="概念数据采集权限验证"
+        description="采集概念数据需要管理员权限，请输入用户名和密码"
+      />
     </div>
   )
 }

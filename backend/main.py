@@ -3,8 +3,11 @@ import logging
 import warnings
 from typing import List
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, create_db_and_tables
 from api import (
@@ -21,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
-app = FastAPI(title="Quant Dashboard Backend")
+app = FastAPI(title="Quant Dashboard")
 
 # 初始化数据库
 create_db_and_tables()
@@ -29,11 +32,16 @@ logger.info("Database initialized successfully")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "https://a.subx.fun"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files if they exist (for production)
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/")
@@ -120,3 +128,28 @@ def get_concepts():
 def get_dashboard_kline_amplitude(n_days: int = 30):
     """Get K-line amplitude analysis for dashboard"""
     return get_kline_amplitude_dashboard(n_days)
+
+
+# Serve frontend for production
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    """Serve frontend files for production"""
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    
+    # If static directory doesn't exist, return API info
+    if not os.path.exists(static_dir):
+        return {"message": "Quant Dashboard API", "docs": "/docs"}
+    
+    # Try to serve the requested file
+    file_path = os.path.join(static_dir, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    # For SPA routing, serve index.html for non-API routes
+    if not full_path.startswith("api/") and not full_path.startswith("docs"):
+        index_path = os.path.join(static_dir, "index.html")
+        if os.path.isfile(index_path):
+            return FileResponse(index_path)
+    
+    # Return 404 for API routes or missing files
+    return {"detail": "Not found"}

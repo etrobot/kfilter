@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { FactorSelectionDialog } from './FactorSelectionDialog'
+import { AuthDialog } from './AuthDialog'
 import { Button } from './ui/button'
 import { FactorRecord, FactorMeta } from '../types'
 import { api } from '../services/api'
+import { AuthService } from '../services/auth'
 import { ResultsMainView } from './ResultsMainView'
 import { ExtendedAnalysisView } from './ExtendedAnalysisView'
 
@@ -28,12 +30,18 @@ export function ResultsTable({
 }: ResultsTableProps) {
   const [activeTab, setActiveTab] = useState<'main' | 'extended'>('main')
   const [showFactorDialog, setShowFactorDialog] = useState(false)
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
 
   const handleRunClick = () => {
     if (isTaskRunning && currentTaskId) {
       handleStopClick()
     } else {
-      setShowFactorDialog(true)
+      // 检查是否已认证
+      if (AuthService.isAuthenticated()) {
+        setShowFactorDialog(true)
+      } else {
+        setShowAuthDialog(true)
+      }
     }
   }
 
@@ -63,6 +71,11 @@ export function ResultsTable({
       console.error('Failed to start analysis:', error)
       alert('启动分析失败，请重试')
     }
+  }
+
+  const handleAuthSuccess = () => {
+    AuthService.setAuth()
+    setShowFactorDialog(true)
   }
 
   return (
@@ -113,6 +126,14 @@ export function ResultsTable({
         open={showFactorDialog}
         onOpenChange={setShowFactorDialog}
         onConfirm={handleFactorConfirm}
+      />
+
+      <AuthDialog
+        open={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        onSuccess={handleAuthSuccess}
+        title="数据分析权限验证"
+        description="启动数据分析需要管理员权限，请输入用户名和密码"
       />
     </div>
   )

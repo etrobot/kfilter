@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: quant-dashboard
+    restart: unless-stopped
+    ports:
+      - "61125:8000"  # 暴露到宿主机61125端口
+    volumes:
+      - ./data:/app/data_management  # 持久化数据库
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.quant.rule=Host(`a.subx.fun`)"
+      - "traefik.http.routers.quant.entrypoints=websecure"
+      - "traefik.http.routers.quant.tls.certresolver=letsencrypt"
+      - "traefik.http.services.quant.loadbalancer.server.port=8000"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
