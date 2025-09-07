@@ -1,51 +1,41 @@
-# Multi-stage build for fullstack app
-FROM node:18-alpine AS frontend-builder
+FROM node:18-alpine AS frontend-build
 
-# Copy the entire project for frontend build
-COPY . /app
-WORKDIR /app/frontend
-
-# Install frontend dependencies
-RUN npm install
-
-# Build frontend using npx to ensure vite is found
-RUN npx vite build
-
-# Python backend with frontend static files
-FROM python:3.13-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-RUN pip install uv
-
-# Set working directory
 WORKDIR /app
 
-# Copy backend files with correct structure
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Copy frontend source code
+COPY frontend/ .
+
+# Install frontend dependencies and build
+RUN pnpm install && pnpm run build
+
+# Backend build
+FROM python:3.13-slim
+
+RUN pip install uv
+
+WORKDIR /app
+
+# Copy backend files
 COPY backend/ ./
 
-# Debug: Show file structure
-RUN ls -la
+# Copy frontend build to backend static directory
+COPY --from=frontend-build /app/dist ./static
 
-# Set up proper Python environment and install dependencies
+# Create __init__.py files for all directories containing Python files
+RUN find . -name "*.py" -exec dirname {} \; | xargs -I {} touch {}/__init__.py
+
+# Install dependencies using uv
 RUN uv sync --frozen
 
-# Set PYTHONPATH to ensure modules can be found
+# Activate virtual environment
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 ENV PYTHONPATH=/app
 
-# Copy built frontend
-COPY --from=frontend-builder /app/frontend/dist ./static
-
-# Create data directory for database persistence with proper permissions
-RUN mkdir -p /app/data_management && \
-    chmod 755 /app/data_management
-
-# Expose port
 EXPOSE 8000
 
-# Run the application
 CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

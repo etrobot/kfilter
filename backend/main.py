@@ -74,12 +74,47 @@ app.add_middleware(
 # Mount static files if they exist (for production)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
+    # Mount specific static folders used by the SPA
+    assets_dir = os.path.join(static_dir, "assets")
+    icons_dir = os.path.join(static_dir, "icons")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    if os.path.isdir(icons_dir):
+        app.mount("/icons", StaticFiles(directory=icons_dir), name="icons")
+
+    # Backward compatible mount (optional)
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+    # Direct file endpoints for PWA files
+    @app.get("/manifest.json", include_in_schema=False)
+    async def serve_manifest():
+        path = os.path.join(static_dir, "manifest.json")
+        if os.path.isfile(path):
+            return FileResponse(path)
+        return {"detail": "manifest.json not found"}
 
-@app.get("/")
-def root():
-    return read_root()
+    @app.get("/sw.js", include_in_schema=False)
+    async def serve_sw():
+        path = os.path.join(static_dir, "sw.js")
+        if os.path.isfile(path):
+            return FileResponse(path)
+        return {"detail": "sw.js not found"}
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def serve_favicon():
+        path = os.path.join(static_dir, "favicon.ico")
+        if os.path.isfile(path):
+            return FileResponse(path)
+        return {"detail": "favicon.ico not found"}
+
+# Explicit root route: return index.html
+@app.get("/", include_in_schema=False)
+async def root_index():
+    if os.path.exists(static_dir):
+        index_path = os.path.join(static_dir, "index.html")
+        if os.path.isfile(index_path):
+            return FileResponse(index_path)
+    return {"message": "Quant Dashboard API", "docs": "/docs"}
 
 
 @app.post("/run", response_model=RunResponse)
@@ -187,6 +222,14 @@ async def serve_frontend(full_path: str):
     
     # If static directory doesn't exist, return API info
     if not os.path.exists(static_dir):
+        return {"message": "Quant Dashboard API", "docs": "/docs"}
+    
+    # Handle root path - serve index.html
+    if full_path == "":
+        index_path = os.path.join(static_dir, "index.html")
+        if os.path.isfile(index_path):
+            return FileResponse(index_path)
+        # Fallback to API info if frontend not built
         return {"message": "Quant Dashboard API", "docs": "/docs"}
     
     # Try to serve the requested file

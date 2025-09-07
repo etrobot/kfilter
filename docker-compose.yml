@@ -8,7 +8,7 @@ services:
     ports:
       - "61125:8000"  # 暴露到宿主机61125端口
     volumes:
-      - ./data:/app/data_management  # 持久化数据库
+      - ./data:/app/data  # 持久化数据目录
     environment:
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
