@@ -1,5 +1,5 @@
 # Multi-stage build for fullstack app
-FROM node:18-alpine as frontend-builder
+FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -7,8 +7,15 @@ WORKDIR /app/frontend
 COPY frontend/package.json ./
 RUN npm install
 
-# Copy frontend source code
-COPY frontend/ ./
+# Copy frontend source code (excluding node_modules)
+COPY frontend/app ./app
+COPY frontend/public ./public
+COPY frontend/index.html ./index.html
+COPY frontend/vite.config.ts ./vite.config.ts
+COPY frontend/tsconfig.json ./tsconfig.json
+COPY frontend/tailwind.config.js ./tailwind.config.js
+COPY frontend/postcss.config.js ./postcss.config.js
+COPY frontend/components.json ./components.json
 
 # Build frontend using npx to ensure vite is found
 RUN npx vite build
@@ -28,13 +35,16 @@ WORKDIR /app
 
 # Copy backend files
 COPY backend/ ./
+
+# Set up proper Python environment and install dependencies
 RUN uv sync --frozen
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./static
 
-# Create data directory for database persistence
-RUN mkdir -p /app/data_management
+# Create data directory for database persistence with proper permissions
+RUN mkdir -p /app/data_management && \
+    chmod 755 /app/data_management
 
 # Expose port
 EXPOSE 8000

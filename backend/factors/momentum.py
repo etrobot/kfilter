@@ -6,11 +6,6 @@ import numpy as np
 
 from models import Factor
 
-try:
-    import talib
-    HAS_TALIB = True
-except ImportError:
-    HAS_TALIB = False
 
 
 def calculate_momentum_simple(df: pd.DataFrame) -> float:

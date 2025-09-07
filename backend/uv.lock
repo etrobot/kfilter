@@ -159,20 +159,6 @@ wheels = [
 ]
 
 [[package]]
-name = "build"
-version = "1.3.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "os_name == 'nt'" },
-    { name = "packaging" },
-    { name = "pyproject-hooks" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/25/1c/23e33405a7c9eac261dff640926b8b5adaed6a6eb3e1767d441ed611d0c0/build-1.3.0.tar.gz", hash = "sha256:698edd0ea270bde950f53aed21f3a0135672206f3911e0176261a31e0e07b397", size = 48544 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/8c/2b30c12155ad8de0cf641d76a8b396a16d2c36bc6d50b621a62b7c4567c1/build-1.3.0-py3-none-any.whl", hash = "sha256:7145f0b5061ba90a1500d60bd1b13ca0a8a4cebdd0cc16ed8adf1c0e739f43b4", size = 23382 },
-]
-
-[[package]]
 name = "certifi"
 version = "2025.8.3"
 source = { registry = "https://pypi.org/simple" }
@@ -489,7 +475,6 @@ dependencies = [
     { name = "pandas" },
     { name = "requests" },
     { name = "sqlmodel" },
-    { name = "ta-lib" },
     { name = "uvicorn" },
 ]
 
@@ -508,7 +493,6 @@ requires-dist = [
     { name = "pandas" },
     { name = "requests" },
     { name = "sqlmodel" },
-    { name = "ta-lib", specifier = ">=0.6.6" },
     { name = "uvicorn" },
 ]
 
@@ -647,15 +631,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pip"
-version = "25.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/20/16/650289cd3f43d5a2fadfd98c68bd1e1e7f2550a1a5326768cddfbcedb2c5/pip-25.2.tar.gz", hash = "sha256:578283f006390f85bb6282dffb876454593d637f5d1be494b5202ce4877e71f2", size = 1840021 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/3f/945ef7ab14dc4f9d7f40288d2df998d1837ee0888ec3659c813487572faa/pip-25.2-py3-none-any.whl", hash = "sha256:6d67a2b4e7f14d8b31b8b52648866fa717f45a1eb70e83002f4331d07e953717", size = 1752557 },
-]
-
-[[package]]
 name = "platformdirs"
 version = "4.3.8"
 source = { registry = "https://pypi.org/simple" }
@@ -773,15 +748,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217 },
-]
-
-[[package]]
-name = "pyproject-hooks"
-version = "1.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e7/82/28175b2414effca1cdac8dc99f76d660e7a4fb0ceefa4b4ab8f5f6742925/pyproject_hooks-1.2.0.tar.gz", hash = "sha256:1e859bd5c40fae9448642dd871adf459e5e2084186e8d2c2a79a824c970da1f8", size = 19228 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/bd/24/12818598c362d7f300f18e74db45963dbcb85150324092410c8b49405e42/pyproject_hooks-1.2.0-py3-none-any.whl", hash = "sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913", size = 10216 },
 ]
 
 [[package]]
@@ -932,28 +898,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/04/57/d062573f391d062710d4088fa1369428c38d51460ab6fedff920efef932e/starlette-0.47.2.tar.gz", hash = "sha256:6ae9aa5db235e4846decc1e7b79c4f346adf41e9777aebeb49dfd09bbd7023d8", size = 2583948 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f7/1f/b876b1f83aef204198a42dc101613fefccb32258e5428b5f9259677864b4/starlette-0.47.2-py3-none-any.whl", hash = "sha256:c5847e96134e5c5371ee9fac6fdf1a67336d5815e09eb2a01fdb57a351ef915b", size = 72984 },
-]
-
-[[package]]
-name = "ta-lib"
-version = "0.6.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "build" },
-    { name = "numpy" },
-    { name = "pip" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/ae/7207e459c95489ea721ea4d75ebabc69b386773f458b040cfcc27f0c750d/ta_lib-0.6.6.tar.gz", hash = "sha256:ede8e1c2c442a86da5afafee116f60d949564ef7cb1113edea19779b487d8953", size = 375854 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/11/337a1e4757e8e93d025d81bff7790a983f4eb8ec0d9deff15fadf72b7d1b/ta_lib-0.6.6-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:6f2f4702bc85248c166a52a0d8f39762c953a63bc929308a9485a53b985ecf41", size = 1067496 },
-    { url = "https://files.pythonhosted.org/packages/bb/18/ef36e3a6d261c67d30118ac62052fcbd746f5bb3dc74501a17de528fc352/ta_lib-0.6.6-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:575420e01a50ebfa6afbbbc98266e45c01417925683f682de901808b343b6ae8", size = 981203 },
-    { url = "https://files.pythonhosted.org/packages/95/f3/d5cac9d04bba3b99b09844070bc3e07be4b6e59ee97599c26b8e10a4b6fa/ta_lib-0.6.6-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:34389acdf0d1a566ae7aafe73f313c802a0760f8470a42e7461bf33da150f807", size = 3963731 },
-    { url = "https://files.pythonhosted.org/packages/d8/9c/28bbcf3be8667a76e8f7208640fa6f81bbd69be0dabcfbf533c9eecd98d3/ta_lib-0.6.6-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:52bd61516e5162bb99adab6171f510c90ae569bc4247a19c7dd21e2b345266aa", size = 4060006 },
-    { url = "https://files.pythonhosted.org/packages/bc/b6/5ba1bbec1f570c4e76600642b89622c44c204ab0888517a4f8678c55dd58/ta_lib-0.6.6-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:677c5dc6e78851bf2bdd1fddb833f4d06550800f7cf826971530d5ff097563f0", size = 3593075 },
-    { url = "https://files.pythonhosted.org/packages/d9/af/d52bcd3bc9ff352f7e91c1842457a1f5da5247f22cfdc3d848f0fe7be1dc/ta_lib-0.6.6-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:5bff60c0a6d2a2b1eb045f2c0f3a946f7e000ee6c4d0992d7eb94a45bad3bd9c", size = 3683583 },
-    { url = "https://files.pythonhosted.org/packages/d0/83/395295d10dcce8c556b5a0af871879fcbc3b954a03705c63889f6db61107/ta_lib-0.6.6-cp313-cp313-win32.whl", hash = "sha256:b1fed90923ccfe9e0f0ea4cc4416aa137ccb6f70cf0ff890ac690398c3b35fe4", size = 767305 },
-    { url = "https://files.pythonhosted.org/packages/2d/12/9bf0b726414bb980ab2f596ff7da03e20c045d7172dca39ad336c4806eea/ta_lib-0.6.6-cp313-cp313-win_amd64.whl", hash = "sha256:7e29c4122683c20bd805ae01e1ff470175b7c504be903cb0727cb63705f08d9b", size = 883672 },
-    { url = "https://files.pythonhosted.org/packages/8e/5b/e4ccc44b9d8bee5d3308e20cbcb4cf9aa4733fec1737a55dc96e84d7faf1/ta_lib-0.6.6-cp313-cp313-win_arm64.whl", hash = "sha256:dc23ac8f062548f16a958dc8a53a098a75263e14437db438ad1759921ac1a7ed", size = 749999 },
 ]
 
 [[package]]
