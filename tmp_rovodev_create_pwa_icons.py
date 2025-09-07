@@ -125,11 +125,12 @@ def create_pwa_icons(source_image_path, output_dir="icons"):
         print(f"❌ Error: {e}")
 
 if __name__ == "__main__":
-    # Use the generated icon
-    source_image = "icons/generated_image_1.png"
+    # Use the new Bauhaus-style icon
+    source_image = "bauhaus_stock_icon.png"
+    output_directory = "frontend/public/icons"
     
     if os.path.exists(source_image):
-        create_pwa_icons(source_image)
+        create_pwa_icons(source_image, output_directory)
     else:
         print(f"❌ Source image not found: {source_image}")
         print("Please make sure the generated icon exists.")
