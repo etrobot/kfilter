@@ -50,7 +50,7 @@ export function ExtendedAnalysisPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>

@@ -11,6 +11,7 @@ from data_management.services import create_analysis_task
 from utils import TASK_STOP_EVENTS, get_task
 
 from data_management.concept_service import create_concept_collection_task, get_concepts_from_db
+from data_management.services import get_latest_analysis_results
 from factors import list_factors
 
 
@@ -84,25 +85,46 @@ def get_task_status(task_id: str) -> TaskResult:
 
 
 def get_latest_results() -> TaskResult | Message:
-    """Get the latest completed task results"""
+    """Get the latest completed task results. Prefer in-memory cache so frontend can fetch
+    results even before another analysis starts."""
+
+    # 1) Try in-memory cache first
+    cached = get_latest_analysis_results()
+    if cached:
+        return TaskResult(
+            task_id=cached.get("task_id", ""),
+            status=TaskStatus.COMPLETED,  # cached only stores completed results
+            progress=1.0,
+            message=cached.get("message", "分析完成"),
+            created_at=cached.get("created_at", ""),
+            completed_at=cached.get("completed_at"),
+            top_n=cached.get("top_n", 0),
+            selected_factors=cached.get("selected_factors"),
+            data=cached.get("data"),
+            count=cached.get("count"),
+            extended=cached.get("extended"),
+            error=None,
+        )
+
+    # 2) Fallback to last completed task stored in memory (utils)
     last_task = get_last_completed_task()
-    if not last_task:
-        return Message(message="No results yet. POST /run to start a calculation.")
-    
-    return TaskResult(
-        task_id=last_task.task_id,
-        status=last_task.status,
-        progress=last_task.progress,
-        message=last_task.message,
-        created_at=last_task.created_at,
-        completed_at=last_task.completed_at,
-        top_n=last_task.top_n,
-        selected_factors=last_task.selected_factors,
-        data=last_task.result["data"] if last_task.result else None,
-        count=last_task.result["count"] if last_task.result else None,
-        extended=last_task.result.get("extended") if last_task.result else None,
-        error=last_task.error
-    )
+    if last_task and last_task.result:
+        return TaskResult(
+            task_id=last_task.task_id,
+            status=last_task.status,
+            progress=last_task.progress,
+            message=last_task.message,
+            created_at=last_task.created_at,
+            completed_at=last_task.completed_at,
+            top_n=last_task.top_n,
+            selected_factors=last_task.selected_factors,
+            data=last_task.result.get("data"),
+            count=last_task.result.get("count"),
+            extended=last_task.result.get("extended"),
+            error=last_task.error,
+        )
+
+    return Message(message="No results yet. POST /run to start a calculation.")
 
 
 def list_all_tasks() -> List[TaskResult]:

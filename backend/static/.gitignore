@@ -1,0 +1,6 @@
+# Ignore all built assets in this directory
+*
+
+# Keep these files to preserve the directory structure and docs
+!.gitignore
+!README.md

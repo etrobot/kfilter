@@ -6,6 +6,17 @@ import { api, createConceptTaskStatusPoller } from '../services/api'
 import { ConceptRecord, ConceptTaskResult } from '../types'
 import { AuthService } from '../services/auth'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from './ui/alert-dialog'
 
 type SortField = 'name' | 'market_cap' | 'stock_count' | 'updated_at' | null
 type SortDirection = 'asc' | 'desc'
@@ -200,7 +211,7 @@ export function ConceptsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className="p-4 space-y-3 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">概念板块</h1>
@@ -208,12 +219,25 @@ export function ConceptsPage() {
             共 {concepts.length} 个概念板块
           </p>
         </div>
-        <Button 
-          onClick={handleCollectConceptsClick} 
-          disabled={loading}
-        >
-          {loading ? '采集中...' : '采集概念数据'}
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button disabled={loading}>
+              {loading ? '采集中...' : '采集概念数据'}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>开始采集？</AlertDialogTitle>
+              <AlertDialogDescription>
+                采集一次需要十分钟，是否开始？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCollectConceptsClick}>开始</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {currentTask && <TaskProgressCard task={currentTask} title="概念数据采集进度" />}
