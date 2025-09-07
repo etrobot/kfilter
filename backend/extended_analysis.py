@@ -40,91 +40,157 @@ def get_stock_concepts(stock_code: str, session) -> List[tuple[str, str]]:
         return []
 
 
-def get_top_limit_up_stocks_in_sectors(latest_trade_date: date, session) -> List[dict]:
-    """Get stocks with most limit-ups within top sectors
+def get_sector_analysis_for_latest_day(latest_trade_date: date, session) -> dict:
+    """Get sector-based analysis for the latest trading day only
     
     Returns:
-        List of stock info with limit-up counts and concept information
+        Dict with sector codes as keys and their stock analysis as values
     """
     from sqlmodel import select
-    from models import ConceptInfo, ConceptStock, DailyMarketData
+    from models import ConceptInfo, ConceptStock, DailyMarketData, StockBasicInfo
     
     try:
-        # Get top 10 concepts by stock count
-        top_concepts = session.exec(
-            select(ConceptInfo).order_by(ConceptInfo.stock_count.desc()).limit(10)
+        # Get all daily market data for the latest trade date only
+        latest_day_data = session.exec(
+            select(DailyMarketData)
+            .where(DailyMarketData.date == latest_trade_date)
         ).all() or []
         
-        if not top_concepts:
-            return []
+        if not latest_day_data:
+            logger.warning(f"No market data found for latest trade date: {latest_trade_date}")
+            return {}
+        
+        # Get all concepts
+        all_concepts = session.exec(select(ConceptInfo)).all() or []
+        concept_map = {c.code: c.name for c in all_concepts}
+        
+        # Get all concept-stock relationships
+        concept_stocks = session.exec(select(ConceptStock)).all() or []
+        
+        # Build sector -> stocks mapping
+        sector_stocks = defaultdict(set)
+        stock_sectors = defaultdict(list)
+        
+        for cs in concept_stocks:
+            sector_stocks[cs.concept_code].add(cs.stock_code)
+            stock_sectors[cs.stock_code].append((cs.concept_code, concept_map.get(cs.concept_code, cs.concept_code)))
+        
+        # Get stock names
+        stock_names = session.exec(select(StockBasicInfo)).all() or []
+        stock_name_map = {s.code: s.name for s in stock_names}
+        
+        # Analyze by sectors
+        result = {}
+        
+        for sector_code, stock_codes in sector_stocks.items():
+            sector_name = concept_map.get(sector_code, sector_code)
             
-        concept_codes = [c.code for c in top_concepts]
-        concept_map = {c.code: c.name for c in top_concepts}
-        
-        # Get all stocks in these concepts
-        stocks = session.exec(
-            select(ConceptStock).where(ConceptStock.concept_code.in_(concept_codes))
-        ).all() or []
-        
-        # Count limit-up occurrences in recent 180 days
-        today = latest_trade_date
-        window_start = today - timedelta(days=180)
-        
-        stock_codes_in_concepts = list({s.stock_code for s in stocks})
-        if not stock_codes_in_concepts:
-            return []
-        
-        # Query limit-up records
-        rows = session.exec(
-            select(DailyMarketData.code, DailyMarketData.date)
-            .where(
-                DailyMarketData.code.in_(stock_codes_in_concepts),
-                DailyMarketData.date >= window_start,
-                DailyMarketData.date <= today,
-                DailyMarketData.limit_status == 1,
-            )
-        ).all() or []
-        
-        # Count limit-ups per stock
-        counts = {}
-        for code_val, _ in rows:
-            counts[code_val] = counts.get(code_val, 0) + 1
-        
-        # Build stock-to-concepts mapping (only for top concepts initially)
-        stock_concepts_top = defaultdict(list)
-        for s in stocks:
-            concept_name = concept_map.get(s.concept_code)
-            if concept_name:
-                stock_concepts_top[s.stock_code].append((s.concept_code, concept_name))
-        
-        # Build result list
-        result = []
-        for stock_code, limit_count in counts.items():
-            if limit_count <= 0:
-                continue
-                
-            # Get ALL concepts for this stock (not just top 10)
-            all_concepts = get_stock_concepts(stock_code, session)
-            if not all_concepts:
+            # Get market data for stocks in this sector for latest day
+            sector_day_data = [d for d in latest_day_data if d.code in stock_codes]
+            
+            if not sector_day_data:
                 continue
             
-            concept_codes = [cc for cc, _ in all_concepts]
-            concept_names = [cn for _, cn in all_concepts]
+            # Count limit-ups for this sector on latest day
+            limit_up_stocks = []
+            total_stocks = len(sector_day_data)
+            limit_up_count = 0
             
-            result.append({
-                "code": stock_code,
-                "limit_up_count": int(limit_count),
-                "concept_codes": concept_codes,
-                "concept_names": concept_names
-            })
+            for data in sector_day_data:
+                if data.limit_status == 1:  # limit up
+                    limit_up_count += 1
+                    
+                    # Get historical limit-up count for this stock (past 180 days)
+                    historical_count = get_stock_historical_limit_ups(data.code, latest_trade_date, session)
+                    
+                    limit_up_stocks.append({
+                        "code": data.code,
+                        "name": stock_name_map.get(data.code, data.code),
+                        "limit_up_count": historical_count,
+                        "price": float(data.close) if data.close else 0
+                    })
+            
+            # Sort stocks by historical limit-up count
+            limit_up_stocks.sort(key=lambda x: x["limit_up_count"], reverse=True)
+            
+            if limit_up_count > 0:  # Only include sectors with limit-ups today
+                result[sector_code] = {
+                    "sector_code": sector_code,
+                    "sector_name": sector_name,
+                    "total_stocks": total_stocks,
+                    "limit_up_count_today": limit_up_count,
+                    "limit_up_ratio": round(limit_up_count / total_stocks * 100, 2),
+                    "stocks": limit_up_stocks
+                }
         
-        # Sort by limit_up_count desc
-        result.sort(key=lambda x: x["limit_up_count"], reverse=True)
         return result
         
     except Exception as e:
-        logger.warning(f"Failed to get top limit-up stocks: {e}")
-        return []
+        logger.warning(f"Failed to get sector analysis: {e}")
+        return {}
+
+
+def get_stock_historical_limit_ups(stock_code: str, latest_date: date, session) -> int:
+    """Get historical limit-up count for a stock in past 180 days"""
+    from sqlmodel import select
+    from models import DailyMarketData
+    
+    try:
+        window_start = latest_date - timedelta(days=180)
+        
+        count = session.exec(
+            select(DailyMarketData)
+            .where(
+                DailyMarketData.code == stock_code,
+                DailyMarketData.date >= window_start,
+                DailyMarketData.date <= latest_date,
+                DailyMarketData.limit_status == 1
+            )
+        ).all() or []
+        
+        return len(count)
+        
+    except Exception as e:
+        logger.warning(f"Failed to get historical limit-ups for {stock_code}: {e}")
+        return 0
+
+
+def run_standalone_extended_analysis() -> dict:
+    """Run standalone extended analysis focusing on latest day sector analysis"""
+    try:
+        from sqlmodel import Session, select
+        from models import engine, DailyMarketData
+        
+        with Session(engine) as session:
+            # Get the latest trade date
+            latest_data = session.exec(
+                select(DailyMarketData).order_by(DailyMarketData.date.desc()).limit(1)
+            ).first()
+            
+            if not latest_data:
+                return {"error": "No market data found"}
+            
+            latest_date = latest_data.date
+            
+            # Get sector analysis for latest day
+            sector_analysis = get_sector_analysis_for_latest_day(latest_date, session)
+            
+            # Sort sectors by limit-up ratio
+            sorted_sectors = sorted(
+                sector_analysis.values(),
+                key=lambda x: x["limit_up_ratio"],
+                reverse=True
+            )
+            
+            return {
+                "analysis_date": latest_date.isoformat(),
+                "total_sectors_with_limit_ups": len(sorted_sectors),
+                "sectors": sorted_sectors
+            }
+            
+    except Exception as e:
+        logger.error(f"Standalone extended analysis failed: {e}")
+        return {"error": str(e)}
 
 
 def build_extended_analysis(latest_trade_date: date, data: List[dict]) -> dict:

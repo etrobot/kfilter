@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from './ui/dialog'
 import { Button } from './ui/button'
+import { AuthService } from '../services/auth'
 
 interface AuthDialogProps {
   open: boolean
@@ -22,18 +23,25 @@ export function AuthDialog({
   onOpenChange, 
   onSuccess,
   title = "操作权限验证",
-  description = "请输入用户名和密码以继续操作"
+  description = "请输入用户名和邮箱以继续操作"
 }: AuthDialogProps) {
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!username.trim() || !password.trim()) {
-      setError('请输入用户名和密码')
+    if (!username.trim() || !email.trim()) {
+      setError('请输入用户名和邮箱')
+      return
+    }
+
+    // 简单的邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setError('请输入有效的邮箱地址')
       return
     }
 
@@ -41,19 +49,16 @@ export function AuthDialog({
     setError(null)
 
     try {
-      // 简单的验证逻辑 - 可以根据需要修改
-      // 这里使用固定的用户名密码，实际项目中应该调用后端API
-      if (username === 'admin' && password === 'admin123') {
-        // 验证成功，保存到sessionStorage
-        sessionStorage.setItem('auth_token', 'authenticated')
-        sessionStorage.setItem('auth_time', Date.now().toString())
+      const result = await AuthService.authenticate(username, email)
+      
+      if (result.success) {
         onSuccess()
         onOpenChange(false)
         // 清空表单
         setUsername('')
-        setPassword('')
+        setEmail('')
       } else {
-        setError('用户名或密码错误')
+        setError(result.error || '认证失败')
       }
     } catch (err) {
       setError('验证失败，请重试')
@@ -64,7 +69,7 @@ export function AuthDialog({
 
   const handleCancel = () => {
     setUsername('')
-    setPassword('')
+    setEmail('')
     setError(null)
     onOpenChange(false)
   }
@@ -96,16 +101,16 @@ export function AuthDialog({
           </div>
           
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              密码
+            <label htmlFor="email" className="text-sm font-medium">
+              邮箱
             </label>
             <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="请输入密码"
+              placeholder="请输入邮箱"
               disabled={loading}
             />
           </div>
@@ -127,7 +132,7 @@ export function AuthDialog({
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !username.trim() || !password.trim()}
+              disabled={loading || !username.trim() || !email.trim()}
             >
               {loading ? '验证中...' : '确认'}
             </Button>

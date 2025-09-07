@@ -85,6 +85,12 @@ export const api = {
   async getDashboardData(nDays: number = 30): Promise<any> {
     return apiCall<any>(`/dashboard/kline-amplitude?n_days=${nDays}`)
   },
+
+  async runExtendedAnalysis(): Promise<any> {
+    return apiCall<any>('/extended-analysis/run', {
+      method: 'POST',
+    })
+  },
 }
 
 export function createTaskStatusPoller(

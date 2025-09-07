@@ -7,7 +7,6 @@ import { FactorRecord, FactorMeta } from '../types'
 import { api } from '../services/api'
 import { AuthService } from '../services/auth'
 import { ResultsMainView } from './ResultsMainView'
-import { ExtendedAnalysisView } from './ExtendedAnalysisView'
 
 interface ResultsTableProps {
   data: FactorRecord[]
@@ -28,7 +27,6 @@ export function ResultsTable({
   currentTaskId, 
   isTaskRunning = false 
 }: ResultsTableProps) {
-  const [activeTab, setActiveTab] = useState<'main' | 'extended'>('main')
   const [showFactorDialog, setShowFactorDialog] = useState(false)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
 
@@ -74,29 +72,13 @@ export function ResultsTable({
   }
 
   const handleAuthSuccess = () => {
-    AuthService.setAuth()
     setShowFactorDialog(true)
   }
 
   return (
     <div className="space-y-4 w-full">
       <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="flex bg-muted rounded p-1 text-sm">
-            <button
-              className={`px-3 py-1 rounded ${activeTab === 'main' ? 'bg-white shadow' : ''}`}
-              onClick={() => setActiveTab('main')}
-            >
-              分析结果
-            </button>
-            <button
-              className={`px-3 py-1 rounded ${activeTab === 'extended' ? 'bg-white shadow' : ''}`}
-              onClick={() => setActiveTab('extended')}
-            >
-              扩展分析
-            </button>
-          </div>
-        </div>
+        <h2 className="text-lg font-semibold">分析结果</h2>
         <Button 
           onClick={handleRunClick}
           disabled={false}
@@ -116,11 +98,7 @@ export function ResultsTable({
         </Button>
       </div>
 
-      {activeTab === 'main' ? (
-        <ResultsMainView data={data} factorMeta={factorMeta} />
-      ) : (
-        <ExtendedAnalysisView extended={extended} />
-      )}
+      <ResultsMainView data={data} factorMeta={factorMeta} />
 
       <FactorSelectionDialog
         open={showFactorDialog}

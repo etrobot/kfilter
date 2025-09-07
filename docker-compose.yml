@@ -9,6 +9,9 @@ services:
       - "61125:8000"  # 暴露到宿主机61125端口
     volumes:
       - ./data:/app/data_management  # 持久化数据库
+    environment:
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.quant.rule=Host(`a.subx.fun`)"

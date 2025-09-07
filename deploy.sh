@@ -6,6 +6,26 @@ set -e
 
 echo "🚀 Starting deployment of Quant Dashboard..."
 
+# Prompt for user information
+echo "👤 Setting up user information..."
+read -p "请输入用户名 (Username): " USERNAME
+read -p "请输入邮箱 (Email): " EMAIL
+
+# Validate email format (basic validation)
+if [[ ! "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+    echo "❌ 邮箱格式无效，请输入有效的邮箱地址"
+    exit 1
+fi
+
+echo "✅ 用户信息设置完成:"
+echo "  - 用户名: $USERNAME"
+echo "  - 邮箱: $EMAIL"
+echo ""
+
+# Export environment variables for docker-compose
+export ADMIN_USERNAME="$USERNAME"
+export ADMIN_EMAIL="$EMAIL"
+
 # Create necessary directories
 echo "📁 Creating directories..."
 mkdir -p data

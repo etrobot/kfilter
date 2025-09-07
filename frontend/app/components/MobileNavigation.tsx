@@ -1,10 +1,10 @@
 import React from 'react'
-import { BarChart3, Lightbulb, TrendingUp } from 'lucide-react'
+import { BarChart3, Lightbulb, TrendingUp, Target } from 'lucide-react'
 import { useIsMobile } from '../hooks/use-mobile'
 
 interface MobileNavigationProps {
-  currentPage: 'ranking' | 'concepts' | 'dashboard'
-  setCurrentPage: (page: 'ranking' | 'concepts' | 'dashboard') => void
+  currentPage: 'ranking' | 'concepts' | 'dashboard' | 'extended-analysis'
+  setCurrentPage: (page: 'ranking' | 'concepts' | 'dashboard' | 'extended-analysis') => void
 }
 
 export function MobileNavigation({ currentPage, setCurrentPage }: MobileNavigationProps) {
@@ -49,6 +49,17 @@ export function MobileNavigation({ currentPage, setCurrentPage }: MobileNavigati
         >
           <Lightbulb size={20} />
           <span className="text-xs mt-1">概念</span>
+        </button>
+        <button
+          onClick={() => setCurrentPage('extended-analysis')}
+          className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${
+            currentPage === 'extended-analysis'
+              ? 'text-indigo-600'
+              : 'text-gray-500'
+          }`}
+        >
+          <Target size={20} />
+          <span className="text-xs mt-1">扩展</span>
         </button>
       </div>
     </nav>

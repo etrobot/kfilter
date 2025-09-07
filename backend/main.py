@@ -9,11 +9,13 @@ from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, create_db_and_tables
+from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, AuthRequest, AuthResponse, create_db_and_tables, User, get_session
+from sqlmodel import select
 from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
-    list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard
+    list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard,
+    run_extended_analysis, login_user
 )
 from factors import list_factors
 
@@ -29,6 +31,37 @@ app = FastAPI(title="Quant Dashboard")
 # 初始化数据库
 create_db_and_tables()
 logger.info("Database initialized successfully")
+
+def create_admin_user():
+    """Create admin user from environment variables if provided"""
+    admin_username = os.getenv('ADMIN_USERNAME')
+    admin_email = os.getenv('ADMIN_EMAIL')
+    
+    if admin_username and admin_email:
+        try:
+            with next(get_session()) as session:
+                # Check if admin user already exists
+                statement = select(User).where(
+                    User.name == admin_username,
+                    User.email == admin_email
+                )
+                existing_user = session.exec(statement).first()
+                
+                if not existing_user:
+                    # Create new admin user
+                    admin_user = User(name=admin_username, email=admin_email)
+                    session.add(admin_user)
+                    session.commit()
+                    logger.info(f"Admin user created: {admin_username} ({admin_email})")
+                else:
+                    logger.info(f"Admin user already exists: {admin_username} ({admin_email})")
+        except Exception as e:
+            logger.error(f"Failed to create admin user: {e}")
+    else:
+        logger.info("No admin user credentials provided in environment variables")
+
+# Create admin user if credentials are provided
+create_admin_user()
 
 app.add_middleware(
     CORSMiddleware,
@@ -128,6 +161,22 @@ def get_concepts():
 def get_dashboard_kline_amplitude(n_days: int = 30):
     """Get K-line amplitude analysis for dashboard"""
     return get_kline_amplitude_dashboard(n_days)
+
+
+# Extended Analysis route
+
+@app.post("/extended-analysis/run")
+def run_extended_analysis_endpoint():
+    """Run standalone extended analysis focusing on sector analysis"""
+    return run_extended_analysis()
+
+
+# Authentication routes
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def login(request: AuthRequest) -> AuthResponse:
+    """User login/register with username and email"""
+    return login_user(request)
 
 
 # Serve frontend for production

@@ -57,7 +57,7 @@ def collect_concepts_task(task_id: str):
             )
             
             # Filter out very large concepts and those with '昨日' in name
-            if int(concept_row['总市值']) > 30000000000000 or '昨日' in concept_row['板块名称']:
+            if int(concept_row['总市值']) > 10000000000000 or '昨日' in concept_row['板块名称']:
                 logger.debug(f"跳过板块: {concept_row['板块名称']} (市值过大或包含'昨日')")
                 processed_concepts += 1
                 continue

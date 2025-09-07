@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from datetime import date as dt_date, datetime as dt_datetime
+from datetime import date as dt_date, datetime as dt_datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Callable
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, create_engine, Session
 import pandas as pd
+import secrets
+import string
+import os
+from pathlib import Path
 
 
 class TaskStatus(str, Enum):
@@ -59,7 +63,28 @@ class Message(BaseModel):
     message: str
 
 
+class AuthRequest(BaseModel):
+    name: str
+    email: str
+
+
+class AuthResponse(BaseModel):
+    success: bool
+    token: Optional[str] = None
+    message: str
+
+
 # 数据库模型
+
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+    
+    id: str = Field(default_factory=lambda: ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8)), primary_key=True)
+    name: Optional[str] = None
+    email: str
+    image: Optional[str] = None
+    created_at: dt_datetime = Field(default_factory=lambda: dt_datetime.now(timezone.utc))
+
 
 class StockBasicInfo(SQLModel, table=True):
     """股票基本信息表"""
@@ -169,7 +194,10 @@ class ConceptTaskResult(BaseModel):
 
 
 # 数据库连接配置
-DATABASE_URL = "sqlite:///data_management/stock_data.db"
+# 使用绝对路径确保数据库文件总是在正确的位置创建
+BASE_DIR = Path(__file__).parent
+DATABASE_PATH = BASE_DIR / "data_management" / "stock_data.db"
+DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 engine = create_engine(DATABASE_URL, echo=True)
 
 

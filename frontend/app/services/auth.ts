@@ -2,6 +2,7 @@
 export class AuthService {
   private static readonly AUTH_TOKEN_KEY = 'auth_token'
   private static readonly AUTH_TIME_KEY = 'auth_time'
+  private static readonly USER_INFO_KEY = 'user_info'
   private static readonly SESSION_TIMEOUT = 180 * 24 * 60 * 60 * 1000 // 180天
 
   /**
@@ -24,7 +25,7 @@ export class AuthService {
       return false
     }
 
-    return token === 'authenticated'
+    return !!token
   }
 
   /**
@@ -33,14 +34,56 @@ export class AuthService {
   static clearAuth(): void {
     sessionStorage.removeItem(this.AUTH_TOKEN_KEY)
     sessionStorage.removeItem(this.AUTH_TIME_KEY)
+    sessionStorage.removeItem(this.USER_INFO_KEY)
   }
 
   /**
    * 设置认证信息
    */
-  static setAuth(): void {
-    sessionStorage.setItem(this.AUTH_TOKEN_KEY, 'authenticated')
+  static setAuth(token: string, userInfo: { name?: string; email: string }): void {
+    sessionStorage.setItem(this.AUTH_TOKEN_KEY, token)
     sessionStorage.setItem(this.AUTH_TIME_KEY, Date.now().toString())
+    sessionStorage.setItem(this.USER_INFO_KEY, JSON.stringify(userInfo))
+  }
+
+  /**
+   * 获取当前用户信息
+   */
+  static getUserInfo(): { name?: string; email: string } | null {
+    const userInfoStr = sessionStorage.getItem(this.USER_INFO_KEY)
+    if (!userInfoStr) return null
+    
+    try {
+      return JSON.parse(userInfoStr)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 用户认证
+   */
+  static async authenticate(username: string, email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: username, email }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        this.setAuth(data.token || 'authenticated', { name: username, email })
+        return { success: true }
+      } else {
+        const error = await response.json()
+        return { success: false, error: error.message || '认证失败' }
+      }
+    } catch (error) {
+      return { success: false, error: '网络错误，请重试' }
+    }
   }
 
   /**
@@ -81,14 +124,16 @@ export function useAuth() {
     AuthService.clearAuth()
   }
 
-  const setAuth = () => {
-    AuthService.setAuth()
+  const setAuth = (token: string, userInfo: { name?: string; email: string }) => {
+    AuthService.setAuth(token, userInfo)
   }
 
   return {
     isAuthenticated,
     clearAuth,
     setAuth,
+    getUserInfo: AuthService.getUserInfo,
+    authenticate: AuthService.authenticate,
     getRemainingTime: AuthService.getRemainingSessionTime
   }
 }

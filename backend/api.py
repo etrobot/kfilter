@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import List
 from fastapi import HTTPException
-from models import RunRequest, RunResponse, TaskResult, TaskStatus, Message, ConceptTaskResult
+from models import RunRequest, RunResponse, TaskResult, TaskStatus, Message, ConceptTaskResult, AuthRequest, AuthResponse, User, get_session
+from sqlmodel import select
 from utils import (
     get_task, get_all_tasks, get_last_completed_task,
     get_concept_task, get_all_concept_tasks, get_last_completed_concept_task
@@ -207,3 +208,49 @@ def get_kline_amplitude_dashboard(n_days: int = 30):
     """Get K-line amplitude analysis data for dashboard"""
     from data_management.dashboard_service import get_kline_amplitude_analysis
     return get_kline_amplitude_analysis(n_days)
+
+
+def run_extended_analysis():
+    """Run standalone extended analysis focusing on sector analysis"""
+    from extended_analysis import run_standalone_extended_analysis
+    return run_standalone_extended_analysis()
+
+
+def login_user(request: AuthRequest) -> AuthResponse:
+    """User authentication with username and email"""
+    try:
+        with next(get_session()) as session:
+            # Check if user exists with matching name and email
+            statement = select(User).where(
+                User.name == request.name,
+                User.email == request.email
+            )
+            user = session.exec(statement).first()
+            
+            if user:
+                # User exists, generate token
+                token = f"token_{user.id}"
+                return AuthResponse(
+                    success=True,
+                    token=token,
+                    message="认证成功"
+                )
+            else:
+                # Create new user
+                new_user = User(name=request.name, email=request.email)
+                session.add(new_user)
+                session.commit()
+                session.refresh(new_user)
+                
+                token = f"token_{new_user.id}"
+                return AuthResponse(
+                    success=True,
+                    token=token,
+                    message="用户创建成功，认证通过"
+                )
+                
+    except Exception as e:
+        return AuthResponse(
+            success=False,
+            message=f"认证失败: {str(e)}"
+        )

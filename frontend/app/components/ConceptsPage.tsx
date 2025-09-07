@@ -5,6 +5,10 @@ import { AuthDialog } from './AuthDialog'
 import { api, createConceptTaskStatusPoller } from '../services/api'
 import { ConceptRecord, ConceptTaskResult } from '../types'
 import { AuthService } from '../services/auth'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+
+type SortField = 'name' | 'market_cap' | 'stock_count' | 'updated_at' | null
+type SortDirection = 'asc' | 'desc'
 
 export function ConceptsPage() {
   const pollerCleanupRef = useRef<(() => void) | null>(null)
@@ -13,6 +17,8 @@ export function ConceptsPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [sortField, setSortField] = useState<SortField>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
   const loadConcepts = async () => {
     try {
@@ -68,7 +74,6 @@ export function ConceptsPage() {
   }
 
   const handleAuthSuccess = () => {
-    AuthService.setAuth()
     handleCollectConcepts()
   }
 
@@ -136,6 +141,64 @@ export function ConceptsPage() {
     }
   }
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('desc')
+    }
+  }
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ChevronsUpDown className="w-4 h-4 text-gray-400 ml-1 inline" />
+    }
+    return sortDirection === 'asc' ? (
+      <ChevronUp className="w-4 h-4 ml-1 inline" />
+    ) : (
+      <ChevronDown className="w-4 h-4 ml-1 inline" />
+    )
+  }
+
+  const getSortedConcepts = () => {
+    if (!sortField) return concepts
+
+    return [...concepts].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (sortField) {
+        case 'name':
+          aValue = a.name
+          bValue = b.name
+          break
+        case 'market_cap':
+          aValue = a.market_cap || 0
+          bValue = b.market_cap || 0
+          break
+        case 'stock_count':
+          aValue = a.stock_count || 0
+          bValue = b.stock_count || 0
+          break
+        case 'updated_at':
+          aValue = a.updated_at ? new Date(a.updated_at).getTime() : 0
+          bValue = b.updated_at ? new Date(b.updated_at).getTime() : 0
+          break
+        default:
+          return 0
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue, 'zh-CN')
+          : bValue.localeCompare(aValue, 'zh-CN')
+      }
+
+      return sortDirection === 'asc' ? (Number(aValue) - Number(bValue)) : (Number(bValue) - Number(aValue))
+    })
+  }
+
   return (
     <div className="p-8 space-y-6 w-full">
       <div className="flex items-center justify-between">
@@ -166,22 +229,34 @@ export function ConceptsPage() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-30 bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap sticky left-0 z-40 bg-gray-50 border-r border-b">
-                  板块信息
+                <th 
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap sticky left-0 z-40 bg-gray-50 border-r border-b cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('name')}
+                >
+                  板块信息 {renderSortIcon('name')}
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  总市值
+                <th 
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('market_cap')}
+                >
+                  总市值 {renderSortIcon('market_cap')}
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  个股个数
+                <th 
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('stock_count')}
+                >
+                  个股个数 {renderSortIcon('stock_count')}
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  更新时间
+                <th 
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('updated_at')}
+                >
+                  更新时间 {renderSortIcon('updated_at')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {concepts.map((concept, index) => (
+              {getSortedConcepts().map((concept, index) => (
                 <tr key={concept.code} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10 border-r">
                     <div>

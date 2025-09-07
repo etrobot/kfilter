@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BarChart3, Lightbulb, TrendingUp } from 'lucide-react'
+import { BarChart3, Lightbulb, TrendingUp, Target } from 'lucide-react'
 import { PageHeader } from './components/PageHeader'
 import { TaskProgressCard } from './components/TaskProgressCard'
 import { ResultsTable } from './components/ResultsTable'
 import { ConceptsPage } from './components/ConceptsPage'
 import { DashboardPage } from './components/DashboardPage'
+import { ExtendedAnalysisPage } from './components/ExtendedAnalysisPage'
 import { MobileNavigation } from './components/MobileNavigation'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt'
@@ -15,7 +16,7 @@ import { FactorRecord, TaskResult, TaskMeta, FactorMeta } from './types'
 import { useIsMobile } from './hooks/use-mobile'
 import './index.css'
 
-type Page = 'ranking' | 'concepts' | 'dashboard'
+type Page = 'ranking' | 'concepts' | 'dashboard' | 'extended-analysis'
 
 function App() {
   const pollerCleanupRef = useRef<(() => void) | null>(null)
@@ -211,6 +212,17 @@ function App() {
               <span className="text-xs mt-1">分析</span>
             </button>
             <button
+              onClick={() => setCurrentPage('extended-analysis')}
+              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
+                currentPage === 'extended-analysis'
+                  ? 'bg-indigo-100 text-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Target size={24} />
+              <span className="text-xs mt-1">扩展</span>
+            </button>
+            <button
               onClick={() => setCurrentPage('concepts')}
               className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
                 currentPage === 'concepts'
@@ -252,6 +264,8 @@ function App() {
           </div>
         ) : currentPage === 'concepts' ? (
           <ConceptsPage />
+        ) : currentPage === 'extended-analysis' ? (
+          <ExtendedAnalysisPage />
         ) : (
           <DashboardPage 
             currentTask={currentTask}

@@ -217,7 +217,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900">K线幅度分析面板</h1>
+          <h1 className="text-2xl font-bold text-gray-900">大成交额标的分析</h1>
           {currentTask && (
             <div className="text-sm text-gray-600">
               {currentTask.message} ({(currentTask.progress * 100).toFixed(0)}%)
