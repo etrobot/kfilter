@@ -330,7 +330,7 @@ def backfill_limit_up_texts_using_ths(lookback_days: int = 180) -> int:
 
         # 逐日处理未处理的交易日
         for d in unprocessed_dates:
-            ds = d.isoformat()
+            ds = d.strftime("%Y%m%d")  # THS API需要YYYYMMDD格式
             try:
                 ths_df = uplimit10jqka(ds)
                 limit_map = build_limit_up_map(ths_df)

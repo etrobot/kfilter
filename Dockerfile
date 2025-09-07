@@ -33,11 +33,14 @@ RUN pip install uv
 
 WORKDIR /app
 
-# Copy backend files
+# Copy backend files with correct structure
 COPY backend/ ./
 
 # Set up proper Python environment and install dependencies
 RUN uv sync --frozen
+
+# Set PYTHONPATH to ensure modules can be found
+ENV PYTHONPATH=/app
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./static
