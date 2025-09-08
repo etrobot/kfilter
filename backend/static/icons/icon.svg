@@ -1,6 +1,0 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" fill="#4f46e5"/>
-  <path d="M128 384V256L256 128L384 256V384H320V320H192V384H128Z" fill="white"/>
-  <circle cx="256" cy="200" r="24" fill="white"/>
-  <text x="256" y="450" text-anchor="middle" fill="white" font-size="48" font-family="Arial">股票</text>
-</svg>
