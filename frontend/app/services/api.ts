@@ -91,6 +91,12 @@ export const api = {
       method: 'POST',
     })
   },
+
+  async clearExtendedAnalysisCache(): Promise<any> {
+    return apiCall<any>('/extended-analysis/cache', {
+      method: 'DELETE',
+    })
+  },
 }
 
 export function createTaskStatusPoller(

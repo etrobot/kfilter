@@ -211,9 +211,31 @@ def get_kline_amplitude_dashboard(n_days: int = 30):
 
 
 def run_extended_analysis():
-    """Run standalone extended analysis focusing on sector analysis"""
+    """Run standalone extended analysis focusing on sector analysis with caching"""
+    from data_management.services import (
+        get_cached_extended_analysis, 
+        cache_extended_analysis, 
+        is_extended_analysis_cache_valid
+    )
     from extended_analysis import run_standalone_extended_analysis
-    return run_standalone_extended_analysis()
+    
+    # Check if we have valid cached results
+    if is_extended_analysis_cache_valid(max_age_minutes=30):
+        cached_result = get_cached_extended_analysis()
+        if cached_result:
+            # Add cache indicator to response
+            cached_result['from_cache'] = True
+            return cached_result
+    
+    # Run fresh analysis
+    result = run_standalone_extended_analysis()
+    
+    # Cache the result if successful
+    if result and 'error' not in result:
+        result['from_cache'] = False
+        cache_extended_analysis(result)
+    
+    return result
 
 
 def login_user(request: AuthRequest) -> AuthResponse:

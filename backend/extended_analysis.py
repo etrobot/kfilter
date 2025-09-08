@@ -1,7 +1,8 @@
 from __future__ import annotations
 import logging
+import os
 from datetime import date, timedelta
-from typing import List
+from typing import List, Dict, Optional
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,44 @@ def get_stock_concepts(stock_code: str, session) -> List[tuple[str, str]]:
     except Exception as e:
         logger.warning(f"Failed to get concepts for stock {stock_code}: {e}")
         return []
+
+
+def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str) -> Optional[str]:
+    """Use deepsearch to analyze a specific concept"""
+    try:
+        from data_management.deepsearch import ZAIChatClient
+        from config import is_zai_configured, get_zai_credentials
+        
+        # Check if credentials are properly configured
+        if not is_zai_configured():
+            logger.warning("ZAI credentials not properly configured, skipping deepsearch analysis")
+            return None
+            
+        # Get credentials from config
+        bearer_token, cookie_str = get_zai_credentials()
+            
+        client = ZAIChatClient(bearer_token=bearer_token, cookie_str=cookie_str)
+        
+        # Create search query for the concept
+        search_query = f"A股{concept_name}概念分析"
+        
+        messages = [
+            {
+                'role': 'user',
+                'content': search_query
+            }
+        ]
+        
+        # Stream the response and collect it
+        full_response = ""
+        for chunk in client.stream_chat_completion(messages, model="0727-360B-API"):
+            full_response += chunk
+            
+        return full_response.strip() if full_response else None
+        
+    except Exception as e:
+        logger.warning(f"Failed to get deepsearch analysis for concept {concept_name}: {e}")
+        return None
 
 
 def get_sector_analysis_for_latest_day(latest_trade_date: date, session) -> dict:
@@ -114,13 +153,17 @@ def get_sector_analysis_for_latest_day(latest_trade_date: date, session) -> dict
             limit_up_stocks.sort(key=lambda x: x["limit_up_count"], reverse=True)
             
             if limit_up_count > 0:  # Only include sectors with limit-ups today
+                # Get deepsearch analysis for this concept
+                concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name)
+                
                 result[sector_code] = {
                     "sector_code": sector_code,
                     "sector_name": sector_name,
                     "total_stocks": total_stocks,
                     "limit_up_count_today": limit_up_count,
                     "limit_up_ratio": round(limit_up_count / total_stocks * 100, 2),
-                    "stocks": limit_up_stocks
+                    "stocks": limit_up_stocks,
+                    "concept_analysis": concept_analysis
                 }
         
         return result
@@ -252,9 +295,13 @@ def run_standalone_extended_analysis() -> dict:
                 reverse=True
             )
             
+            # Count sectors with successful analysis
+            sectors_with_analysis = sum(1 for sector in sorted_sectors if sector.get("concept_analysis"))
+            
             return {
                 "analysis_date": latest_date.isoformat(),
                 "total_sectors_with_limit_ups": len(sorted_sectors),
+                "sectors_with_deepsearch_analysis": sectors_with_analysis,
                 "sectors": sorted_sectors
             }
             

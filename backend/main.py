@@ -9,6 +9,19 @@ from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
+# Load environment variables at startup
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    # Load .env file from project root
+    env_path = Path(__file__).parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
+    logging.info(f"Loaded environment variables from {env_path}")
+except ImportError:
+    logging.warning("python-dotenv not installed, using system environment variables only")
+except Exception as e:
+    logging.warning(f"Failed to load .env file: {e}")
+
 from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, AuthRequest, AuthResponse, create_db_and_tables, User, get_session
 from sqlmodel import select
 from api import (
@@ -204,6 +217,14 @@ def get_dashboard_kline_amplitude(n_days: int = 30):
 def run_extended_analysis_endpoint():
     """Run standalone extended analysis focusing on sector analysis"""
     return run_extended_analysis()
+
+
+@app.delete("/extended-analysis/cache")
+def clear_extended_analysis_cache_endpoint():
+    """Clear extended analysis cache to force fresh analysis"""
+    from data_management.services import clear_extended_analysis_cache
+    clear_extended_analysis_cache()
+    return {"message": "Extended analysis cache cleared"}
 
 
 # Authentication routes

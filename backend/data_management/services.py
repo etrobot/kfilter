@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory storage for calculation results
 ANALYSIS_RESULTS_CACHE: Dict[str, Dict[str, Any]] = {}
+EXTENDED_ANALYSIS_CACHE: Dict[str, Any] = {}  # 扩展分析缓存
 CACHE_LOCK = threading.Lock()
 
 
@@ -54,6 +55,40 @@ def clear_analysis_cache(task_id: Optional[str] = None) -> None:
             ANALYSIS_RESULTS_CACHE.pop(task_id, None)
         else:
             ANALYSIS_RESULTS_CACHE.clear()
+
+
+def get_cached_extended_analysis() -> Optional[Dict[str, Any]]:
+    """Get cached extended analysis results."""
+    with CACHE_LOCK:
+        return EXTENDED_ANALYSIS_CACHE.copy() if EXTENDED_ANALYSIS_CACHE else None
+
+
+def cache_extended_analysis(results: Dict[str, Any]) -> None:
+    """Cache extended analysis results with timestamp."""
+    with CACHE_LOCK:
+        results['cached_at'] = datetime.now().isoformat()
+        EXTENDED_ANALYSIS_CACHE.clear()
+        EXTENDED_ANALYSIS_CACHE.update(results)
+
+
+def clear_extended_analysis_cache() -> None:
+    """Clear extended analysis cache."""
+    with CACHE_LOCK:
+        EXTENDED_ANALYSIS_CACHE.clear()
+
+
+def is_extended_analysis_cache_valid(max_age_minutes: int = 30) -> bool:
+    """Check if extended analysis cache is still valid."""
+    with CACHE_LOCK:
+        if not EXTENDED_ANALYSIS_CACHE or 'cached_at' not in EXTENDED_ANALYSIS_CACHE:
+            return False
+        
+        try:
+            cached_time = datetime.fromisoformat(EXTENDED_ANALYSIS_CACHE['cached_at'])
+            age = datetime.now() - cached_time
+            return age.total_seconds() < max_age_minutes * 60
+        except Exception:
+            return False
 
 
 

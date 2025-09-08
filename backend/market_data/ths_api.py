@@ -27,8 +27,15 @@ def uplimit10jqka(date: str = "") -> pd.DataFrame:
     参数
     - date: 字符串格式的日期，如 '2025-01-15' 或 '20250115'，为空则默认当天。
     """
-    import os
-    cookie_v = os.getenv('THS_COOKIE_V', 'A5lFEWDLFZlL3MkNmn0O1b5bro52JoyfdxqxbLtOFUA_wrfwA3adqAdqwTFI')
+    import sys
+    from pathlib import Path
+    # Add backend to path to import config
+    backend_path = Path(__file__).parent.parent
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    
+    from config import THS_COOKIE_V
+    cookie_v = THS_COOKIE_V
     cookies = {
         'v': cookie_v,
     }

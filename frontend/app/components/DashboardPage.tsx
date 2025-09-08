@@ -136,15 +136,6 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
       },
     }
 
-    // 冻结Y轴覆盖图表数据
-    const frozenYAxisData = {
-      labels: [''],
-      datasets: [{
-        data: [0],
-        backgroundColor: 'transparent',
-        borderColor: 'transparent',
-      }],
-    }
     return (
       <div className="bg-white p-2 rounded-lg shadow-md">
         <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>

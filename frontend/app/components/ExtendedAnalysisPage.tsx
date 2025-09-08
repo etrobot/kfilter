@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from './ui/button'
-import { PlayIcon, RefreshCwIcon } from 'lucide-react'
+import { PlayIcon, RefreshCwIcon, ClockIcon } from 'lucide-react'
 import { api } from '../services/api'
 import { useIsMobile } from '../hooks/use-mobile'
 
@@ -18,12 +18,16 @@ interface SectorData {
   limit_up_count_today: number
   limit_up_ratio: number
   stocks: SectorStock[]
+  concept_analysis?: string  // 新增：概念分析结果
 }
 
 interface ExtendedAnalysisResult {
   analysis_date: string
   total_sectors_with_limit_ups: number
+  sectors_with_deepsearch_analysis?: number  // 新增：有深度搜索分析的板块数
   sectors: SectorData[]
+  from_cache?: boolean  // 新增：是否来自缓存
+  cached_at?: string    // 新增：缓存时间
 }
 
 export function ExtendedAnalysisPage() {
@@ -32,11 +36,16 @@ export function ExtendedAnalysisPage() {
   const [result, setResult] = useState<ExtendedAnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const runAnalysis = async () => {
+  const runAnalysis = async (forceRefresh: boolean = false) => {
     setIsRunning(true)
     setError(null)
 
     try {
+      // 如果是强制刷新，先清除缓存
+      if (forceRefresh) {
+        await api.clearExtendedAnalysisCache()
+      }
+      
       const data = await api.runExtendedAnalysis()
       
       if (data.error) {
@@ -62,7 +71,7 @@ export function ExtendedAnalysisPage() {
           </p>
         </div>
         <Button 
-          onClick={runAnalysis}
+          onClick={() => runAnalysis()}
           disabled={isRunning}
           className="flex items-center gap-2"
         >
@@ -103,9 +112,31 @@ export function ExtendedAnalysisPage() {
                 <span className="text-gray-600">有涨停的板块数: </span>
                 <span className="font-medium">{result.total_sectors_with_limit_ups}</span>
               </div>
+              {result.sectors_with_deepsearch_analysis !== undefined && (
+                <div>
+                  <span className="text-gray-600">深度分析板块数: </span>
+                  <span className="font-medium text-blue-600">{result.sectors_with_deepsearch_analysis}</span>
+                </div>
+              )}
             </div>
+            
+            {/* 缓存状态显示 */}
+            {result.from_cache && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-md">
+                <ClockIcon size={14} />
+                <span>数据来自缓存 (30分钟内有效)</span>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => runAnalysis(true)}
+                  disabled={isRunning}
+                  className="ml-auto text-xs h-6 px-2"
+                >
+                  强制刷新
+                </Button>
+              </div>
+            )}
           </div>
-
           <div className="bg-white border rounded-lg overflow-hidden">
             <div className="p-4 border-b bg-gray-50">
               <h3 className="font-semibold">板块涨停分析</h3>
@@ -166,6 +197,19 @@ export function ExtendedAnalysisPage() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+                  
+                  {/* 概念分析内容 */}
+                  {sector.concept_analysis && (
+                    <div className="p-4 bg-blue-50 border-t">
+                      <h5 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        概念深度分析
+                      </h5>
+                      <div className="text-sm text-blue-800 leading-relaxed whitespace-pre-wrap">
+                        {sector.concept_analysis}
+                      </div>
                     </div>
                   )}
                 </div>

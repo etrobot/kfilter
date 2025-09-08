@@ -12,6 +12,7 @@ dependencies = [
     "numpy",
     "sqlmodel",
     "requests",
+    "python-dotenv",
     # Optional: use AkShare if available for real market data
     # "akshare",
     "akshare>=1.17.44",
