@@ -33,18 +33,28 @@ function App() {
   // PWA Update functionality
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      // Register service worker
-      navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
-          console.log('SW registered: ', registration)
-        })
-        .catch((registrationError) => {
-          console.log('SW registration failed: ', registrationError)
-        })
+      if (import.meta.env.PROD) {
+        // Register service worker only in production
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((registration) => {
+            console.log('SW registered: ', registration)
+          })
+          .catch((registrationError) => {
+            console.log('SW registration failed: ', registrationError)
+          })
 
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        setShowUpdatePrompt(true)
-      })
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          setShowUpdatePrompt(true)
+        })
+      } else {
+        // In development, ensure any existing service workers are unregistered
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister().catch(() => {})
+          }
+        })
+      }
     }
   }, [])
 
