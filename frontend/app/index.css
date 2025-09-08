@@ -88,4 +88,8 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  html {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

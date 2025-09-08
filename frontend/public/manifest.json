@@ -4,6 +4,7 @@
   "description": "专业的股票因子分析和概念板块分析系统",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
   "orientation": "portrait-primary",

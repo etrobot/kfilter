@@ -194,9 +194,12 @@ class ConceptTaskResult(BaseModel):
 
 
 # 数据库连接配置
-# 使用绝对路径确保数据库文件总是在正确的位置创建
+# 使用环境变量配置数据库路径，支持Docker挂载
+import os
 BASE_DIR = Path(__file__).parent
-DATABASE_PATH = BASE_DIR / "data_management" / "stock_data.db"
+DATABASE_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "data_management" / "stock_data.db"))
+# 确保数据库目录存在
+Path(DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 engine = create_engine(DATABASE_URL, echo=True)
 

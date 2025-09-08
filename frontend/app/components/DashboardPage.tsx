@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { api } from '../services/api'
 import { TaskProgressCard } from './TaskProgressCard'
 import { TaskResult } from '../types'
+import { useIsMobile } from '../hooks/use-mobile'
 
 interface KLineData {
   code: string
@@ -23,6 +24,7 @@ interface DashboardPageProps {
 
 export function DashboardPage({ currentTask }: DashboardPageProps) {
   const [data, setData] = useState<DashboardData | null>(null)
+  const isMobile = useIsMobile()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nDays, setNDays] = useState<number>(30)
@@ -214,7 +216,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h1 className="text-2xl font-bold text-gray-900">大成交额标的分析</h1>

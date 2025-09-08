@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import { PlayIcon, RefreshCwIcon } from 'lucide-react'
 import { api } from '../services/api'
+import { useIsMobile } from '../hooks/use-mobile'
 
 interface SectorStock {
   code: string
@@ -27,6 +28,7 @@ interface ExtendedAnalysisResult {
 
 export function ExtendedAnalysisPage() {
   const [isRunning, setIsRunning] = useState(false)
+  const isMobile = useIsMobile()
   const [result, setResult] = useState<ExtendedAnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,7 +52,7 @@ export function ExtendedAnalysisPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>

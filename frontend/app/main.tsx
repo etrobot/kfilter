@@ -240,7 +240,7 @@ function App() {
       {/* Main Content */}
       <div className={`flex-1 ${isMobile ? 'pb-16' : ''} w-full`}>
         {currentPage === 'ranking' ? (
-          <div className="p-8 space-y-6">
+          <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
             <PageHeader 
               meta={meta} 
               currentTask={currentTask} 

@@ -12,6 +12,7 @@ services:
     environment:
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - DATABASE_PATH=/app/data/stock_data.db
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.quant.rule=Host(`a.subx.fun`)"

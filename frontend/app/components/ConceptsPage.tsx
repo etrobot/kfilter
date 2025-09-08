@@ -6,12 +6,14 @@ import { api, createConceptTaskStatusPoller } from '../services/api'
 import { ConceptRecord, ConceptTaskResult } from '../types'
 import { AuthService } from '../services/auth'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useIsMobile } from '../hooks/use-mobile'
 
 type SortField = 'name' | 'market_cap' | 'stock_count' | 'updated_at' | null
 type SortDirection = 'asc' | 'desc'
 
 export function ConceptsPage() {
   const pollerCleanupRef = useRef<(() => void) | null>(null)
+  const isMobile = useIsMobile()
   const [concepts, setConcepts] = useState<ConceptRecord[]>([])
   const [currentTask, setCurrentTask] = useState<ConceptTaskResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -200,7 +202,7 @@ export function ConceptsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6 w-full`}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">概念板块</h1>
