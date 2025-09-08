@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
+import { ResponsiveBar } from '@nivo/bar'
+import { ResponsiveLine } from '@nivo/line'
 import { api } from '../services/api'
 import { TaskProgressCard } from './TaskProgressCard'
 import { TaskResult } from '../types'
@@ -56,7 +57,6 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
       code: stock.code,
       name: stock.name,
       amplitude: stock.amplitude,
-      fill: stock.amplitude >= 0 ? '#ef4444' : '#22c55e'
     }))
 
     return (
@@ -64,36 +64,46 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
         <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
         <div className="h-64 w-full overflow-x-auto md:overflow-x-visible" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
           <div className="min-w-[1200px] md:min-w-full h-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={chartData} 
-                margin={{ top: 10, right: 10, left: 10, bottom: 60 }}
-                barCategoryGap="10%"
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                  fontSize={10}
-                  tick={{ fontSize: 10 }}
-                  interval={0}
-                  className="md:text-xs"
-                />
-                <YAxis 
-                  fontSize={10}
-                  tick={{ fontSize: 10 }}
-                  width={35}
-                  tickFormatter={(value) => `${value}%`}
-                  className="md:text-xs md:w-12"
-                />
-                <Bar 
-                  dataKey="amplitude" 
-                  radius={[2, 2, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <ResponsiveBar
+              data={chartData}
+              keys={["amplitude"]}
+              indexBy="name"
+              margin={{ top: 10, right: 10, bottom: 80, left: 40 }}
+              padding={0.2}
+              colors={(bar: any) => (((bar.data as any).amplitude as number) >= 0 ? '#ef4444' : '#22c55e')}
+              enableGridY={true}
+              enableGridX={false}
+              axisBottom={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: -45,
+              }}
+              axisLeft={{
+                tickSize: 5,
+                tickPadding: 5,
+                format: (v: number) => `${v}%`,
+              }}
+              labelSkipWidth={12}
+              labelSkipHeight={12}
+              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+              tooltip={(bar: any) => (
+                <div style={{ background: 'white', padding: '6px 8px', border: '1px solid #eee', fontSize: 12 }}>
+                  <div style={{ marginBottom: 4 }}>{bar.indexValue as string}</div>
+                  <div><span style={{ color: bar.color }}>幅度</span>: {bar.data.amplitude > 0 ? '+' : ''}{Number(bar.data.amplitude).toFixed(2)}%</div>
+                </div>
+              )}
+              theme={{
+                axis: {
+                  ticks: {
+                    text: {
+                      fontSize: 10,
+                    },
+                  },
+                  legend: { text: { fontSize: 12 } },
+                },
+              }}
+              role="img"
+            />
           </div>
         </div>
       </div>
@@ -103,90 +113,85 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   const renderTrendChart = () => {
     if (!data?.top_5) return null
 
-    // 准备图表数据，将所有股票的走势数据合并
-    const maxLength = Math.max(...data.top_5.map(stock => stock.trend_data?.length || 0))
-    const chartData = Array.from({ length: maxLength }, (_, index) => {
-      const dataPoint: any = { index: index + 1 }
-      data.top_5.forEach((stock) => {
-        if (stock.trend_data && stock.trend_data[index] !== undefined) {
-          dataPoint[`${stock.code}`] = stock.trend_data[index]
-        }
-      })
-      return dataPoint
-    })
-
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
-    
+
+    const series = data.top_5.map((stock, idx) => ({
+      id: `${stock.code} ${stock.name}`,
+      color: colors[idx % colors.length],
+      data: (stock.trend_data || []).map((y, i) => ({ x: i + 1, y })),
+    }))
+
     return (
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-lg font-semibold mb-4">前五名走势叠加图</h3>
         <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart 
-              data={chartData} 
-              margin={{ 
-                top: 10, 
-                right: 10, 
-                left: 10, 
-                bottom: 5 
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="index" 
-                label={{ 
-                  value: '交易日', 
-                  position: 'insideBottom', 
-                  offset: -5,
-                  style: { fontSize: 12 }
-                }}
-                tick={{ fontSize: 10 }}
-                height={40}
-              />
-              <YAxis 
-                label={{ 
-                  value: '涨跌幅 (%)', 
-                  angle: -90, 
-                  position: 'insideLeft',
-                  style: { fontSize: 12 }
-                }}
-                tick={{ fontSize: 10 }}
-                width={40}
-              />
-              <Tooltip 
-                formatter={(value: number, name: string) => [
-                  `${value > 0 ? '+' : ''}${value?.toFixed(2) || 'N/A'}%`,
-                  name
-                ]}
-                labelFormatter={(label) => `第${label}个交易日`}
-                contentStyle={{ fontSize: 12 }}
-              />
-              <Legend 
-                layout="horizontal" 
-                verticalAlign="top"
-                height={40}
-                wrapperStyle={{
-                  paddingBottom: '10px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontSize: '12px'
-                }}
-              />
-              {data.top_5.map((stock, index) => (
-                <Line
-                  key={stock.code}
-                  type="monotone"
-                  dataKey={stock.code}
-                  stroke={colors[index]}
-                  strokeWidth={2}
-                  dot={false}
-                  name={`${stock.code} ${stock.name}`}
-                  connectNulls={false}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+          <ResponsiveLine
+            data={series}
+            margin={{ top: 40, right: 10, bottom: 40, left: 50 }}
+            xScale={{ type: 'linear' }}
+            yScale={{ type: 'linear', stacked: false, min: 'auto', max: 'auto' }}
+            curve="monotoneX"
+            axisBottom={{
+              tickSize: 5,
+              tickPadding: 5,
+              tickRotation: 0,
+              legend: '交易日',
+              legendOffset: 32,
+              legendPosition: 'middle',
+            }}
+            axisLeft={{
+              tickSize: 5,
+              tickPadding: 5,
+              tickRotation: 0,
+              format: (v: number) => `${v}%`,
+              legend: '涨跌幅 (%)',
+              legendOffset: -40,
+              legendPosition: 'middle',
+            }}
+            enableGridX={false}
+            enableGridY={true}
+            enablePoints={false}
+            lineWidth={2}
+            colors={{ datum: 'color' }}
+            useMesh={true}
+            tooltip={({ point }: any) => (
+              <div style={{ background: 'white', padding: '6px 8px', border: '1px solid #eee', fontSize: 12 }}>
+                <div style={{ marginBottom: 4 }}><span style={{ color: point.serieColor }}>{point.serieId}</span></div>
+                <div>第{point.data.x as number}个交易日: {Number(point.data.y).toFixed(2)}%</div>
+              </div>
+            )}
+            legends={[{
+              anchor: 'top',
+              direction: 'row',
+              justify: false,
+              translateX: 0,
+              translateY: -30,
+              itemsSpacing: 8,
+              itemDirection: 'left-to-right',
+              itemWidth: 120,
+              itemHeight: 16,
+              itemOpacity: 1,
+              symbolSize: 8,
+              symbolShape: 'circle',
+              effects: [
+                {
+                  on: 'hover',
+                  style: {
+                    itemOpacity: 0.75,
+                  },
+                },
+              ]
+            }]}
+            theme={{
+              axis: {
+                ticks: { text: { fontSize: 10 } },
+                legend: { text: { fontSize: 12 } },
+              },
+              legends: { text: { fontSize: 12 } },
+              tooltip: { basic: { fontSize: 12 }, container: { fontSize: 12 } },
+            }}
+            role="img"
+          />
         </div>
       </div>
     )
