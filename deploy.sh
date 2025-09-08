@@ -52,7 +52,7 @@ backup_database() {
     return 0
   else
     info "ℹ️  No existing database found to backup"
-    return 1
+    return 0
   fi
 }
 
