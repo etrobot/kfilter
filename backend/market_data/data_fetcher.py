@@ -70,14 +70,13 @@ def fetch_spot() -> pd.DataFrame:
     return df
 
 
-def fetch_history(codes: List[str], days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
+def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
     """Fetch historical data for multiple stocks"""
     if not HAS_AKSHARE:
         raise RuntimeError("akshare is not available. Please install akshare to use this feature.")
     
     history: Dict[str, pd.DataFrame] = {}
-    end_date = datetime.now().strftime("%Y%m%d")
-    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+    start_date = (datetime.strptime(end_date, "%Y%m%d") - timedelta(days=days)).strftime("%Y%m%d")
     
     logger.info(f"Fetching historical data for {len(codes)} stocks from {start_date} to {end_date}")
     

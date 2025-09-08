@@ -93,13 +93,16 @@ def check_and_upsert_spot_data(task_id: str, spot: pd.DataFrame, latest_trade_da
             select(func.count(DailyMarketData.id))
             .where(DailyMarketData.date == latest_trade_date)
         ).first()
+        # logger.info(f"Found {latest_data_count} records for latest_trade_date: {latest_trade_date}")
         
         # 获取前一个交易日并检查是否有数据
         previous_trade_date = latest_trade_date - timedelta(days=3 if latest_trade_date.weekday() == 0 else 1)
+        # logger.info(f"latest_trade_date: {latest_trade_date} (weekday: {latest_trade_date.weekday()}), calculated previous_trade_date: {previous_trade_date}")
         previous_data_count = session.exec(
             select(func.count(DailyMarketData.id))
             .where(DailyMarketData.date == previous_trade_date)
         ).first()
+        # logger.info(f"Found {previous_data_count} records for previous_trade_date: {previous_trade_date}")
         
         # 只有当今天有数据且前一个交易日也有数据时，才进行upsert
         if latest_data_count == 0:
@@ -192,7 +195,7 @@ def get_stocks_from_database(task_id: str, top_n: int) -> tuple[pd.DataFrame, Li
             raise Exception("No stocks found with sufficient historical data (>=35 days). Please run with 'collect_latest_data=True' first.")
 
 
-def fetch_and_save_historical_data(task_id: str, stock_codes: List[str], should_upsert_spot: bool, collect_latest_data: bool) -> bool:
+def fetch_and_save_historical_data(task_id: str, stock_codes: List[str], should_upsert_spot: bool, collect_latest_data: bool, latest_trade_date: date) -> bool:
     """获取并保存历史数据"""
     if collect_latest_data:
         if not should_upsert_spot:
@@ -200,7 +203,8 @@ def fetch_and_save_historical_data(task_id: str, stock_codes: List[str], should_
             update_task_progress(task_id, 0.25, "从外部API获取历史数据")
             
             # 直接获取所有股票的最近365天数据并upsert
-            history = fetch_history(stock_codes, days=365, task_id=task_id)
+            end_date_str = latest_trade_date.strftime("%Y%m%d")
+            history = fetch_history(stock_codes, end_date=end_date_str, days=365, task_id=task_id)
             
             if history:
                 update_task_progress(task_id, 0.35, "保存历史数据到数据库")
@@ -369,7 +373,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
             return
     
     # Step 4: 获取历史数据
-    has_error = fetch_and_save_historical_data(task_id, stock_codes, should_upsert_spot, collect_latest_data)
+    has_error = fetch_and_save_historical_data(task_id, stock_codes, should_upsert_spot, collect_latest_data, latest_trade_date)
     if has_error or check_cancel():
         return
 
