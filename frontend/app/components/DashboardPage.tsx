@@ -1,7 +1,29 @@
 import { useState, useEffect } from 'react'
-import { ResponsiveBar } from '@nivo/bar'
-import { ResponsiveLine } from '@nivo/line'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+import { Bar, Line } from 'react-chartjs-2'
 import { api } from '../services/api'
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+)
 import { TaskProgressCard } from './TaskProgressCard'
 import { TaskResult } from '../types'
 import { useIsMobile } from '../hooks/use-mobile'
@@ -53,57 +75,85 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   const renderBarChart = () => {
     if (!data?.stocks) return null
 
-    const chartData = data.stocks.map(stock => ({
-      code: stock.code,
-      name: stock.name,
-      amplitude: stock.amplitude,
-    }))
+    const chartData = {
+      labels: data.stocks.map(stock => stock.name),
+      datasets: [
+        {
+          label: '幅度',
+          data: data.stocks.map(stock => stock.amplitude),
+          backgroundColor: data.stocks.map(stock => 
+            stock.amplitude >= 0 ? '#ef4444' : '#22c55e'
+          ),
+          borderColor: data.stocks.map(stock => 
+            stock.amplitude >= 0 ? '#dc2626' : '#16a34a'
+          ),
+          borderWidth: 1,
+        },
+      ],
+    }
 
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            title: (context: any) => context[0].label,
+            label: (context: any) => {
+              const value = context.parsed.y
+              return `幅度: ${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45,
+            font: {
+              size: 10,
+            },
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          ticks: {
+            callback: (value: any) => `${value}%`,
+            font: {
+              size: 10,
+            },
+          },
+          grid: {
+            display: true,
+          },
+        },
+      },
+    }
+
+    // 冻结Y轴覆盖图表数据
+    const frozenYAxisData = {
+      labels: [''],
+      datasets: [{
+        data: [0],
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+      }],
+    }
     return (
       <div className="bg-white p-2 rounded-lg shadow-md">
         <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
-        <div className="h-64 w-full overflow-x-auto md:overflow-x-visible" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
-          <div className="min-w-[1200px] md:min-w-full h-full">
-            <ResponsiveBar
-              data={chartData}
-              keys={["amplitude"]}
-              indexBy="name"
-              margin={{ top: 10, right: 10, bottom: 80, left: 40 }}
-              padding={0.2}
-              colors={(bar: any) => (((bar.data as any).amplitude as number) >= 0 ? '#ef4444' : '#22c55e')}
-              enableGridY={true}
-              enableGridX={false}
-              axisBottom={{
-                tickSize: 5,
-                tickPadding: 5,
-                tickRotation: -45,
-              }}
-              axisLeft={{
-                tickSize: 5,
-                tickPadding: 5,
-                format: (v: number) => `${v}%`,
-              }}
-              labelSkipWidth={12}
-              labelSkipHeight={12}
-              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
-              tooltip={(bar: any) => (
-                <div style={{ background: 'white', padding: '6px 8px', border: '1px solid #eee', fontSize: 12 }}>
-                  <div style={{ marginBottom: 4 }}>{bar.indexValue as string}</div>
-                  <div><span style={{ color: bar.color }}>幅度</span>: {bar.data.amplitude > 0 ? '+' : ''}{Number(bar.data.amplitude).toFixed(2)}%</div>
-                </div>
-              )}
-              theme={{
-                axis: {
-                  ticks: {
-                    text: {
-                      fontSize: 10,
-                    },
-                  },
-                  legend: { text: { fontSize: 12 } },
-                },
-              }}
-              role="img"
-            />
+        <div className="h-64 w-full relative">
+          {/* 滚动容器 */}
+          <div className="h-full w-full overflow-x-auto md:overflow-x-visible" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
+            <div className="min-w-[1200px] md:min-w-full h-full">
+              <Bar data={chartData} options={options} />
+            </div>
           </div>
         </div>
       </div>
@@ -115,83 +165,94 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
 
-    const series = data.top_5.map((stock, idx) => ({
-      id: `${stock.code} ${stock.name}`,
-      color: colors[idx % colors.length],
-      data: (stock.trend_data || []).map((y, i) => ({ x: i + 1, y })),
-    }))
+    const chartData = {
+      labels: Array.from({ length: Math.max(...data.top_5.map(stock => stock.trend_data?.length || 0)) }, (_, i) => i + 1),
+      datasets: data.top_5.map((stock, idx) => ({
+        label: `${stock.code} ${stock.name}`,
+        data: stock.trend_data || [],
+        borderColor: colors[idx % colors.length],
+        backgroundColor: colors[idx % colors.length] + '20',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      })),
+    }
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'circle',
+            font: {
+              size: 12,
+            },
+            boxWidth: 8,
+            boxHeight: 8,
+          },
+        },
+        tooltip: {
+          callbacks: {
+            title: (context: any) => `第${context[0].label}个交易日`,
+            label: (context: any) => {
+              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: '交易日',
+            font: {
+              size: 12,
+            },
+          },
+          ticks: {
+            font: {
+              size: 10,
+            },
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          title: {
+            display: true,
+            text: '涨跌幅 (%)',
+            font: {
+              size: 12,
+            },
+          },
+          ticks: {
+            callback: (value: any) => `${value}%`,
+            font: {
+              size: 10,
+            },
+          },
+          grid: {
+            display: true,
+          },
+        },
+      },
+      interaction: {
+        intersect: false,
+        mode: 'index' as const,
+      },
+    }
 
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-white p-6 rounded-lg shadow-md h-96">
         <h3 className="text-lg font-semibold mb-4">前五名走势叠加图</h3>
         <div className="h-80">
-          <ResponsiveLine
-            data={series}
-            margin={{ top: 40, right: 10, bottom: 40, left: 50 }}
-            xScale={{ type: 'linear' }}
-            yScale={{ type: 'linear', stacked: false, min: 'auto', max: 'auto' }}
-            curve="monotoneX"
-            axisBottom={{
-              tickSize: 5,
-              tickPadding: 5,
-              tickRotation: 0,
-              legend: '交易日',
-              legendOffset: 32,
-              legendPosition: 'middle',
-            }}
-            axisLeft={{
-              tickSize: 5,
-              tickPadding: 5,
-              tickRotation: 0,
-              format: (v: number) => `${v}%`,
-              legend: '涨跌幅 (%)',
-              legendOffset: -40,
-              legendPosition: 'middle',
-            }}
-            enableGridX={false}
-            enableGridY={true}
-            enablePoints={false}
-            lineWidth={2}
-            colors={{ datum: 'color' }}
-            useMesh={true}
-            tooltip={({ point }: any) => (
-              <div style={{ background: 'white', padding: '6px 8px', border: '1px solid #eee', fontSize: 12 }}>
-                <div style={{ marginBottom: 4 }}><span style={{ color: point.serieColor }}>{point.serieId}</span></div>
-                <div>第{point.data.x as number}个交易日: {Number(point.data.y).toFixed(2)}%</div>
-              </div>
-            )}
-            legends={[{
-              anchor: 'top',
-              direction: 'row',
-              justify: false,
-              translateX: 0,
-              translateY: -30,
-              itemsSpacing: 8,
-              itemDirection: 'left-to-right',
-              itemWidth: 120,
-              itemHeight: 16,
-              itemOpacity: 1,
-              symbolSize: 8,
-              symbolShape: 'circle',
-              effects: [
-                {
-                  on: 'hover',
-                  style: {
-                    itemOpacity: 0.75,
-                  },
-                },
-              ]
-            }]}
-            theme={{
-              axis: {
-                ticks: { text: { fontSize: 10 } },
-                legend: { text: { fontSize: 12 } },
-              },
-              legends: { text: { fontSize: 12 } },
-              tooltip: { basic: { fontSize: 12 }, container: { fontSize: 12 } },
-            }}
-            role="img"
-          />
+          <Line data={chartData} options={options} />
         </div>
       </div>
     )
@@ -201,9 +262,9 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     if (!data?.stocks) return null
 
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-white p-6 rounded-lg shadow-md h-96">
         <h3 className="text-lg font-semibold mb-4">股票列表</h3>
-        <div className="space-y-2 max-h-96 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
+        <div className="space-y-2 h-80 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
           <div className="flex items-center space-x-3 pb-2 border-b font-semibold text-sm text-gray-600">
             <div className="w-16">代码</div>
             <div className="w-20">名称</div>
