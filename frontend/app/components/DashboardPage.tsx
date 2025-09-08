@@ -62,34 +62,39 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     return (
       <div className="bg-white p-2 rounded-lg shadow-md">
         <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="name" 
-                angle={-45}
-                textAnchor="end"
-                height={60}
-                fontSize={12}
-              />
-              <YAxis 
-                label={{ value: '幅度 (%)', angle: -90, position: 'insideLeft' }}
-                fontSize={12}
-              />
-              <Tooltip 
-                formatter={(value: number, name, props) => [
-                  `${value > 0 ? '+' : ''}${value.toFixed(2)}%`, 
-                  '幅度'
-                ]}
-                labelFormatter={(label) => {
-                  const item = chartData.find(d => d.name === label)
-                  return item ? `${item.code} ${item.name}` : label
-                }}
-              />
-              <Bar dataKey="amplitude" />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="h-64 w-full overflow-x-auto md:overflow-x-visible" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
+          <div className="min-w-[1200px] md:min-w-full h-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart 
+                data={chartData} 
+                margin={{ top: 10, right: 10, left: 10, bottom: 60 }}
+                barCategoryGap="10%"
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                  fontSize={10}
+                  tick={{ fontSize: 10 }}
+                  interval={0}
+                  className="md:text-xs"
+                />
+                <YAxis 
+                  fontSize={10}
+                  tick={{ fontSize: 10 }}
+                  width={35}
+                  tickFormatter={(value) => `${value}%`}
+                  className="md:text-xs md:w-12"
+                />
+                <Bar 
+                  dataKey="amplitude" 
+                  radius={[2, 2, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     )
@@ -102,7 +107,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     const maxLength = Math.max(...data.top_5.map(stock => stock.trend_data?.length || 0))
     const chartData = Array.from({ length: maxLength }, (_, index) => {
       const dataPoint: any = { index: index + 1 }
-      data.top_5.forEach((stock, stockIndex) => {
+      data.top_5.forEach((stock) => {
         if (stock.trend_data && stock.trend_data[index] !== undefined) {
           dataPoint[`${stock.code}`] = stock.trend_data[index]
         }
@@ -193,7 +198,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-lg font-semibold mb-4">股票列表</h3>
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="space-y-2 max-h-96 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
           <div className="flex items-center space-x-3 pb-2 border-b font-semibold text-sm text-gray-600">
             <div className="w-16">代码</div>
             <div className="w-20">名称</div>

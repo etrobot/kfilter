@@ -98,7 +98,9 @@ export function ResultsTable({
         </Button>
       </div>
 
-      <ResultsMainView data={data} factorMeta={factorMeta} />
+      <div style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
+        <ResultsMainView data={data} factorMeta={factorMeta} />
+      </div>
 
       <FactorSelectionDialog
         open={showFactorDialog}

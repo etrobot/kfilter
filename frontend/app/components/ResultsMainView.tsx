@@ -142,7 +142,7 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
   }
 
   return (
-    <div className="overflow-auto border rounded max-h-[70vh]">
+    <div className="overflow-auto border rounded max-h-[70vh]" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
       <table className="min-w-full text-sm">
         <thead className="sticky top-0 z-30">
           <tr className="bg-muted">

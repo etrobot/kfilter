@@ -227,7 +227,7 @@ export function ConceptsPage() {
       )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden border">
-        <div className="overflow-auto max-h-[70vh] relative">
+        <div className="overflow-auto max-h-[70vh] relative" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-30 bg-gray-50">
               <tr>

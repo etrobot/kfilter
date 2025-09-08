@@ -114,7 +114,7 @@ export function ExtendedAnalysisPage() {
               </p>
             </div>
             
-            <div className="max-h-[70vh] overflow-y-auto">
+            <div className="max-h-[70vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
               {result.sectors.map((sector, index) => (
                 <div key={sector.sector_code} className="border-b last:border-b-0">
                   <div className="p-4 bg-gray-25">
@@ -139,7 +139,7 @@ export function ExtendedAnalysisPage() {
                   </div>
                   
                   {sector.stocks.length > 0 && (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50">
                           <tr>

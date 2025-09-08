@@ -39,6 +39,54 @@ export ADMIN_EMAIL
 info "📁 Creating directories..."
 mkdir -p data
 
+# Backup existing database if it exists
+backup_database() {
+  local db_path="./data/stock_data.db"
+  local backup_path="./data/stock_data.db.backup.$(date +%Y%m%d_%H%M%S)"
+  
+  if [ -f "$db_path" ]; then
+    info "💾 Backing up existing database..."
+    cp "$db_path" "$backup_path"
+    success "✅ Database backed up to: $backup_path"
+    echo "$backup_path" > ./data/.last_backup_path
+    return 0
+  else
+    info "ℹ️  No existing database found to backup"
+    return 1
+  fi
+}
+
+# Restore database from backup if needed
+restore_database() {
+  local backup_path_file="./data/.last_backup_path"
+  
+  if [ -f "$backup_path_file" ]; then
+    local backup_path=$(cat "$backup_path_file")
+    if [ -f "$backup_path" ]; then
+      info "🔄 Checking if database restore is needed..."
+      
+      # Check if current database exists and is valid
+      if [ ! -f "./data/stock_data.db" ]; then
+        warn "⚠️  Database not found after deployment, restoring from backup..."
+        cp "$backup_path" "./data/stock_data.db"
+        success "✅ Database restored from backup"
+      else
+        # Check if database is accessible (basic validation)
+        if ! docker exec quant-dashboard sqlite3 /app/data_management/stock_data.db ".tables" >/dev/null 2>&1; then
+          warn "⚠️  Database appears corrupted, restoring from backup..."
+          cp "$backup_path" "./data/stock_data.db"
+          success "✅ Database restored from backup due to corruption"
+        else
+          success "✅ Database is healthy, backup not needed"
+        fi
+      fi
+    fi
+  fi
+}
+
+# Backup database before deployment
+backup_database
+
 # If docker is not available, run local validation to test routes
 if ! command_exists docker || ! command_exists docker-compose; then
   warn "⚠️  未检测到 Docker 或 docker-compose，进入本地测试模式（不启动容器）..."
@@ -93,6 +141,9 @@ sleep 12
 # Check service status
 success "✅ Checking service status..."
 docker-compose ps
+
+# Restore database if needed
+restore_database
 
 # Optional: quick health check via curl if available
 if command_exists curl; then
