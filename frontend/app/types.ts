@@ -102,3 +102,11 @@ export type ConceptListResponse = {
   concepts: ConceptRecord[]
   total: number
 }
+
+export interface KLineData {
+  code: string
+  name: string
+  amplitude: number
+  trend_data: number[]
+  dates: string[]
+}

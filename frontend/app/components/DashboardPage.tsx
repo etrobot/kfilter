@@ -10,7 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
-import { Bar, Line } from 'react-chartjs-2'
+import { Line } from 'react-chartjs-2'
 import { api } from '../services/api'
 
 // Register Chart.js components
@@ -25,16 +25,9 @@ ChartJS.register(
   Legend
 )
 import { TaskProgressCard } from './TaskProgressCard'
-import { TaskResult } from '../types'
+import { TaskResult, KLineData } from '../types'
 import { useIsMobile } from '../hooks/use-mobile'
-
-interface KLineData {
-  code: string
-  name: string
-  amplitude: number
-  trend_data: number[]
-  dates: string[]
-}
+import { BarChart } from './BarChart'
 
 interface DashboardData {
   stocks: KLineData[]
@@ -72,84 +65,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   }
 
 
-  const renderBarChart = () => {
-    if (!data?.stocks) return null
-
-    const chartData = {
-      labels: data.stocks.map(stock => stock.name),
-      datasets: [
-        {
-          label: '幅度',
-          data: data.stocks.map(stock => stock.amplitude),
-          backgroundColor: data.stocks.map(stock => 
-            stock.amplitude >= 0 ? '#ef4444' : '#22c55e'
-          ),
-          borderColor: data.stocks.map(stock => 
-            stock.amplitude >= 0 ? '#dc2626' : '#16a34a'
-          ),
-          borderWidth: 1,
-        },
-      ],
-    }
-
-    const options = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false,
-        },
-        tooltip: {
-          callbacks: {
-            title: (context: any) => context[0].label,
-            label: (context: any) => {
-              const value = context.parsed.y
-              return `幅度: ${value > 0 ? '+' : ''}${value.toFixed(2)}%`
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: {
-            maxRotation: 45,
-            minRotation: 45,
-            font: {
-              size: 10,
-            },
-          },
-          grid: {
-            display: false,
-          },
-        },
-        y: {
-          ticks: {
-            callback: (value: any) => `${value}%`,
-            font: {
-              size: 10,
-            },
-          },
-          grid: {
-            display: true,
-          },
-        },
-      },
-    }
-
-    return (
-      <div className="bg-white p-2 rounded-lg shadow-md">
-        <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
-        <div className="h-64 w-full relative">
-          {/* 滚动容器 */}
-          <div className="h-full w-full overflow-x-auto md:overflow-x-visible" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
-            <div className="min-w-[1200px] md:min-w-full h-full">
-              <Bar data={chartData} options={options} />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  
 
   const renderTrendChart = () => {
     if (!data?.top_5) return null
@@ -329,7 +245,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
       {!loading && (
         <div className="space-y-6">
           <div>
-            {renderBarChart()}
+            <BarChart stocks={data?.stocks || []} nDays={nDays} />
           </div>
           <div className="md:flex md:gap-4">
             <div className="flex-1">{renderTrendChart()}</div>
