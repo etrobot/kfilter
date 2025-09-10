@@ -28,7 +28,7 @@ from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
     list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard,
-    run_extended_analysis, login_user
+    run_extended_analysis, login_user, get_zai_config, update_zai_config
 )
 from factors import list_factors
 
@@ -233,6 +233,22 @@ def clear_extended_analysis_cache_endpoint():
 def login(request: AuthRequest) -> AuthResponse:
     """User login/register with username and email"""
     return login_user(request)
+
+
+# Configuration routes
+
+@app.get("/config/zai")
+def get_config_zai():
+    """Get masked ZAI configuration and configured flag"""
+    return get_zai_config()
+
+
+@app.post("/config/zai")
+def post_config_zai(payload: dict):
+    """Save ZAI configuration to backend/config.json"""
+    bearer = str(payload.get("ZAI_BEARER_TOKEN", ""))
+    cookie = str(payload.get("ZAI_COOKIE_STR", ""))
+    return update_zai_config(bearer, cookie)
 
 
 # Serve frontend for production

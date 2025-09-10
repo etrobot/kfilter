@@ -12,6 +12,7 @@ from utils import TASK_STOP_EVENTS, get_task
 
 from data_management.concept_service import create_concept_collection_task, get_concepts_from_db
 from factors import list_factors
+from config import get_zai_credentials, set_zai_credentials, is_zai_configured
 
 
 def read_root():
@@ -236,6 +237,30 @@ def run_extended_analysis():
         cache_extended_analysis(result)
     
     return result
+
+
+# Configuration API functions
+
+def get_zai_config():
+    """Return current ZAI configuration state (mask sensitive values)."""
+    bearer, cookie = get_zai_credentials()
+    return {
+        "configured": is_zai_configured(),
+        # For security, do not expose full secrets. Only indicate presence and small preview.
+        "ZAI_BEARER_TOKEN_preview": (bearer[:6] + "…" + bearer[-4:]) if bearer else "",
+        "ZAI_COOKIE_STR_preview": (cookie[:6] + "…" + cookie[-4:]) if cookie else "",
+    }
+
+
+def update_zai_config(bearer_token: str, cookie_str: str) -> dict:
+    """Update and persist ZAI credentials into backend/config.json."""
+    if not bearer_token or not cookie_str:
+        raise HTTPException(status_code=400, detail="Both bearer token and cookie string are required")
+    try:
+        set_zai_credentials(bearer_token, cookie_str)
+        return {"success": True, "message": "ZAI 配置已保存"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存配置失败: {e}")
 
 
 def login_user(request: AuthRequest) -> AuthResponse:

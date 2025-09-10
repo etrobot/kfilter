@@ -3,6 +3,9 @@ import { Button } from './ui/button'
 import { PlayIcon, RefreshCwIcon, ClockIcon } from 'lucide-react'
 import { api } from '../services/api'
 import { useIsMobile } from '../hooks/use-mobile'
+import { AuthDialog } from './AuthDialog'
+import { AuthService } from '../services/auth'
+import { ConfigDialog } from './ConfigDialog'
 
 interface SectorStock {
   code: string
@@ -35,6 +38,9 @@ export function ExtendedAnalysisPage() {
   const isMobile = useIsMobile()
   const [result, setResult] = useState<ExtendedAnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [showConfigDialog, setShowConfigDialog] = useState(false)
+  const [pendingAction, setPendingAction] = useState<null | 'run' | 'config'>(null)
 
   const runAnalysis = async (forceRefresh: boolean = false) => {
     setIsRunning(true)
@@ -60,6 +66,33 @@ export function ExtendedAnalysisPage() {
     }
   }
 
+  const handleRunClick = () => {
+    if (AuthService.isAuthenticated()) {
+      runAnalysis()
+    } else {
+      setPendingAction('run')
+      setShowAuthDialog(true)
+    }
+  }
+
+  const handleAuthSuccess = () => {
+    if (pendingAction === 'run') {
+      runAnalysis()
+    } else if (pendingAction === 'config') {
+      setShowConfigDialog(true)
+    }
+    setPendingAction(null)
+  }
+
+  const handleConfigClick = () => {
+    if (AuthService.isAuthenticated()) {
+      setShowConfigDialog(true)
+    } else {
+      setPendingAction('config')
+      setShowAuthDialog(true)
+    }
+  }
+
   return (
     <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
       {/* Header */}
@@ -70,23 +103,32 @@ export function ExtendedAnalysisPage() {
             基于最新交易日的板块涨停分析，展示各板块涨停股票及历史涨停次数
           </p>
         </div>
-        <Button 
-          onClick={() => runAnalysis()}
-          disabled={isRunning}
-          className="flex items-center gap-2"
-        >
-          {isRunning ? (
-            <>
-              <RefreshCwIcon size={16} className="animate-spin" />
-              运行中...
-            </>
-          ) : (
-            <>
-              <PlayIcon size={16} />
-              运行分析
-            </>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={handleConfigClick}
+            variant="outline"
+            disabled={isRunning}
+          >
+            配置
+          </Button>
+          <Button 
+            onClick={handleRunClick}
+            disabled={isRunning}
+            className="flex items-center gap-2"
+          >
+            {isRunning ? (
+              <>
+                <RefreshCwIcon size={16} className="animate-spin" />
+                运行中...
+              </>
+            ) : (
+              <>
+                <PlayIcon size={16} />
+                运行分析
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Error Display */}
@@ -230,6 +272,19 @@ export function ExtendedAnalysisPage() {
           <p className="text-gray-600 mb-4">点击"运行分析"开始扩展分析</p>
         </div>
       )}
+
+      <AuthDialog
+        open={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        onSuccess={handleAuthSuccess}
+        title="扩展分析运行权限验证"
+        description="运行扩展分析需要管理员权限，请输入用户名和密码"
+      />
+
+      <ConfigDialog
+        open={showConfigDialog}
+        onOpenChange={setShowConfigDialog}
+      />
     </div>
   )
 }
