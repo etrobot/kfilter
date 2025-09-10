@@ -28,6 +28,12 @@ function App() {
   const [factorMeta, setFactorMeta] = useState<FactorMeta[]>([])
   const [extended, setExtended] = useState<any>(null)
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false)
+  
+  // Extended Analysis状态
+  const [extendedAnalysisResult, setExtendedAnalysisResult] = useState<any>(null)
+  const [extendedAnalysisError, setExtendedAnalysisError] = useState<string | null>(null)
+  const [extendedAnalysisLoading, setExtendedAnalysisLoading] = useState(false)
+  const [extendedAnalysisSuccess, setExtendedAnalysisSuccess] = useState<string | null>(null)
   const isMobile = useIsMobile()
 
   // PWA Update functionality
@@ -275,7 +281,16 @@ function App() {
         ) : currentPage === 'concepts' ? (
           <ConceptsPage />
         ) : currentPage === 'extended-analysis' ? (
-          <ExtendedAnalysisPage />
+          <ExtendedAnalysisPage 
+            result={extendedAnalysisResult}
+            error={extendedAnalysisError}
+            isRunning={extendedAnalysisLoading}
+            successMessage={extendedAnalysisSuccess}
+            onResultChange={setExtendedAnalysisResult}
+            onErrorChange={setExtendedAnalysisError}
+            onLoadingChange={setExtendedAnalysisLoading}
+            onSuccessChange={setExtendedAnalysisSuccess}
+          />
         ) : (
           <DashboardPage 
             currentTask={currentTask}

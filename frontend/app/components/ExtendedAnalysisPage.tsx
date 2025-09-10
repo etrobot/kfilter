@@ -33,36 +33,62 @@ interface ExtendedAnalysisResult {
   cached_at?: string    // 新增：缓存时间
 }
 
-export function ExtendedAnalysisPage() {
-  const [isRunning, setIsRunning] = useState(false)
+interface ExtendedAnalysisPageProps {
+  result: ExtendedAnalysisResult | null
+  error: string | null
+  isRunning: boolean
+  successMessage: string | null
+  onResultChange: (result: ExtendedAnalysisResult | null) => void
+  onErrorChange: (error: string | null) => void
+  onLoadingChange: (loading: boolean) => void
+  onSuccessChange: (message: string | null) => void
+}
+
+export function ExtendedAnalysisPage({
+  result,
+  error,
+  isRunning,
+  successMessage,
+  onResultChange,
+  onErrorChange,
+  onLoadingChange,
+  onSuccessChange
+}: ExtendedAnalysisPageProps) {
   const isMobile = useIsMobile()
-  const [result, setResult] = useState<ExtendedAnalysisResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [pendingAction, setPendingAction] = useState<null | 'run' | 'config'>(null)
 
   const runAnalysis = async (forceRefresh: boolean = false) => {
-    setIsRunning(true)
-    setError(null)
+    onLoadingChange(true)
+    onErrorChange(null)
+    onSuccessChange(null)
 
     try {
       // 如果是强制刷新，先清除缓存
       if (forceRefresh) {
         await api.clearExtendedAnalysisCache()
+        onSuccessChange('缓存已清除，正在重新分析...')
       }
       
       const data = await api.runExtendedAnalysis()
       
       if (data.error) {
-        setError(data.error)
+        onErrorChange(data.error)
+        onSuccessChange(null)
       } else {
-        setResult(data)
+        onResultChange(data)
+        const cacheStatus = data.from_cache ? '(来自缓存)' : '(实时数据)'
+        onSuccessChange(`分析完成！找到 ${data.total_sectors_with_limit_ups} 个有涨停的板块 ${cacheStatus}`)
+        // 成功消息3秒后自动消失
+        setTimeout(() => onSuccessChange(null), 3000)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '运行分析时发生错误')
+      console.error('Extended analysis error:', err)
+      onErrorChange(err instanceof Error ? err.message : '运行分析时发生错误')
+      onSuccessChange(null)
     } finally {
-      setIsRunning(false)
+      onLoadingChange(false)
     }
   }
 
@@ -136,6 +162,15 @@ export function ExtendedAnalysisPage() {
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <div className="text-red-800">
             <strong>错误:</strong> {error}
+          </div>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+          <div className="text-green-800">
+            <strong>成功:</strong> {successMessage}
           </div>
         </div>
       )}
@@ -264,6 +299,19 @@ export function ExtendedAnalysisPage() {
               <p className="text-gray-600">当日无涨停板块数据</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isRunning && !result && (
+        <div className="bg-white border rounded-lg p-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <RefreshCwIcon size={20} className="animate-spin text-blue-600" />
+            <span className="text-blue-600 font-medium">正在运行扩展分析...</span>  
+          </div>
+          <p className="text-gray-600 text-sm">
+            正在分析最新交易日的板块涨停数据，请稍候...
+          </p>
         </div>
       )}
 
