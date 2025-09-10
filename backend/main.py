@@ -219,6 +219,13 @@ def run_extended_analysis_endpoint():
     return run_extended_analysis()
 
 
+@app.get("/extended-analysis/stream")
+def run_extended_analysis_stream_endpoint():
+    """Run extended analysis and stream progress via SSE"""
+    from api import run_extended_analysis_stream
+    return run_extended_analysis_stream()
+
+
 @app.delete("/extended-analysis/cache")
 def clear_extended_analysis_cache_endpoint():
     """Clear extended analysis cache to force fresh analysis"""

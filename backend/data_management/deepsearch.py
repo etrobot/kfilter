@@ -242,25 +242,41 @@ class ZAIChatClient:
                                     continue
                             else:
                                 content = ""
+                            # Ensure we only keep plain text
                             if isinstance(content, dict):
-                                content = json.dumps(content, ensure_ascii=False)
-                            # 先处理 <a href="...">xxx</a>，转成 markdown 链接
-                            def a_tag_to_md(m):
-                                href = m.group(1)
-                                text = m.group(2)
-                                return f"[{text}]({href})"
-                            content = re.sub(r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>', a_tag_to_md, content, flags=re.DOTALL)
+                                # Drop JSON objects to avoid non-plain text
+                                content = ""
 
-                            # 处理 summary 标签
-                            summary_tag_patten = r'<summary.*?>.*?</summary>'
-                            summary_tags = re.findall(summary_tag_patten, content, flags=re.DOTALL)
-                            content = re.sub(summary_tag_patten, '', content, flags=re.DOTALL)
+                            def clean_to_plain_text(text: str) -> str:
+                                if not text:
+                                    return ""
+                                # Remove fenced code blocks (```...```), including json/xml/etc
+                                text = re.sub(r"```[\s\S]*?```", "", text, flags=re.DOTALL)
+                                # Remove <summary>...</summary>
+                                text = re.sub(r"<summary[\s\S]*?</summary>", "", text, flags=re.DOTALL)
+                                # Replace <a ...>inner</a> with just inner text
+                                text = re.sub(r"<a\s+[^>]*>(.*?)</a>", r"\1", text, flags=re.DOTALL)
+                                # Strip remaining tags like <...>
+                                text = re.sub(r"<[^>]+>", "", text)
+                                # Remove lines that look like standalone JSON
+                                cleaned_lines = []
+                                for line in text.splitlines():
+                                    ls = line.strip()
+                                    if (ls.startswith("{") and ls.endswith("}") and ":" in ls) or (ls.startswith("[") and ls.endswith("]") and ":" in ls):
+                                        continue
+                                    cleaned_lines.append(line)
+                                text = "\n".join(cleaned_lines)
+                                # Collapse excessive whitespace
+                                text = re.sub(r"\n{3,}", "\n\n", text)
+                                text = re.sub(r"[\t\x0b\x0c\r]", " ", text)
+                                return text.strip()
 
-                            # 处理其他HTML标签
+                            content = clean_to_plain_text(content)
+
+                            # Track any tags we might have encountered (for logging only)
                             other_tags = re.findall(r'<[^>]+>', content)
                             for tag in other_tags:
                                 html_tags.add(tag)
-                            content = re.sub(r'<[^>]+>', '', content)
 
                             i = 0
                             while i < min(len(last_output), len(content)) and last_output[i] == content[i]:
@@ -284,10 +300,7 @@ class ZAIChatClient:
                                 if os.getenv('TESTING'):
                                     new_text = new_text.rstrip('\n')
                                 output_buffer += new_text
-                                for tag in summary_tags:
-                                    if tag not in html_tags:
-                                        html_tags.add(tag)
-                                        new_text += tag
+                               # Do not append any XML/HTML back into the stream
                                 full_response += new_text
                                 yield new_text
                         except Exception as e:

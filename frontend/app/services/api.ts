@@ -92,6 +92,28 @@ export const api = {
     })
   },
 
+  createExtendedAnalysisStream(onEvent: (type: string, payload: any) => void): () => void {
+    const url = `${API_BASE_URL}/extended-analysis/stream`
+    const es = new EventSource(url)
+
+    es.addEventListener('start', (e: MessageEvent) => {
+      try { onEvent('start', JSON.parse(e.data)) } catch { onEvent('start', {}) }
+    })
+    es.addEventListener('progress', (e: MessageEvent) => {
+      try { onEvent('progress', JSON.parse(e.data)) } catch { onEvent('progress', {}) }
+    })
+    es.addEventListener('complete', (e: MessageEvent) => {
+      try { onEvent('complete', JSON.parse(e.data)) } catch { onEvent('complete', {}) }
+      es.close()
+    })
+    es.addEventListener('error', (e: MessageEvent) => {
+      try { onEvent('error', JSON.parse((e as any).data)) } catch { onEvent('error', {message: 'Stream error'}) }
+      es.close()
+    })
+
+    return () => es.close()
+  },
+
   async clearExtendedAnalysisCache(): Promise<any> {
     return apiCall<any>('/extended-analysis/cache', {
       method: 'DELETE',

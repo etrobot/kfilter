@@ -63,33 +63,40 @@ export function ExtendedAnalysisPage({
     onLoadingChange(true)
     onErrorChange(null)
     onSuccessChange(null)
+    onResultChange(null)
 
-    try {
-      // 如果是强制刷新，先清除缓存
-      if (forceRefresh) {
-        await api.clearExtendedAnalysisCache()
-        onSuccessChange('缓存已清除，正在重新分析...')
-      }
-      
-      const data = await api.runExtendedAnalysis()
-      
-      if (data.error) {
-        onErrorChange(data.error)
+    // 通过 SSE 获取过程反馈
+    const close = api.createExtendedAnalysisStream((type, payload) => {
+      if (type === 'start') {
+        // 开始
+      } else if (type === 'progress') {
+        // 实时进度提示
+        const msg = payload?.message || '正在计算扩展分析...'
+        onSuccessChange(msg)
+      } else if (type === 'complete') {
+        const data = payload?.result
+        if (data?.error) {
+          onErrorChange(data.error)
+          onSuccessChange(null)
+        } else {
+          onResultChange(data)
+          onSuccessChange(`分析完成！找到 ${data.total_sectors_with_limit_ups} 个有涨停的板块`)
+          setTimeout(() => onSuccessChange(null), 3000)
+        }
+        onLoadingChange(false)
+      } else if (type === 'error') {
+        onErrorChange(payload?.error || '运行分析时发生错误')
         onSuccessChange(null)
-      } else {
-        onResultChange(data)
-        const cacheStatus = data.from_cache ? '(来自缓存)' : '(实时数据)'
-        onSuccessChange(`分析完成！找到 ${data.total_sectors_with_limit_ups} 个有涨停的板块 ${cacheStatus}`)
-        // 成功消息3秒后自动消失
-        setTimeout(() => onSuccessChange(null), 3000)
+        onLoadingChange(false)
       }
-    } catch (err) {
-      console.error('Extended analysis error:', err)
-      onErrorChange(err instanceof Error ? err.message : '运行分析时发生错误')
-      onSuccessChange(null)
-    } finally {
-      onLoadingChange(false)
+    })
+
+    // 如需强制刷新缓存，可在开始前调用（现在每次都是新计算，一般不需要）
+    if (forceRefresh) {
+      try { await api.clearExtendedAnalysisCache() } catch {}
     }
+
+    return () => close()
   }
 
   const handleRunClick = () => {
@@ -201,7 +208,7 @@ export function ExtendedAnalysisPage({
             {result.from_cache && (
               <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-md">
                 <ClockIcon size={14} />
-                <span>数据来自缓存 (30分钟内有效)</span>
+                <span>数据来自缓存（将一直使用，直到有新的分析任务完成）</span>
                 <Button 
                   size="sm" 
                   variant="outline" 

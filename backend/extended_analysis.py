@@ -2,46 +2,13 @@ from __future__ import annotations
 import logging
 import os
 from datetime import date, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 
-def get_stock_concepts(stock_code: str, session) -> List[tuple[str, str]]:
-    """Get all concepts for a single stock
-    
-    Returns:
-        List of (concept_code, concept_name) tuples
-    """
-    from sqlmodel import select
-    from models import ConceptInfo, ConceptStock
-    
-    try:
-        # Get concept codes for this stock
-        concept_stocks = session.exec(
-            select(ConceptStock).where(ConceptStock.stock_code == stock_code)
-        ).all() or []
-        
-        if not concept_stocks:
-            return []
-        
-        concept_codes = [cs.concept_code for cs in concept_stocks]
-        
-        # Get concept names
-        concepts = session.exec(
-            select(ConceptInfo).where(ConceptInfo.code.in_(concept_codes))
-        ).all() or []
-        
-        concept_map = {c.code: c.name for c in concepts}
-        return [(code, concept_map.get(code, code)) for code in concept_codes]
-        
-    except Exception as e:
-        logger.warning(f"Failed to get concepts for stock {stock_code}: {e}")
-        return []
-
-
-def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str) -> Optional[str]:
+def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, on_progress: Optional[Callable[[str], None]] = None) -> Optional[str]:
     """Use deepsearch to analyze a specific concept"""
     try:
         from data_management.deepsearch import ZAIChatClient
@@ -69,7 +36,11 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str) -
         
         # Stream the response and collect it
         full_response = ""
+        if on_progress:
+            on_progress(f"深度搜索：开始分析板块 {concept_name}")
         for chunk in client.stream_chat_completion(messages, model="0727-360B-API"):
+            if on_progress and chunk:
+                on_progress(f"深度搜索输出 {len(chunk)} 字符")
             full_response += chunk
             
         return full_response.strip() if full_response else None
@@ -79,7 +50,7 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str) -
         return None
 
 
-def get_sector_analysis_for_latest_day(latest_trade_date: date, session) -> dict:
+def get_sector_analysis_for_latest_day(latest_trade_date: date, session, on_progress: Optional[Callable[[str], None]] = None) -> dict:
     """Get sector-based analysis for the latest trading day only
     
     Returns:
@@ -132,6 +103,8 @@ def get_sector_analysis_for_latest_day(latest_trade_date: date, session) -> dict
             
             # Count limit-ups for this sector on latest day
             limit_up_stocks = []
+            if on_progress:
+                on_progress(f"分析板块 {sector_name}（{sector_code}）… 共 {total_stocks} 只，统计涨停中")
             total_stocks = len(sector_day_data)
             limit_up_count = 0
             
@@ -154,7 +127,7 @@ def get_sector_analysis_for_latest_day(latest_trade_date: date, session) -> dict
             
             if limit_up_count > 0:  # Only include sectors with limit-ups today
                 # Get deepsearch analysis for this concept
-                concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name)
+                concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name, on_progress=on_progress)
                 
                 result[sector_code] = {
                     "sector_code": sector_code,
@@ -268,7 +241,7 @@ def get_top_limit_up_stocks_in_sectors(latest_trade_date: date, session) -> List
         return []
 
 
-def run_standalone_extended_analysis() -> dict:
+def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]] = None) -> dict:
     """Run standalone extended analysis focusing on latest day sector analysis"""
     try:
         from sqlmodel import Session, select
@@ -286,7 +259,9 @@ def run_standalone_extended_analysis() -> dict:
             latest_date = latest_data.date
             
             # Get sector analysis for latest day
-            sector_analysis = get_sector_analysis_for_latest_day(latest_date, session)
+            if on_progress:
+                on_progress(f"开始按板块分析 {latest_date.isoformat()} 的涨停数据")
+            sector_analysis = get_sector_analysis_for_latest_day(latest_date, session, on_progress=on_progress)
             
             # Sort sectors by limit-up ratio
             sorted_sectors = sorted(
@@ -308,43 +283,3 @@ def run_standalone_extended_analysis() -> dict:
     except Exception as e:
         logger.error(f"Standalone extended analysis failed: {e}")
         return {"error": str(e)}
-
-
-def build_extended_analysis(latest_trade_date: date, data: List[dict]) -> dict:
-    """Build extended analysis including limit-up ranking within top concepts"""
-    extended = {}
-    try:
-        from sqlmodel import Session, select
-        from models import engine, ConceptInfo
-        
-        with Session(engine) as session:
-            # Get top concept codes
-            top_concepts = session.exec(
-                select(ConceptInfo).order_by(ConceptInfo.stock_count.desc()).limit(10)
-            ).all() or []
-            concept_codes = [c.code for c in top_concepts]
-            extended["top_sector_codes"] = concept_codes
-
-            if concept_codes:
-                # Get stocks with most limit-ups in these sectors
-                stock_rankings = get_top_limit_up_stocks_in_sectors(latest_trade_date, session)
-                
-                # Add stock names from current data and build final ranking
-                name_map = {r.get("代码"): r.get("名称") for r in data if r.get("代码")}
-                final_ranking = []
-                
-                for stock_info in stock_rankings:
-                    final_ranking.append({
-                        "code": stock_info["code"],
-                        "name": name_map.get(stock_info["code"]),
-                        "limit_up_count": stock_info["limit_up_count"],
-                        "concept_codes": stock_info["concept_codes"],
-                        "concept_names": stock_info["concept_names"],
-                        "concept_display": ", ".join(stock_info["concept_names"]),
-                    })
-                
-                extended["limit_up_ranking"] = final_ranking
-    except Exception as e:
-        logger.warning(f"Extended analysis failed: {e}")
-    
-    return extended

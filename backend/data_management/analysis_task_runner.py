@@ -25,7 +25,6 @@ from market_data import (
     calculate_and_save_weekly_data,
     calculate_and_save_monthly_data
 )
-from extended_analysis import build_extended_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -287,9 +286,6 @@ def compute_factors_and_analysis(task_id: str, top_spot: pd.DataFrame, stock_cod
     
     data = df.to_dict(orient="records") if not df.empty else []
 
-    # 扩展分析：在热门概念中构建涨停排名
-    extended = build_extended_analysis(latest_trade_date, data)
-
     return {
         "data": data,
         "count": len(data),
@@ -300,7 +296,7 @@ def compute_factors_and_analysis(task_id: str, top_spot: pd.DataFrame, stock_cod
 def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
     """完成分析任务"""
     from utils import set_last_completed_task
-    from .services import ANALYSIS_RESULTS_CACHE, CACHE_LOCK
+    from .services import ANALYSIS_RESULTS_CACHE, CACHE_LOCK, clear_extended_analysis_cache
     
     task = get_task(task_id)
     if not task:
@@ -328,6 +324,12 @@ def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
             "count": result["count"],
             "extended": result["extended"],
         }
+
+    # 新任务结果完成后，清除扩展分析缓存，确保下一次请求会重新计算
+    try:
+        clear_extended_analysis_cache()
+    except Exception as e:
+        logger.warning(f"Failed to clear extended analysis cache after task completion: {e}")
 
     set_last_completed_task(task)
     logger.info(f"Analysis completed successfully with database integration. Found {result['count']} results; extended={bool(result['extended'])}")

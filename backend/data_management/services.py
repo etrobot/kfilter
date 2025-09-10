@@ -77,18 +77,9 @@ def clear_extended_analysis_cache() -> None:
         EXTENDED_ANALYSIS_CACHE.clear()
 
 
-def is_extended_analysis_cache_valid(max_age_minutes: int = 30) -> bool:
-    """Check if extended analysis cache is still valid."""
-    with CACHE_LOCK:
-        if not EXTENDED_ANALYSIS_CACHE or 'cached_at' not in EXTENDED_ANALYSIS_CACHE:
-            return False
-        
-        try:
-            cached_time = datetime.fromisoformat(EXTENDED_ANALYSIS_CACHE['cached_at'])
-            age = datetime.now() - cached_time
-            return age.total_seconds() < max_age_minutes * 60
-        except Exception:
-            return False
+# TTL-based validation removed: extended analysis cache persists until a new analysis task completes.
+# Keeping function name out to avoid accidental imports.
+
 
 
 

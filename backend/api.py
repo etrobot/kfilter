@@ -13,6 +13,9 @@ from utils import TASK_STOP_EVENTS, get_task
 from data_management.concept_service import create_concept_collection_task, get_concepts_from_db
 from factors import list_factors
 from config import get_zai_credentials, set_zai_credentials, is_zai_configured
+from datetime import datetime
+import json
+import threading
 
 
 def read_root():
@@ -212,31 +215,80 @@ def get_kline_amplitude_dashboard(n_days: int = 30):
 
 
 def run_extended_analysis():
-    """Run standalone extended analysis focusing on sector analysis with caching"""
+    """Run standalone extended analysis focusing on sector analysis.
+    Behavior: always compute a fresh result on manual trigger, cache it, and return it.
+    Cache is for other consumers or future reads, and will be cleared when a new main analysis task completes.
+    """
     from data_management.services import (
-        get_cached_extended_analysis, 
-        cache_extended_analysis, 
-        is_extended_analysis_cache_valid
+        cache_extended_analysis,
     )
     from extended_analysis import run_standalone_extended_analysis
-    
-    # Check if we have valid cached results
-    if is_extended_analysis_cache_valid(max_age_minutes=30):
-        cached_result = get_cached_extended_analysis()
-        if cached_result:
-            # Add cache indicator to response
-            cached_result['from_cache'] = True
-            return cached_result
-    
-    # Run fresh analysis
+
+    # Always compute fresh on manual trigger
     result = run_standalone_extended_analysis()
-    
-    # Cache the result if successful
     if result and 'error' not in result:
         result['from_cache'] = False
         cache_extended_analysis(result)
-    
     return result
+
+
+def run_extended_analysis_stream():
+    """SSE endpoint: stream progress while running extended analysis.
+    Sends events: start, progress (heartbeat), complete, error.
+    """
+    from fastapi.responses import StreamingResponse
+    from data_management.services import cache_extended_analysis
+    from extended_analysis import run_standalone_extended_analysis
+
+    result_holder = {"done": False, "result": None, "error": None, "last_msg": None}
+
+    def worker():
+        try:
+            def _on_progress(msg: str):
+                # 使用队列或直接yield不方便，这里简单地更新最近消息，由主循环按tick发出
+                result_holder["last_msg"] = msg
+            res = run_standalone_extended_analysis(on_progress=_on_progress)
+            if isinstance(res, dict) and 'error' in res:
+                result_holder["error"] = res.get('error')
+            else:
+                result_holder["result"] = res
+        except Exception as e:
+            result_holder["error"] = str(e)
+        finally:
+            result_holder["done"] = True
+
+    def format_event(event: str, data: dict) -> str:
+        import json as _json
+        return f"event: {event}\n" + f"data: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+    import threading as _threading
+    import time as _time
+    from datetime import datetime as _dt
+
+    thread = _threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    def event_stream():
+        yield format_event("start", {"time": _dt.now().isoformat(), "message": "开始扩展分析"})
+        # Heartbeat/progress ticks while worker runs
+        i = 0
+        while not result_holder["done"]:
+            i += 1
+            msg = result_holder.get("last_msg") or "正在计算扩展分析..."
+            yield format_event("progress", {"time": _dt.now().isoformat(), "message": msg, "tick": i})
+            _time.sleep(1.0)
+        # Completed
+        if result_holder["error"] is not None:
+            yield format_event("error", {"ok": False, "error": result_holder["error"]})
+        else:
+            result = result_holder["result"] or {}
+            try:
+                cache_extended_analysis(result)
+            except Exception:
+                pass
+            yield format_event("complete", {"ok": True, "result": result})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 # Configuration API functions
