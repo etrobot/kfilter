@@ -44,32 +44,20 @@ def _get_env_or_default(key: str, default: str = '') -> str:
     value = os.getenv(key)
     return value if value is not None else default
 
-def _get_zai_from_sources() -> Tuple[str, str]:
-    """Return ZAI credentials preferring config.json over env."""
-    cfg = _load_config_json()
-    bearer = (cfg.get('ZAI_BEARER_TOKEN') or '').strip()
-    cookie = (cfg.get('ZAI_COOKIE_STR') or '').strip()
-    if bearer and cookie:
-        return bearer, cookie
-    # fallback to env
-    return (
-        _get_env_or_default('ZAI_BEARER_TOKEN', ''),
-        _get_env_or_default('ZAI_COOKIE_STR', ''),
-    )
 
 # THS API configuration (if needed)
 THS_COOKIE_V = os.getenv('THS_COOKIE_V', 'A5lFEWDLFZlL3MkNmn0O1b5bro52JoyfdxqxbLtOFUA_wrfwA3adqAdqwTFI')
 
 def is_zai_configured() -> bool:
     """Check if ZAI credentials are properly configured (always read latest)."""
-    bearer, cookie = _get_zai_from_sources()
+    bearer, cookie =get_zai_credentials()
     return bool(bearer and cookie and 
                 bearer != 'your_bearer_token_here' and 
                 cookie != 'your_cookie_string_here')
 
 def get_zai_credentials() -> Tuple[str, str]:
     """Get ZAI credentials (always read latest)."""
-    return _get_zai_from_sources()
+    return _load_config_json().get('ZAI_BEARER_TOKEN').strip(), _load_config_json().get('ZAI_COOKIE_STR').strip()
 
 def set_zai_credentials(bearer_token: str, cookie_str: str) -> None:
     """Persist ZAI credentials to backend/config.json."""
