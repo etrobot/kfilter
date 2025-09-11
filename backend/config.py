@@ -77,3 +77,34 @@ def set_zai_credentials(bearer_token: str, cookie_str: str) -> None:
     data['ZAI_BEARER_TOKEN'] = bearer_token
     data['ZAI_COOKIE_STR'] = cookie_str
     _save_config_json(data)
+
+def get_openai_config() -> Tuple[str, str]:
+    """Get OpenAI API configuration (API key and base URL)."""
+    cfg = _load_config_json()
+    api_key = (cfg.get('OPENAI_API_KEY') or '').strip()
+    base_url = (cfg.get('OPENAI_BASE_URL') or '').strip()
+    
+    return api_key, base_url
+
+def is_openai_configured() -> bool:
+    """Check if OpenAI API is properly configured."""
+    api_key, _ = get_openai_config()
+    return bool(api_key and api_key != 'your_openai_api_key_here')
+
+def set_system_config(config_data: dict) -> None:
+    """Persist system configuration (ZAI + OpenAI) to backend/config.json."""
+    data = _load_config_json()
+    
+    # Update ZAI configuration if provided
+    if 'ZAI_BEARER_TOKEN' in config_data:
+        data['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
+    if 'ZAI_COOKIE_STR' in config_data:
+        data['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
+    
+    # Update OpenAI configuration if provided
+    if 'OPENAI_API_KEY' in config_data:
+        data['OPENAI_API_KEY'] = config_data['OPENAI_API_KEY']
+    if 'OPENAI_BASE_URL' in config_data:
+        data['OPENAI_BASE_URL'] = config_data['OPENAI_BASE_URL']
+    
+    _save_config_json(data)

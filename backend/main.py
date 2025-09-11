@@ -245,17 +245,15 @@ def login(request: AuthRequest) -> AuthResponse:
 # Configuration routes
 
 @app.get("/config/zai")
-def get_config_zai():
-    """Get masked ZAI configuration and configured flag"""
+def get_config():
+    """Get masked configuration and configured flag"""
     return get_zai_config()
 
 
 @app.post("/config/zai")
-def post_config_zai(payload: dict):
-    """Save ZAI configuration to backend/config.json"""
-    bearer = str(payload.get("ZAI_BEARER_TOKEN", ""))
-    cookie = str(payload.get("ZAI_COOKIE_STR", ""))
-    return update_zai_config(bearer, cookie)
+def post_config(payload: dict):
+    """Save configuration (ZAI + OpenAI) to backend/config.json"""
+    return update_zai_config(payload)
 
 
 # Serve frontend for production

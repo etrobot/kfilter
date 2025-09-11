@@ -258,11 +258,30 @@ class ZAIChatClient:
                                 text = re.sub(r"<a\s+[^>]*>(.*?)</a>", r"\1", text, flags=re.DOTALL)
                                 # Strip remaining tags like <...>
                                 text = re.sub(r"<[^>]+>", "", text)
-                                # Remove lines that look like standalone JSON
+                                # Process each line
                                 cleaned_lines = []
                                 for line in text.splitlines():
+                                    # Skip empty lines
                                     ls = line.strip()
+                                    if not ls:
+                                        continue
+                                    # Skip lines starting with >
+                                    if ls.startswith('>'):
+                                        continue
+                                    # Skip lines that look like standalone JSON
                                     if (ls.startswith("{") and ls.endswith("}") and ":" in ls) or (ls.startswith("[") and ls.endswith("]") and ":" in ls):
+                                        continue
+                                    # Skip lines containing unicode escape sequences (like \u4e09\u805a)
+                                    if re.search(r'\\u[0-9a-fA-F]{4}', line):
+                                        continue
+                                    # Skip lines that look like they contain encoded content
+                                    if re.search(r'%[0-9a-fA-F]{2}', line):
+                                        continue
+                                    # Skip lines that look like they contain encoded HTML entities
+                                    if re.search(r'&[a-z]+;', line):
+                                        continue
+                                    # Skip lines that look like they contain URL-encoded content
+                                    if re.search(r'%[0-9A-F]{2}', line):
                                         continue
                                     cleaned_lines.append(line)
                                 text = "\n".join(cleaned_lines)

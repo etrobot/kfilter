@@ -103,9 +103,9 @@ def get_sector_analysis_for_latest_day(latest_trade_date: date, session, on_prog
             
             # Count limit-ups for this sector on latest day
             limit_up_stocks = []
+            total_stocks = len(sector_day_data)
             if on_progress:
                 on_progress(f"分析板块 {sector_name}（{sector_code}）… 共 {total_stocks} 只，统计涨停中")
-            total_stocks = len(sector_day_data)
             limit_up_count = 0
             
             for data in sector_day_data:
@@ -129,6 +129,17 @@ def get_sector_analysis_for_latest_day(latest_trade_date: date, session, on_prog
                 # Get deepsearch analysis for this concept
                 concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name, on_progress=on_progress)
                 
+                # Evaluate the analysis using LLM if we have content
+                llm_evaluation = None
+                if concept_analysis:
+                    try:
+                        from data_management.llm_client import evaluate_content_with_llm
+                        if on_progress:
+                            on_progress(f"LLM评估：分析板块 {sector_name} 的搜索结果")
+                        llm_evaluation = evaluate_content_with_llm(concept_analysis)
+                    except Exception as e:
+                        logger.warning(f"Failed to evaluate concept analysis with LLM for {sector_name}: {e}")
+                
                 result[sector_code] = {
                     "sector_code": sector_code,
                     "sector_name": sector_name,
@@ -136,7 +147,8 @@ def get_sector_analysis_for_latest_day(latest_trade_date: date, session, on_prog
                     "limit_up_count_today": limit_up_count,
                     "limit_up_ratio": round(limit_up_count / total_stocks * 100, 2),
                     "stocks": limit_up_stocks,
-                    "concept_analysis": concept_analysis
+                    "concept_analysis": concept_analysis,
+                    "llm_evaluation": llm_evaluation
                 }
         
         return result
@@ -272,11 +284,13 @@ def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]
             
             # Count sectors with successful analysis
             sectors_with_analysis = sum(1 for sector in sorted_sectors if sector.get("concept_analysis"))
+            sectors_with_llm_evaluation = sum(1 for sector in sorted_sectors if sector.get("llm_evaluation"))
             
             return {
                 "analysis_date": latest_date.isoformat(),
                 "total_sectors_with_limit_ups": len(sorted_sectors),
                 "sectors_with_deepsearch_analysis": sectors_with_analysis,
+                "sectors_with_llm_evaluation": sectors_with_llm_evaluation,
                 "sectors": sorted_sectors
             }
             

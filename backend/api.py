@@ -12,7 +12,7 @@ from utils import TASK_STOP_EVENTS, get_task
 
 from data_management.concept_service import create_concept_collection_task, get_concepts_from_db
 from factors import list_factors
-from config import get_zai_credentials, set_zai_credentials, is_zai_configured
+from config import get_zai_credentials, set_zai_credentials, is_zai_configured, get_openai_config, is_openai_configured, set_system_config
 from datetime import datetime
 import json
 import threading
@@ -60,7 +60,6 @@ def stop_analysis(task_id: str) -> TaskResult:
         selected_factors=task.selected_factors,
         data=task.result["data"] if task.result else None,
         count=task.result["count"] if task.result else None,
-        extended=task.result.get("extended") if task.result else None,
         error=task.error
     )
 
@@ -82,7 +81,6 @@ def get_task_status(task_id: str) -> TaskResult:
         selected_factors=task.selected_factors,
         data=task.result["data"] if task.result else None,
         count=task.result["count"] if task.result else None,
-        extended=task.result.get("extended") if task.result else None,
         error=task.error
     )
 
@@ -124,7 +122,6 @@ def list_all_tasks() -> List[TaskResult]:
             selected_factors=task.selected_factors,
             data=task.result["data"] if task.result else None,
             count=task.result["count"] if task.result else None,
-            extended=task.result.get("extended") if task.result else None,
             error=task.error
         ) for task in all_tasks.values()
     ]
@@ -294,23 +291,39 @@ def run_extended_analysis_stream():
 # Configuration API functions
 
 def get_zai_config():
-    """Return current ZAI configuration state (mask sensitive values)."""
+    """Return current system configuration state (mask sensitive values)."""
     bearer, cookie = get_zai_credentials()
+    api_key, base_url = get_openai_config()
+    
     return {
-        "configured": is_zai_configured(),
-        # For security, do not expose full secrets. Only indicate presence and small preview.
+        "configured": is_zai_configured() and is_openai_configured(),
+        # ZAI configuration previews
         "ZAI_BEARER_TOKEN_preview": (bearer[:6] + "…" + bearer[-4:]) if bearer else "",
         "ZAI_COOKIE_STR_preview": (cookie[:6] + "…" + cookie[-4:]) if cookie else "",
+        # OpenAI configuration previews
+        "OPENAI_API_KEY_preview": (api_key[:6] + "…" + api_key[-4:]) if api_key else "",
+        "OPENAI_BASE_URL": base_url,  # Base URL is not sensitive, show full value
+        # Individual configuration status
+        "zai_configured": is_zai_configured(),
+        "openai_configured": is_openai_configured(),
     }
 
 
-def update_zai_config(bearer_token: str, cookie_str: str) -> dict:
-    """Update and persist ZAI credentials into backend/config.json."""
-    if not bearer_token or not cookie_str:
-        raise HTTPException(status_code=400, detail="Both bearer token and cookie string are required")
+def update_zai_config(config_data: dict) -> dict:
+    """Update and persist system configuration (ZAI + OpenAI) into backend/config.json."""
+    # Validate required fields
+    required_fields = ['ZAI_BEARER_TOKEN', 'ZAI_COOKIE_STR', 'OPENAI_API_KEY']
+    missing_fields = [field for field in required_fields if not config_data.get(field, '').strip()]
+    
+    if missing_fields:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"缺少必填字段: {', '.join(missing_fields)}"
+        )
+    
     try:
-        set_zai_credentials(bearer_token, cookie_str)
-        return {"success": True, "message": "ZAI 配置已保存"}
+        set_system_config(config_data)
+        return {"success": True, "message": "系统配置已保存"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存配置失败: {e}")
 

@@ -289,14 +289,13 @@ def compute_factors_and_analysis(task_id: str, top_spot: pd.DataFrame, stock_cod
     return {
         "data": data,
         "count": len(data),
-        "extended": extended or None,
     }
 
 
 def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
     """完成分析任务"""
     from utils import set_last_completed_task
-    from .services import ANALYSIS_RESULTS_CACHE, CACHE_LOCK, clear_extended_analysis_cache
+    from .services import ANALYSIS_RESULTS_CACHE, CACHE_LOCK
     
     task = get_task(task_id)
     if not task:
@@ -322,17 +321,10 @@ def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
             "selected_factors": task.selected_factors,
             "data": result["data"],
             "count": result["count"],
-            "extended": result["extended"],
         }
 
-    # 新任务结果完成后，清除扩展分析缓存，确保下一次请求会重新计算
-    try:
-        clear_extended_analysis_cache()
-    except Exception as e:
-        logger.warning(f"Failed to clear extended analysis cache after task completion: {e}")
-
     set_last_completed_task(task)
-    logger.info(f"Analysis completed successfully with database integration. Found {result['count']} results; extended={bool(result['extended'])}")
+    logger.info(f"Analysis completed successfully with database integration. Found {result['count']} results")
 
 
 def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, 

@@ -121,7 +121,15 @@ export const api = {
   },
 
   // Config APIs
-  async getZaiConfig(): Promise<{ configured: boolean; ZAI_BEARER_TOKEN_preview: string; ZAI_COOKIE_STR_preview: string }>{
+  async getZaiConfig(): Promise<{
+    configured: boolean
+    ZAI_BEARER_TOKEN_preview: string
+    ZAI_COOKIE_STR_preview: string
+    OPENAI_API_KEY_preview: string
+    OPENAI_BASE_URL: string
+    zai_configured: boolean
+    openai_configured: boolean
+  }> {
     return apiCall('/config/zai')
   },
 
