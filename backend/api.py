@@ -292,16 +292,10 @@ def run_extended_analysis_stream():
 
 def get_zai_config():
     """Return current system configuration state (mask sensitive values)."""
-    bearer, cookie = get_zai_credentials()
-    api_key, base_url = get_openai_config()
+    _, base_url = get_openai_config()
     
     return {
         "configured": is_zai_configured() and is_openai_configured(),
-        # ZAI configuration previews
-        "ZAI_BEARER_TOKEN_preview": (bearer[:6] + "…" + bearer[-4:]) if bearer else "",
-        "ZAI_COOKIE_STR_preview": (cookie[:6] + "…" + cookie[-4:]) if cookie else "",
-        # OpenAI configuration previews
-        "OPENAI_API_KEY_preview": (api_key[:6] + "…" + api_key[-4:]) if api_key else "",
         "OPENAI_BASE_URL": base_url,  # Base URL is not sensitive, show full value
         # Individual configuration status
         "zai_configured": is_zai_configured(),
@@ -311,9 +305,34 @@ def get_zai_config():
 
 def update_zai_config(config_data: dict) -> dict:
     """Update and persist system configuration (ZAI + OpenAI) into backend/config.json."""
-    # Validate required fields
+    # Get current values to merge with
+    current_bearer, current_cookie = get_zai_credentials()
+    current_api_key, current_base_url = get_openai_config()
+
+    current_config = {
+        "ZAI_BEARER_TOKEN": current_bearer,
+        "ZAI_COOKIE_STR": current_cookie,
+        "OPENAI_API_KEY": current_api_key,
+        "OPENAI_BASE_URL": current_base_url
+    }
+
+    new_config = current_config.copy()
+
+    # Update values from payload, but only if they are not empty strings for secrets.
+    if config_data.get('ZAI_BEARER_TOKEN'):
+        new_config['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
+    if config_data.get('ZAI_COOKIE_STR'):
+        new_config['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
+    if config_data.get('OPENAI_API_KEY'):
+        new_config['OPENAI_API_KEY'] = config_data['OPENAI_API_KEY']
+    
+    # OPENAI_BASE_URL is not a secret and can be updated to an empty string.
+    if 'OPENAI_BASE_URL' in config_data:
+        new_config['OPENAI_BASE_URL'] = config_data.get('OPENAI_BASE_URL', '')
+
+    # Validate required fields are present in the final config
     required_fields = ['ZAI_BEARER_TOKEN', 'ZAI_COOKIE_STR', 'OPENAI_API_KEY']
-    missing_fields = [field for field in required_fields if not config_data.get(field, '').strip()]
+    missing_fields = [field for field in required_fields if not new_config.get(field, '').strip()]
     
     if missing_fields:
         raise HTTPException(
@@ -322,7 +341,7 @@ def update_zai_config(config_data: dict) -> dict:
         )
     
     try:
-        set_system_config(config_data)
+        set_system_config(new_config)
         return {"success": True, "message": "系统配置已保存"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存配置失败: {e}")

@@ -123,9 +123,6 @@ export const api = {
   // Config APIs
   async getZaiConfig(): Promise<{
     configured: boolean
-    ZAI_BEARER_TOKEN_preview: string
-    ZAI_COOKIE_STR_preview: string
-    OPENAI_API_KEY_preview: string
     OPENAI_BASE_URL: string
     zai_configured: boolean
     openai_configured: boolean
@@ -133,7 +130,7 @@ export const api = {
     return apiCall('/config/zai')
   },
 
-  async updateZaiConfig(payload: { ZAI_BEARER_TOKEN: string; ZAI_COOKIE_STR: string }): Promise<{ success: boolean; message: string }>{
+  async updateZaiConfig(payload: { ZAI_BEARER_TOKEN: string; ZAI_COOKIE_STR: string; OPENAI_API_KEY: string; OPENAI_BASE_URL: string; }): Promise<{ success: boolean; message: string }>{
     return apiCall('/config/zai', {
       method: 'POST',
       body: JSON.stringify(payload),

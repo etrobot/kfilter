@@ -49,16 +49,10 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
           setConfigured(cfg.configured)
           setZaiConfigured(cfg.zai_configured)
           setOpenaiConfigured(cfg.openai_configured)
-          // 填充现有配置值
-          if (cfg.ZAI_BEARER_TOKEN_preview) {
-            setBearer(cfg.ZAI_BEARER_TOKEN_preview)
-          }
-          if (cfg.ZAI_COOKIE_STR_preview) {
-            setCookie(cfg.ZAI_COOKIE_STR_preview)
-          }
-          if (cfg.OPENAI_API_KEY_preview) {
-            setOpenaiApiKey(cfg.OPENAI_API_KEY_preview)
-          }
+          // Clear fields and only fill non-sensitive ones
+          setBearer('')
+          setCookie('')
+          setOpenaiApiKey('')
           if (cfg.OPENAI_BASE_URL) {
             setOpenaiBaseUrl(cfg.OPENAI_BASE_URL)
           }
@@ -77,14 +71,8 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
     setSaving(true)
     setError(null)
     try {
-      // 验证必填字段
-      if (!bearer.trim() || !cookie.trim()) {
-        setError('请输入完整的 ZAI Bearer Token 与 Cookie 字符串')
-        setSaving(false)
-        return
-      }
-      // 如果提供了OpenAI API Key，则验证Base URL格式
-      if (openaiApiKey.trim() && openaiBaseUrl.trim() && !isValidUrl(openaiBaseUrl.trim())) {
+      // URL格式验证
+      if (openaiBaseUrl.trim() && !isValidUrl(openaiBaseUrl.trim())) {
         setError('请输入有效的 OpenAI Base URL')
         setSaving(false)
         return
@@ -142,7 +130,7 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
                 <label className="block text-sm font-medium mb-1">ZAI_BEARER_TOKEN</label>
                 <textarea
                   className="w-full border rounded-md p-2 text-sm min-h-[80px]"
-                  placeholder="Bearer token"
+                  placeholder={zaiConfigured ? "已配置，输入新值以覆盖" : "Bearer token"}
                   value={bearer}
                   onChange={(e) => setBearer(e.target.value)}
                 />
@@ -151,7 +139,7 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
                 <label className="block text-sm font-medium mb-1">ZAI_COOKIE_STR</label>
                 <textarea
                   className="w-full border rounded-md p-2 text-sm min-h-[80px]"
-                  placeholder="Cookie string"
+                  placeholder={zaiConfigured ? "已配置，输入新值以覆盖" : "Cookie string"}
                   value={cookie}
                   onChange={(e) => setCookie(e.target.value)}
                 />
@@ -170,7 +158,7 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
                 <input
                   type="password"
                   className="w-full border rounded-md p-2 text-sm"
-                  placeholder="sk-..."
+                  placeholder={openaiConfigured ? "已配置，输入新值以覆盖" : "sk-..."}
                   value={openaiApiKey}
                   onChange={(e) => setOpenaiApiKey(e.target.value)}
                 />
