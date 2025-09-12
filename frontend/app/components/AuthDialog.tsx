@@ -52,6 +52,10 @@ export function AuthDialog({
       const result = await AuthService.authenticate(username, email)
       
       if (result.success) {
+        // 如果有成功消息，可以在这里显示
+        if (result.message && result.user?.is_admin) {
+          console.log(result.message) // 或者显示toast消息
+        }
         onSuccess()
         onOpenChange(false)
         // 清空表单

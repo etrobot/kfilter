@@ -13,7 +13,7 @@ from utils import (
     get_task, 
     update_task_progress,
 )
-from market_data import fetch_spot, fetch_history, compute_factors
+from market_data import fetch_hot_spot, fetch_history, compute_factors
 from .stock_data_manager import (
     save_daily_data,
     save_stock_basic_info,
@@ -62,23 +62,15 @@ def get_latest_trade_date_and_setup(task_id: str) -> tuple[Any, bool]:
 def collect_spot_data_and_select_stocks(task_id: str, top_n: int, latest_trade_date) -> tuple[pd.DataFrame, List[str], bool]:
     """收集实时数据并筛选热门股票"""
     update_task_progress(task_id, 0.05, f"获取实时行情数据 {latest_trade_date}")
-    spot = fetch_spot()
+    spot = fetch_hot_spot()
     
     # 保存股票基本信息
     update_task_progress(task_id, 0.1, "保存股票基本信息")
     save_stock_basic_info(spot)
     
-    # 筛选热门股票
-    update_task_progress(task_id, 0.15, "筛选热门股票")
-    if "成交额" in spot.columns:
-        top_spot = spot.nlargest(top_n, "成交额").copy()
-    else:
-        top_spot = spot.head(top_n).copy()
+    stock_codes = spot["代码"].tolist()
     
-    logger.info(f"Selected top {len(top_spot)} stocks by trading volume")
-    stock_codes = top_spot["代码"].tolist()
-    
-    return top_spot, stock_codes, False
+    return spot, stock_codes, False
 
 
 def check_and_upsert_spot_data(task_id: str, spot: pd.DataFrame, latest_trade_date) -> bool:

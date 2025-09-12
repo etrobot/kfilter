@@ -110,3 +110,9 @@ export interface KLineData {
   trend_data: number[]
   dates: string[]
 }
+
+export type SunburstData = {
+  name: string
+  value?: number
+  children?: SunburstData[]
+}

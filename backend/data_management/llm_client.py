@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Dict, Any
 import openai
+from config import parse_category_hierarchy
 
 logger = logging.getLogger(__name__)
 
@@ -93,100 +94,6 @@ def llm_gen_dict(client: openai.Client, model: str, query: str, format_example: 
         logger.error(f"LLM调用失败: {e}")
         return {}
 
-def parse_category():
-    cate='''
-# 二级市场投资研究七大方向
-## 科技 (Technology)
-### 产业替代革命
-- 人工智能(AI)芯片与算力
-- 半导体设备与材料(国产替代)
-- 信创(IT基础设施国产化)
-- 云计算与SaaS(替代传统软件)
-### 需求层次飞跃
-- 元宇宙与VR/AR(下一代交互)
-- 自动驾驶解决方案
-- 量子计算(远期算力飞跃)
-### 环境剧变
-- 网络安全(地缘博弈与数据安全)
-- 卫星互联网(战略基础设施)
-
-## 资源 (Resources)
-### 产业替代革命
-- 锂、钴、镍(新能源金属)
-- 稀土(永磁电机核心材料)
-- 铜(电动化与电网升级)
-### 需求层次飞跃
-- 工业金属(经济结构升级需求)
-### 环境剧变
-- 黄金(避险资产)
-- 铀(能源自主与战略储备)
-- 石油、天然气(地缘冲突与供给格局重塑)
-
-## 金融 (Financials)
-### 产业替代革命
-- 金融科技(FinTech)(替代传统服务)
-- 数字支付与数字货币
-### 需求层次飞跃
-- 财富管理(居民资产配置升级)
-- 消费金融(提升消费能力)
-### 环境剧变
-- 黄金ETF(避险工具)
-- 跨境金融(地缘格局变化)
-
-## 消费 (Consumer)
-### 产业替代革命
-- 新能源汽车(终端产品)
-- 智能家居(替代传统家电)
-### 需求层次飞跃
-- 高端白酒与奢侈品(社交与身份需求)
-- 医美、护肤(颜值经济)
-- 品牌服饰与国潮(文化自信)
-- 预制菜与复合调味品(便捷生活)
-- 旅游与航空(体验式消费)
-- 电子烟(新型可选消费)
-### 环境剧变
-- 必选消费(粮油食品)(抗通胀防御)
-
-## 医疗 (Healthcare)
-### 产业替代革命
-- 创新药(替代传统疗法)
-- CXO(研发生产模式革新)
-- 基因编辑与细胞治疗(技术革命)
-### 需求层次飞跃
-- 高端医疗器械(早筛、微创)
-- 疫苗(预防升级)
-- 连锁医疗服务(眼科、牙科、康复)
-- 抗衰老与保健(长寿需求)
-### 环境剧变
-- 医疗器械(国产替代)
-- 血制品、抗病毒药物(战略储备)
-
-## 工业 (Industrials)
-### 产业替代革命
-- 工业机器人与自动化(机器换人)
-- 激光设备(先进制造)
-- 数控机床(工业母机国产化)
-- 新能源设备(光伏风电设备)
-### 需求层次飞跃
-- 航空航天(大飞机产业链)
-- 高端零部件(供应链升级)
-### 环境剧变
-- 国防军工(地缘冲突)
-- 能源装备(能源安全)
-- 物流供应链(供应链安全)
-
-## 公用事业 (Utilities)
-### 产业替代革命
-- 光伏、风力发电站(绿色能源替代)
-- 储能(电力系统变革)
-- 特高压(能源资源配置)
-### 需求层次飞跃
-- (公用事业属性偏防御，需求飞跃性不强)
-### 环境剧变
-- 电力运营商(能源保供核心)
-- 燃气、水务(通胀定价与防御)
-    '''
-    return cate
 
 def evaluate_content_with_llm(content: str,model='gpt-oss-120b') -> Dict:
     """
@@ -210,7 +117,7 @@ def evaluate_content_with_llm(content: str,model='gpt-oss-120b') -> Dict:
     
     # 构建输出格式示例
     format_example = {
-        "category":"category_name",
+        "category":"叶节点分类",
         "criteria_name_1":{"score":"1-5", "explanation":"中文评分说明"},
         "criteria_name_2":{"score":"1-5", "explanation":"中文评分说明"},
         "criteria_name_...":{"score":"1-5", "explanation":"..."},
@@ -261,7 +168,7 @@ def evaluate_content_with_llm(content: str,model='gpt-oss-120b') -> Dict:
     "5分": "全新题材，出现不足6个月，引发市场高度关注和资金追捧"
   }
 }
-"""+'并添加分类名称比如“激光设备(先进制造)”，必须来自以下分类：'+parse_category()
+"""+'并添加分类名称比如“激光设备(先进制造)”，必须来自以下分类：'+str(list(parse_category_hierarchy().keys()))
     
     # 使用 llm_gen_dict 来强约束输出为 python 字典
     client = get_llm_client()

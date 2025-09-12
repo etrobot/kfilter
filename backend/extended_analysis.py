@@ -1,9 +1,13 @@
 from __future__ import annotations
 import logging
 import os
+import json
 from datetime import date, timedelta
 from typing import List, Dict, Optional, Callable
 from collections import defaultdict
+from config import parse_category_hierarchy
+from data_management.llm_client import evaluate_content_with_llm
+
 
 logger = logging.getLogger(__name__)
 
@@ -50,235 +54,159 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
         return None
 
 
-def get_sector_analysis_for_latest_day(latest_trade_date: date, session, on_progress: Optional[Callable[[str], None]] = None) -> dict:
-    """Get sector-based analysis for the latest trading day only
+def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress: Optional[Callable[[str], None]] = None) -> dict:
+    """Get sector-based analysis using real-time hotspot stocks from fetch_hot_spot
+    
+    Args:
+        session: Database session
+        top_n: Number of top concepts by stock count to analyze
+        on_progress: Progress callback function
     
     Returns:
         Dict with sector codes as keys and their stock analysis as values
     """
-    from sqlmodel import select
-    from models import ConceptInfo, ConceptStock, DailyMarketData, StockBasicInfo
+    from sqlmodel import select, func
+    from models import ConceptInfo, ConceptStock, StockBasicInfo
+    from market_data.data_fetcher import fetch_hot_spot
     
-    try:
-        # Get all daily market data for the latest trade date only
-        latest_day_data = session.exec(
-            select(DailyMarketData)
-            .where(DailyMarketData.date == latest_trade_date)
-        ).all() or []
-        
-        if not latest_day_data:
-            logger.warning(f"No market data found for latest trade date: {latest_trade_date}")
-            return {}
-        
-        # Get all concepts
-        all_concepts = session.exec(select(ConceptInfo)).all() or []
-        concept_map = {c.code: c.name for c in all_concepts}
-        
-        # Get all concept-stock relationships
-        concept_stocks = session.exec(select(ConceptStock)).all() or []
-        
-        # Build sector -> stocks mapping
-        sector_stocks = defaultdict(set)
-        stock_sectors = defaultdict(list)
-        
-        for cs in concept_stocks:
-            sector_stocks[cs.concept_code].add(cs.stock_code)
-            stock_sectors[cs.stock_code].append((cs.concept_code, concept_map.get(cs.concept_code, cs.concept_code)))
-        
-        # Get stock names
-        stock_names = session.exec(select(StockBasicInfo)).all() or []
-        stock_name_map = {s.code: s.name for s in stock_names}
-        
-        # Analyze by sectors
-        result = {}
-        
-        for sector_code, stock_codes in sector_stocks.items():
-            sector_name = concept_map.get(sector_code, sector_code)
-            
-            # Get market data for stocks in this sector for latest day
-            sector_day_data = [d for d in latest_day_data if d.code in stock_codes]
-            
-            if not sector_day_data:
-                continue
-            
-            # Count limit-ups for this sector on latest day
-            limit_up_stocks = []
-            total_stocks = len(sector_day_data)
-            if on_progress:
-                on_progress(f"分析板块 {sector_name}（{sector_code}）… 共 {total_stocks} 只，统计涨停中")
-            limit_up_count = 0
-            
-            for data in sector_day_data:
-                if data.limit_status == 1:  # limit up
-                    limit_up_count += 1
-                    
-                    # Get historical limit-up count for this stock (past 180 days)
-                    historical_count = get_stock_historical_limit_ups(data.code, latest_trade_date, session)
-                    
-                    limit_up_stocks.append({
-                        "code": data.code,
-                        "name": stock_name_map.get(data.code, data.code),
-                        "limit_up_count": historical_count,
-                        "price": float(data.close_price) if data.close_price else 0
-                    })
-            
-            # Sort stocks by historical limit-up count
-            limit_up_stocks.sort(key=lambda x: x["limit_up_count"], reverse=True)
-            
-            if limit_up_count > 0:  # Only include sectors with limit-ups today
-                # Get deepsearch analysis for this concept
-                concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name, on_progress=on_progress)
-                
-                # Evaluate the analysis using LLM if we have content
-                llm_evaluation = None
-                if concept_analysis:
-                    try:
-                        from data_management.llm_client import evaluate_content_with_llm
-                        if on_progress:
-                            on_progress(f"LLM评估：分析板块 {sector_name} 的搜索结果")
-                        llm_evaluation = evaluate_content_with_llm(concept_analysis)
-                    except Exception as e:
-                        logger.warning(f"Failed to evaluate concept analysis with LLM for {sector_name}: {e}")
-                
-                result[sector_code] = {
-                    "sector_code": sector_code,
-                    "sector_name": sector_name,
-                    "total_stocks": total_stocks,
-                    "limit_up_count_today": limit_up_count,
-                    "limit_up_ratio": round(limit_up_count / total_stocks * 100, 2),
-                    "stocks": limit_up_stocks,
-                    "concept_analysis": concept_analysis,
-                    "llm_evaluation": llm_evaluation
-                }
-        
-        return result
-        
-    except Exception as e:
-        logger.warning(f"Failed to get sector analysis: {e}")
+    # Get real-time hotspot stocks
+    if on_progress:
+        on_progress("获取实时热点股票数据...")
+    
+    hot_spot_df = fetch_hot_spot()
+    
+    if hot_spot_df.empty:
+        logger.warning("No hotspot data found")
         return {}
-
-
-def get_stock_historical_limit_ups(stock_code: str, latest_date: date, session) -> int:
-    """Get historical limit-up count for a stock in past 180 days"""
-    from sqlmodel import select
-    from models import DailyMarketData
     
-    try:
-        window_start = latest_date - timedelta(days=180)
-        
-        count = session.exec(
-            select(DailyMarketData)
-            .where(
-                DailyMarketData.code == stock_code,
-                DailyMarketData.date >= window_start,
-                DailyMarketData.date <= latest_date,
-                DailyMarketData.limit_status == 1
-            )
-        ).all() or []
-        
-        return len(count)
-        
-    except Exception as e:
-        logger.warning(f"Failed to get historical limit-ups for {stock_code}: {e}")
-        return 0
-
-
-def get_top_limit_up_stocks_in_sectors(latest_trade_date: date, session) -> List[dict]:
-    """Get stocks with most limit-ups in sectors for a given date"""
-    from sqlmodel import select
-    from models import ConceptInfo, ConceptStock, DailyMarketData
+    # Extract and clean stock codes
+    hotspot_codes = []
+    for code in hot_spot_df["代码"].tolist():
+        # Keep original 6-digit code format as used in database
+        if len(code) == 6:
+            hotspot_codes.append(code)
+        elif len(code) == 8 and code[:2] in ['sz', 'sh']:
+            # Remove market prefix if exists
+            hotspot_codes.append(code[2:])
+        else:
+            hotspot_codes.append(code)
     
-    try:
-        # Get all daily market data for the latest trade date only
-        latest_day_data = session.exec(
-            select(DailyMarketData)
-            .where(DailyMarketData.date == latest_trade_date)
-        ).all() or []
+    # Create a mapping from clean codes to original DataFrame rows for lookup
+    code_to_row = {}
+    for _, row in hot_spot_df.iterrows():
+        code = row["代码"]
+        if len(code) == 6:
+            clean_code = code
+        elif len(code) == 8 and code[:2] in ['sz', 'sh']:
+            clean_code = code[2:]
+        else:
+            clean_code = code
+        code_to_row[clean_code] = row
+    
+    if on_progress:
+        on_progress(f"获取到 {len(hotspot_codes)} 只热点股票")
+    
+    # Query database to get concept-stock relationships for hotspot stocks
+    # This efficiently gets all concepts that contain hotspot stocks
+    concept_stock_query = select(
+        ConceptStock.concept_code,
+        ConceptStock.stock_code
+    ).where(ConceptStock.stock_code.in_(hotspot_codes))
+    
+    concept_stocks = session.exec(concept_stock_query).all() or []
+    
+    # Build concept -> stocks mapping
+    concept_stocks_dict = defaultdict(set)
+    for cs in concept_stocks:
+        concept_stocks_dict[cs.concept_code].add(cs.stock_code)
+    
+    if on_progress:
+        on_progress(f"找到 {len(concept_stocks_dict)} 个包含热点股票的板块")
+    
+    # Get concept info for all concepts that have hotspot stocks
+    concept_codes = list(concept_stocks_dict.keys())
+    concepts_info = session.exec(
+        select(ConceptInfo).where(ConceptInfo.code.in_(concept_codes))
+    ).all() or []
+    concept_map = {c.code: c.name for c in concepts_info}
+    
+    # Sort concepts by number of hotspot stocks (descending) and take top_n
+    sorted_concepts = sorted(
+        concept_stocks_dict.items(),
+        key=lambda x: len(x[1]),
+        reverse=True
+    )[:top_n]
+    
+    if on_progress:
+        on_progress(f"选择前 {len(sorted_concepts)} 个热点股票最多的板块进行深度分析")
+    
+    # Analyze selected concepts
+    result = {}
+    
+    for sector_code, stock_codes in sorted_concepts:
+        sector_name = concept_map.get(sector_code, sector_code)
         
-        if not latest_day_data:
-            return []
+        # Get total stocks in this concept (not just hotspot stocks)
+        total_stocks_query = select(func.count(ConceptStock.stock_code)).where(
+            ConceptStock.concept_code == sector_code
+        )
+        total_stocks_in_sector = session.exec(total_stocks_query).first() or 0
         
-        # Get all concepts
-        all_concepts = session.exec(select(ConceptInfo)).all() or []
-        concept_map = {c.code: c.name for c in all_concepts}
+        hotspot_count = len(stock_codes)
         
-        # Get all concept-stock relationships
-        concept_stocks = session.exec(select(ConceptStock)).all() or []
+        if on_progress:
+            on_progress(f"分析板块 {sector_name}（{sector_code}）… 共 {total_stocks_in_sector} 只，热点股票 {hotspot_count} 只")
         
-        # Build sector -> stocks mapping
-        sector_stocks = defaultdict(set)
         
-        for cs in concept_stocks:
-            sector_stocks[cs.concept_code].add(cs.stock_code)
+        # Get deepsearch analysis for this concept
+        concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name, on_progress=on_progress)
         
-        # Find stocks with limit up status
-        limit_up_stocks = [d for d in latest_day_data if d.limit_status == 1]
-        limit_up_stock_codes = {d.code for d in limit_up_stocks}
+        llm_evaluation = evaluate_content_with_llm(concept_analysis)
         
-        # For each limit-up stock, get its concepts
-        stock_concepts = defaultdict(list)
-        for cs in concept_stocks:
-            if cs.stock_code in limit_up_stock_codes:
-                concept_name = concept_map.get(cs.concept_code, cs.concept_code)
-                stock_concepts[cs.stock_code].append((cs.concept_code, concept_name))
+        result[sector_code] = {
+            "sector_code": sector_code,
+            "sector_name": sector_name,
+            "total_stocks": total_stocks_in_sector,
+            "hotspot_count": hotspot_count,
+            "hotspot_ratio": round(hotspot_count / total_stocks_in_sector * 100, 2) if total_stocks_in_sector > 0 else 0,
+            "stocks": list(stock_codes),
+            "concept_analysis": concept_analysis,
+            "llm_evaluation": llm_evaluation
+        }
+    
+    return result
         
-        # Get historical limit-up counts for limit-up stocks
-        stock_limit_up_counts = {}
-        for stock_data in limit_up_stocks:
-            historical_count = get_stock_historical_limit_ups(stock_data.code, latest_trade_date, session)
-            stock_limit_up_counts[stock_data.code] = historical_count
-        
-        # Build result with stock info
-        result = []
-        for stock_data in limit_up_stocks:
-            concepts = stock_concepts.get(stock_data.code, [])
-            concept_codes = [c[0] for c in concepts]
-            concept_names = [c[1] for c in concepts]
-            
-            result.append({
-                "code": stock_data.code,
-                "limit_up_count": stock_limit_up_counts[stock_data.code],
-                "concept_codes": concept_codes,
-                "concept_names": concept_names,
-                "price": float(stock_data.close_price) if stock_data.close_price else 0
-            })
-        
-        # Sort by historical limit-up count
-        result.sort(key=lambda x: x["limit_up_count"], reverse=True)
-        
-        return result
-        
-    except Exception as e:
-        logger.warning(f"Failed to get top limit-up stocks in sectors: {e}")
-        return []
 
 
-def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]] = None) -> dict:
-    """Run standalone extended analysis focusing on latest day sector analysis"""
+
+def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]] = None, output_file: str = "extended_analysis_results.json") -> dict:
+    """Run standalone extended analysis using real-time hotspot stocks
+    
+    Args:
+        on_progress: Optional callback for progress updates
+        output_file: Output file path for results (default: extended_analysis_results.json)
+    
+    Returns:
+        Dict with analysis results
+    """
     try:
-        from sqlmodel import Session, select
-        from models import engine, DailyMarketData
+        from sqlmodel import Session
+        from models import engine
+        from datetime import datetime
         
         with Session(engine) as session:
-            # Get the latest trade date
-            latest_data = session.exec(
-                select(DailyMarketData).order_by(DailyMarketData.date.desc()).limit(1)
-            ).first()
+            # Get current date for analysis
+            current_date = datetime.now().date()
             
-            if not latest_data:
-                return {"error": "No market data found"}
-            
-            latest_date = latest_data.date
-            
-            # Get sector analysis for latest day
+            # Get sector analysis using hotspot stocks
             if on_progress:
-                on_progress(f"开始按板块分析 {latest_date.isoformat()} 的涨停数据")
-            sector_analysis = get_sector_analysis_for_latest_day(latest_date, session, on_progress=on_progress)
+                on_progress("开始基于实时热点股票进行板块分析")
+            sector_analysis = get_sector_analysis_with_hotspot_stocks(session, top_n=10, on_progress=on_progress)
             
-            # Sort sectors by limit-up ratio
+            # Sort sectors by hotspot ratio
             sorted_sectors = sorted(
                 sector_analysis.values(),
-                key=lambda x: x["limit_up_ratio"],
+                key=lambda x: x["hotspot_ratio"],
                 reverse=True
             )
             
@@ -286,13 +214,48 @@ def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]
             sectors_with_analysis = sum(1 for sector in sorted_sectors if sector.get("concept_analysis"))
             sectors_with_llm_evaluation = sum(1 for sector in sorted_sectors if sector.get("llm_evaluation"))
             
-            return {
-                "analysis_date": latest_date.isoformat(),
-                "total_sectors_with_limit_ups": len(sorted_sectors),
+            result = {
+                "analysis_date": current_date.isoformat(),
+                "analysis_type": "hotspot_based",
+                "total_sectors_with_hotspots": len(sorted_sectors),
                 "sectors_with_deepsearch_analysis": sectors_with_analysis,
                 "sectors_with_llm_evaluation": sectors_with_llm_evaluation,
                 "sectors": sorted_sectors
             }
+            
+            # Generate sunburst data for visualization
+            try:
+                if on_progress:
+                    on_progress("生成旭日图数据...")
+                from data_management.chart_data_generator import generate_category_based_sunburst_chart_data
+                sunburst_data = generate_category_based_sunburst_chart_data(sorted_sectors)
+                result["sunburst_data"] = sunburst_data
+                if on_progress:
+                    on_progress("旭日图数据生成完成")
+            except Exception as e:
+                logger.warning(f"Failed to generate sunburst data: {e}")
+                result["sunburst_data"] = None
+                if on_progress:
+                    on_progress(f"旭日图数据生成失败: {e}")
+            
+            # Write results to file (overwrite completely)
+            try:
+                if on_progress:
+                    on_progress(f"写入分析结果到文件: {output_file}")
+                
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump(result, f, ensure_ascii=False, indent=2)
+                
+                logger.info(f"Extended analysis results written to {output_file}")
+                if on_progress:
+                    on_progress(f"分析结果已保存到: {output_file}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to write results to file {output_file}: {e}")
+                if on_progress:
+                    on_progress(f"文件写入失败: {e}")
+            
+            return result
             
     except Exception as e:
         logger.error(f"Standalone extended analysis failed: {e}")

@@ -1,6 +1,6 @@
 """Market data processing modules"""
 
-from .data_fetcher import fetch_spot, fetch_history, calculate_momentum_factor, calculate_support_factor
+from .data_fetcher import fetch_hot_spot, fetch_history, calculate_momentum_factor, calculate_support_factor
 from .data_fetcher import compute_factors
 from .kline_processor import (
     calculate_and_save_weekly_data,
@@ -10,7 +10,7 @@ from .kline_processor import (
 )
 
 __all__ = [
-    'fetch_spot',
+    'fetch_hot_spot',
     'fetch_history',
     'calculate_momentum_factor',
     'calculate_support_factor', 

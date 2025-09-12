@@ -3,7 +3,6 @@ Configuration module for loading environment variables
 """
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 import json
 from typing import Tuple, Dict, Any
 
@@ -11,15 +10,9 @@ from typing import Tuple, Dict, Any
 # Look for .env file in the project root (parent of backend directory)
 BASE_DIR = Path(__file__).parent
 PROJECT_ROOT = BASE_DIR.parent
-env_path = PROJECT_ROOT / '.env'
-load_dotenv(dotenv_path=env_path)
 
 # JSON config file path (preferred over .env)
 CONFIG_JSON_PATH = BASE_DIR / 'config.json'
-
-# Admin configuration (static, from env)
-ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')
 
 def _load_config_json() -> Dict[str, Any]:
     """Load JSON config from disk if exists, otherwise return empty dict."""
@@ -39,11 +32,6 @@ def _save_config_json(data: Dict[str, Any]) -> None:
     with open(tmp_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, CONFIG_JSON_PATH)
-
-def _get_env_or_default(key: str, default: str = '') -> str:
-    value = os.getenv(key)
-    return value if value is not None else default
-
 
 # THS API configuration (if needed)
 THS_COOKIE_V = os.getenv('THS_COOKIE_V', 'A5lFEWDLFZlL3MkNmn0O1b5bro52JoyfdxqxbLtOFUA_wrfwA3adqAdqwTFI')
@@ -96,3 +84,165 @@ def set_system_config(config_data: dict) -> None:
         data['OPENAI_BASE_URL'] = config_data['OPENAI_BASE_URL']
     
     _save_config_json(data)
+
+
+CATEGORY='''
+# 二级市场投资研究七大方向
+## 科技 (Technology)
+### 产业替代革命
+- 人工智能(AI)芯片与算力
+- 半导体设备与材料(国产替代)
+- 信创(IT基础设施国产化)
+- 云计算与SaaS(替代传统软件)
+### 需求层次飞跃
+- 元宇宙与VR/AR(下一代交互)
+- 自动驾驶解决方案
+- 量子计算(远期算力飞跃)
+### 环境剧变
+- 网络安全(地缘博弈与数据安全)
+- 卫星互联网(战略基础设施)
+
+## 资源 (Resources)
+### 产业替代革命
+- 锂、钴、镍(新能源金属)
+- 稀土(永磁电机核心材料)
+- 铜(电动化与电网升级)
+### 需求层次飞跃
+- 工业金属(经济结构升级需求)
+### 环境剧变
+- 黄金(避险资产)
+- 铀(能源自主与战略储备)
+- 石油、天然气(地缘冲突与供给格局重塑)
+
+## 金融 (Financials)
+### 产业替代革命
+- 金融科技(FinTech)(替代传统服务)
+- 数字支付与数字货币
+### 需求层次飞跃
+- 财富管理(居民资产配置升级)
+- 消费金融(提升消费能力)
+### 环境剧变
+- 黄金ETF(避险工具)
+- 跨境金融(地缘格局变化)
+
+## 消费 (Consumer)
+### 产业替代革命
+- 新能源汽车(终端产品)
+- 智能家居(替代传统家电)
+### 需求层次飞跃
+- 高端白酒与奢侈品(社交与身份需求)
+- 医美、护肤(颜值经济)
+- 品牌服饰与国潮(文化自信)
+- 预制菜与复合调味品(便捷生活)
+- 旅游与航空(体验式消费)
+- 电子烟(新型可选消费)
+### 环境剧变
+- 必选消费(粮油食品)(抗通胀防御)
+
+## 医疗 (Healthcare)
+### 产业替代革命
+- 创新药(替代传统疗法)
+- CXO(研发生产模式革新)
+- 基因编辑与细胞治疗(技术革命)
+### 需求层次飞跃
+- 高端医疗器械(早筛、微创)
+- 疫苗(预防升级)
+- 连锁医疗服务(眼科、牙科、康复)
+- 抗衰老与保健(长寿需求)
+### 环境剧变
+- 医疗器械(国产替代)
+- 血制品、抗病毒药物(战略储备)
+
+## 工业 (Industrials)
+### 产业替代革命
+- 工业机器人与自动化(机器换人)
+- 激光设备(先进制造)
+- 数控机床(工业母机国产化)
+- 新能源设备(光伏风电设备)
+### 需求层次飞跃
+- 航空航天(大飞机产业链)
+- 高端零部件(供应链升级)
+### 环境剧变
+- 国防军工(地缘冲突)
+- 能源装备(能源安全)
+- 物流供应链(供应链安全)
+
+## 公用事业 (Utilities)
+### 产业替代革命
+- 光伏、风力发电站(绿色能源替代)
+- 储能(电力系统变革)
+- 特高压(能源资源配置)
+### 需求层次飞跃
+- (公用事业属性偏防御，需求飞跃性不强)
+### 环境剧变
+- 电力运营商(能源保供核心)
+- 燃气、水务(通胀定价与防御)
+'''
+
+
+def filter_deepest_nodes(mapping: Dict[str, str]) -> Dict[str, str]:
+    """过滤出最深层的节点"""
+    filtered = {}
+    for path in mapping:
+        # 检查是否有更深的子路径
+        is_deepest = True
+        for other_path in mapping:
+            if other_path.startswith(path + '/'):
+                is_deepest = False
+                break
+        if is_deepest:
+            filtered[path] = mapping[path]
+    return filtered
+
+
+def parse_category_hierarchy() -> Dict[str, str]:
+    """直接解析CATEGORY为分类路径映射
+    
+    Returns:
+        分类名称到完整路径的映射字典
+    """
+    mapping = {}
+    lines = CATEGORY.split('\n')
+    path_stack = []
+    
+    for line in lines:
+        original_line = line
+        line = line.strip()
+        if not line or line == '---':
+            continue
+            
+        # 确定层级
+        level = 0
+        if line.startswith('#'):
+            # 标题层级：# 为 0级，## 为 1级，### 为 2级
+            level = len([c for c in line if c == '#']) - 1
+        elif line.startswith('-') or line.startswith('*'):
+            # 列表层级：通过前导空格计算
+            stripped = original_line.lstrip()
+            indent_spaces = len(original_line) - len(stripped)
+            level = (indent_spaces // 2) + 3  # 列表从第3级开始（在###标题后）
+        else:
+            continue
+            
+        # 清理文本
+        cleaned = line
+        if line.startswith('#'):
+            cleaned = line.lstrip('#').strip()
+        elif line.startswith('-') or line.startswith('*'):
+            cleaned = line.lstrip('-*').strip()
+        
+        if cleaned:
+            # 调整路径栈到当前层级
+            while len(path_stack) > level:
+                path_stack.pop()
+            
+            path_stack.append(cleaned)
+            
+            # 为叶子节点（具体分类）添加映射
+            if level >= 3:  # 只为最深层的分类项添加映射
+                full_path = "/".join(path_stack)
+                mapping[cleaned] = full_path
+    
+    return mapping
+
+

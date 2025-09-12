@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List
 from fastapi import HTTPException
 from models import RunRequest, RunResponse, TaskResult, TaskStatus, Message, ConceptTaskResult, AuthRequest, AuthResponse, User, get_session
-from sqlmodel import select
+from sqlmodel import select, func
 from utils import (
     get_task, get_all_tasks, get_last_completed_task,
     get_concept_task, get_all_concept_tasks, get_last_completed_concept_task
@@ -229,6 +229,35 @@ def run_extended_analysis():
     return result
 
 
+def get_extended_analysis_results():
+    """Get cached extended analysis results or load from JSON file"""
+    from data_management.services import get_cached_extended_analysis
+    import os
+    import json
+    
+    # First try to get from memory cache
+    cached_result = get_cached_extended_analysis()
+    if cached_result:
+        cached_result['from_cache'] = True
+        return cached_result
+    
+    # If not in cache, try to load from JSON file
+    json_file = "extended_analysis_results.json"
+    if os.path.exists(json_file):
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                result = json.load(f)
+            result['from_cache'] = True
+            # Cache it for future requests
+            from data_management.services import cache_extended_analysis
+            cache_extended_analysis(result)
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to load extended analysis results from {json_file}: {e}")
+    
+    return {"message": "No extended analysis results found. Run analysis first."}
+
+
 def run_extended_analysis_stream():
     """SSE endpoint: stream progress while running extended analysis.
     Sends events: start, progress (heartbeat), complete, error.
@@ -236,6 +265,7 @@ def run_extended_analysis_stream():
     from fastapi.responses import StreamingResponse
     from data_management.services import cache_extended_analysis
     from extended_analysis import run_standalone_extended_analysis
+    from data_management.chart_data_generator import generate_category_based_sunburst_chart_data
 
     result_holder = {"done": False, "result": None, "error": None, "last_msg": None}
 
@@ -248,6 +278,15 @@ def run_extended_analysis_stream():
             if isinstance(res, dict) and 'error' in res:
                 result_holder["error"] = res.get('error')
             else:
+                # Generate sunburst data and add to result
+                if res and 'sectors' in res and res['sectors']:
+                    try:
+                        sunburst_data = generate_category_based_sunburst_chart_data(res['sectors'])
+                        res['sunburst_data'] = sunburst_data
+                        result_holder["last_msg"] = "生成旭日图数据完成"
+                    except Exception as e:
+                        logger.warning(f"Failed to generate sunburst data: {e}")
+                        res['sunburst_data'] = None
                 result_holder["result"] = res
         except Exception as e:
             result_holder["error"] = str(e)
@@ -364,20 +403,42 @@ def login_user(request: AuthRequest) -> AuthResponse:
                 return AuthResponse(
                     success=True,
                     token=token,
-                    message="认证成功"
+                    message="认证成功",
+                    user={
+                        "id": user.id,
+                        "name": user.name,
+                        "email": user.email,
+                        "is_admin": user.is_admin
+                    }
                 )
             else:
+                # Check if this is the first user (no users exist)
+                user_count_statement = select(func.count(User.id))
+                user_count = session.exec(user_count_statement).first()
+                is_first_user = user_count == 0
+                
                 # Create new user
-                new_user = User(name=request.name, email=request.email)
+                new_user = User(
+                    name=request.name, 
+                    email=request.email,
+                    is_admin=is_first_user  # First user becomes admin
+                )
                 session.add(new_user)
                 session.commit()
                 session.refresh(new_user)
                 
                 token = f"token_{new_user.id}"
+                message = "管理员账户创建成功，认证通过" if is_first_user else "用户创建成功，认证通过"
                 return AuthResponse(
                     success=True,
                     token=token,
-                    message="用户创建成功，认证通过"
+                    message=message,
+                    user={
+                        "id": new_user.id,
+                        "name": new_user.name,
+                        "email": new_user.email,
+                        "is_admin": new_user.is_admin
+                    }
                 )
                 
     except Exception as e:

@@ -18,56 +18,136 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def fetch_spot() -> pd.DataFrame:
+def fetch_hot_spot() -> pd.DataFrame:
     """Fetch real-time stock spot data"""
-    if not HAS_AKSHARE:
-        raise RuntimeError("akshare is not available. Please install akshare to use this feature.")
+    import requests
+    import pandas as pd
+    import json
+    import re
+
+    """
+    东方财富网-沪深京 A 股-实时行情（单页100条）
+    基于新的API接口获取第一页数据
+    :return: 实时行情数据
+    :rtype: pandas.DataFrame
+    """
+    url = "https://push2.eastmoney.com/api/qt/clist/get"
     
-    logger.info("Fetching real-time spot data from akshare...")
-    
-    # Try stock_zh_a_spot_em first, fallback to stock_zh_a_spot if rejected
-    try:
-        df = ak.stock_zh_a_spot_em()
-        logger.info("Successfully used stock_zh_a_spot_em")
-    except Exception as e:
-        logger.warning(f"stock_zh_a_spot_em failed: {e}, falling back to stock_zh_a_spot")
-        df = ak.stock_zh_a_spot()
-        # Remove market prefix (first two characters) from stock codes
-        if "代码" in df.columns:
-            df["代码"] = df["代码"].astype(str).str[2:]
-    
-    # Standardize column names
-    column_mapping = {
-        "代码": "代码",
-        "名称": "名称", 
-        "最新价": "最新价",
-        "涨跌幅": "涨跌幅",
-        "涨跌额": "涨跌额",
-        "成交量": "成交量",
-        "成交额": "成交额",
-        "振幅": "振幅",
-        "最高": "最高",
-        "最低": "最低",
-        "今开": "今开",
-        "昨收": "昨收"
+    headers = {
+        'Accept': '*/*',
+        'Accept-Language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5',
+        'Connection': 'keep-alive',
+        'Referer': 'https://quote.eastmoney.com/center/gridlist.html',
+        'Sec-Fetch-Dest': 'script',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'same-site',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+        'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"'
     }
     
-    # Rename columns if they exist
-    existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
-    df = df.rename(columns=existing_columns)
+    params = {
+        'np': '1',
+        'fltt': '1', 
+        'invt': '2',
+        'fs': 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048',
+        'fields': 'f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23',
+        'fid': 'f6',
+        'pn': '1',  # 第一页
+        'pz': '100',  # 每页100条
+        'po': '1',
+        'dect': '1',
+        'ut': 'fa5fd1943c7b386f172d6893dbfba10b',
+        'wbp2u': '|0|0|0|web',
+    }
     
-    # Convert numeric columns
-    numeric_columns = ["最新价", "涨跌幅", "涨跌额", "成交量", "成交额", "振幅", "最高", "最低", "今开", "昨收"]
+    response = requests.get(url, params=params, headers=headers, timeout=15)
+    response.raise_for_status()
+    
+    # 获取响应文本
+    response_text = response.text
+    
+    # 如果响应是JSONP格式，需要提取JSON部分
+    if response_text.startswith('jQuery'):
+        # 提取JSON数据（去掉JSONP回调函数包装）
+        json_match = re.search(r'jQuery\w+\((.*)\)', response_text)
+        if json_match:
+            json_str = json_match.group(1)
+            data_json = json.loads(json_str)
+        else:
+            raise ValueError("无法解析JSONP响应")
+    else:
+        # 直接解析JSON
+        data_json = response.json()
+    
+    # 检查数据结构
+    if 'data' not in data_json or 'diff' not in data_json['data']:
+        raise ValueError("API返回数据结构不正确")
+    
+    # 创建DataFrame
+    temp_df = pd.DataFrame(data_json['data']['diff'])
+    
+    if temp_df.empty:
+        print("警告：获取到的数据为空")
+        return pd.DataFrame()
+    
+    # 根据fields字段顺序设置列名
+    # fields: f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23
+    column_mapping = {
+        'f12': '代码',
+        'f13': '市场',
+        'f14': '名称', 
+        'f1': '预期值',
+        'f2': '最新价',
+        'f4': '涨跌额',
+        'f3': '涨跌幅',
+        'f152': '市盈率TTM',
+        'f5': '成交量',
+        'f6': '成交额',
+        'f7': '振幅',
+        'f15': '最高',
+        'f18': '昨收',
+        'f16': '最低',
+        'f17': '今开',
+        'f10': '量比',
+        'f8': '换手率',
+        'f9': '市盈率动态',
+        'f23': '市净率'
+    }
+    
+    # 重命名列
+    temp_df.rename(columns=column_mapping, inplace=True)
+    
+    # 添加序号列
+    temp_df.reset_index(inplace=True)
+    temp_df['序号'] = temp_df.index + 1
+    
+    # 选择需要的列并重新排序
+    columns_order = [
+        '序号', '代码', '名称', '最新价', '涨跌幅', '涨跌额', 
+        '成交量', '成交额', '振幅', '最高', '最低', '今开', '昨收',
+        '量比', '换手率', '市盈率动态', '市盈率TTM', '市净率'
+    ]
+    
+    # 只保留存在的列
+    available_columns = [col for col in columns_order if col in temp_df.columns]
+    temp_df = temp_df[available_columns]
+    
+    # 数据类型转换
+    numeric_columns = [
+        '最新价', '涨跌幅', '涨跌额', '成交量', '成交额', '振幅',
+        '最高', '最低', '今开', '昨收', '量比', '换手率',
+        '市盈率动态', '市盈率TTM', '市净率'
+    ]
+    
     for col in numeric_columns:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        if col in temp_df.columns:
+            temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
     
-    # Sort by trading volume (成交额)
-    if "成交额" in df.columns:
-        df = df.sort_values("成交额", ascending=False)
-    
-    logger.info(f"Successfully fetched {len(df)} stocks from spot data")
-    return df
+    return temp_df
+
+
 
 
 def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:

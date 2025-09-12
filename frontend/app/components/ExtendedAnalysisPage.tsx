@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { PlayIcon, RefreshCwIcon, ClockIcon } from 'lucide-react'
 import { api } from '../services/api'
@@ -6,29 +6,37 @@ import { useIsMobile } from '../hooks/use-mobile'
 import { AuthDialog } from './AuthDialog'
 import { AuthService } from '../services/auth'
 import { ConfigDialog } from './ConfigDialog'
+import EvaluationSunburst from './EvaluationSunburst'
+import { SunburstData } from '../types'
 
 interface SectorStock {
   code: string
   name: string
-  limit_up_count: number
   price: number
+  change_pct: number
+  volume: number
+  turnover: number
 }
 
 interface SectorData {
   sector_code: string
   sector_name: string
   total_stocks: number
-  limit_up_count_today: number
-  limit_up_ratio: number
+  hotspot_count: number
+  hotspot_ratio: number
   stocks: SectorStock[]
   concept_analysis?: string  // 新增：概念分析结果
+  llm_evaluation?: any       // 新增：LLM评估结果
 }
 
 interface ExtendedAnalysisResult {
   analysis_date: string
-  total_sectors_with_limit_ups: number
+  analysis_type?: string
+  total_sectors_with_hotspots: number
   sectors_with_deepsearch_analysis?: number  // 新增：有深度搜索分析的板块数
+  sectors_with_llm_evaluation?: number       // 新增：有LLM评估的板块数
   sectors: SectorData[]
+  sunburst_data?: any
   from_cache?: boolean  // 新增：是否来自缓存
   cached_at?: string    // 新增：缓存时间
 }
@@ -58,12 +66,37 @@ export function ExtendedAnalysisPage({
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [pendingAction, setPendingAction] = useState<null | 'run' | 'config'>(null)
+  const [hasLoadedCache, setHasLoadedCache] = useState(false)
+
+  // Load cached results on component mount
+  useEffect(() => {
+    const loadCachedResults = async () => {
+      // Only load cache if we don't have results and haven't loaded cache yet
+      if (!result && !hasLoadedCache && !isRunning) {
+        try {
+          const cachedResult = await api.getExtendedAnalysisResults()
+          if (cachedResult && !cachedResult.message) {
+            onResultChange(cachedResult)
+          }
+        } catch (error) {
+          // Silently ignore cache loading errors
+          console.log('No cached extended analysis results found')
+        }
+        setHasLoadedCache(true)
+      }
+    }
+
+    loadCachedResults()
+  }, [result, hasLoadedCache, isRunning, onResultChange])
 
   const runAnalysis = async (forceRefresh: boolean = false) => {
     onLoadingChange(true)
     onErrorChange(null)
     onSuccessChange(null)
-    onResultChange(null)
+    // Only clear result if force refresh, otherwise keep existing result during loading
+    if (forceRefresh) {
+      onResultChange(null)
+    }
 
     // 通过 SSE 获取过程反馈
     const close = api.createExtendedAnalysisStream((type, payload) => {
@@ -80,7 +113,7 @@ export function ExtendedAnalysisPage({
           onSuccessChange(null)
         } else {
           onResultChange(data)
-          onSuccessChange(`分析完成！找到 ${data.total_sectors_with_limit_ups} 个有涨停的板块`)
+          onSuccessChange(`分析完成！找到 ${data.total_sectors_with_hotspots} 个包含热点股票的板块`)
           setTimeout(() => onSuccessChange(null), 3000)
         }
         onLoadingChange(false)
@@ -90,11 +123,6 @@ export function ExtendedAnalysisPage({
         onLoadingChange(false)
       }
     })
-
-    // 如需强制刷新缓存，可在开始前调用（现在每次都是新计算，一般不需要）
-    if (forceRefresh) {
-      try { await api.clearExtendedAnalysisCache() } catch {}
-    }
 
     return () => close()
   }
@@ -126,6 +154,30 @@ export function ExtendedAnalysisPage({
     }
   }
 
+  const convertToSunburstData = (result: ExtendedAnalysisResult): SunburstData => {
+    // 优先使用后端生成的旭日图数据
+    if (result.sunburst_data && result.sunburst_data.children && result.sunburst_data.children.length > 0) {
+      return result.sunburst_data
+    }
+    
+    // 如果没有后端数据或数据为空，则使用前端转换
+    if (!result.sectors || result.sectors.length === 0) {
+      return { name: "板块分析", children: [] }
+    }
+
+    return {
+      name: "板块热点分析",
+      children: result.sectors.map(sector => ({
+        name: sector.sector_name,
+        value: sector.hotspot_ratio,
+        children: sector.stocks.length > 0 ? sector.stocks.map(stock => ({
+          name: stock.name,
+          value: stock.change_pct != null && Math.abs(stock.change_pct) > 0 ? Math.abs(stock.change_pct) : 1
+        })) : undefined
+      }))
+    }
+  }
+
   return (
     <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
       {/* Header */}
@@ -133,7 +185,7 @@ export function ExtendedAnalysisPage({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">扩展分析</h1>
           <p className="text-gray-600 mt-1">
-            基于最新交易日的板块涨停分析，展示各板块涨停股票及历史涨停次数
+            基于实时热点股票的板块分析，展示各板块热点股票及其市场表现
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -193,8 +245,8 @@ export function ExtendedAnalysisPage({
                 <span className="font-medium">{result.analysis_date}</span>
               </div>
               <div>
-                <span className="text-gray-600">有涨停的板块数: </span>
-                <span className="font-medium">{result.total_sectors_with_limit_ups}</span>
+                <span className="text-gray-600">包含热点股票的板块数: </span>
+                <span className="font-medium">{result.total_sectors_with_hotspots}</span>
               </div>
               {result.sectors_with_deepsearch_analysis !== undefined && (
                 <div>
@@ -202,31 +254,26 @@ export function ExtendedAnalysisPage({
                   <span className="font-medium text-blue-600">{result.sectors_with_deepsearch_analysis}</span>
                 </div>
               )}
+              {result.sectors_with_llm_evaluation !== undefined && (
+                <div>
+                  <span className="text-gray-600">LLM评估板块数: </span>
+                  <span className="font-medium text-purple-600">{result.sectors_with_llm_evaluation}</span>
+                </div>
+              )}
             </div>
-            
-            {/* 缓存状态显示 */}
-            {result.from_cache && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-md">
-                <ClockIcon size={14} />
-                <span>数据来自缓存（将一直使用，直到有新的分析任务完成）</span>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => runAnalysis(true)}
-                  disabled={isRunning}
-                  className="ml-auto text-xs h-6 px-2"
-                >
-                  强制刷新
-                </Button>
-              </div>
-            )}
           </div>
           <div className="bg-white border rounded-lg overflow-hidden">
             <div className="p-4 border-b bg-gray-50">
-              <h3 className="font-semibold">板块涨停分析</h3>
+              <h3 className="font-semibold">板块热点分析</h3>
               <p className="text-sm text-gray-600 mt-1">
-                按涨停比例排序，显示各板块的涨停股票及其历史表现
+                按热点比例排序，显示各板块的热点股票及其实时表现
               </p>
+            </div>
+            
+            {/* 旭日图可视化 */}
+            <div className="p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+              <h4 className="font-medium text-gray-900 mb-4 text-center">板块热点可视化</h4>
+              <EvaluationSunburst data={convertToSunburstData(result)} />
             </div>
             
             <div className="max-h-[70vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
@@ -244,10 +291,10 @@ export function ExtendedAnalysisPage({
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-red-600">
-                          {sector.limit_up_ratio}%
+                          {sector.hotspot_ratio}%
                         </div>
                         <div className="text-sm text-gray-600">
-                          {sector.limit_up_count_today}/{sector.total_stocks} 涨停
+                          {sector.hotspot_count}/{sector.total_stocks} 热点
                         </div>
                       </div>
                     </div>
@@ -261,8 +308,9 @@ export function ExtendedAnalysisPage({
                             <th className="text-left p-3 font-medium">序号</th>
                             <th className="text-left p-3 font-medium">股票代码</th>
                             <th className="text-left p-3 font-medium">股票名称</th>
-                            <th className="text-right p-3 font-medium">历史涨停次数</th>
+                            <th className="text-right p-3 font-medium">涨跌幅</th>
                             <th className="text-right p-3 font-medium">当前价格</th>
+                            <th className="text-right p-3 font-medium">成交额</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -271,11 +319,14 @@ export function ExtendedAnalysisPage({
                               <td className="p-3">{stockIndex + 1}</td>
                               <td className="p-3 font-mono">{stock.code}</td>
                               <td className="p-3">{stock.name}</td>
-                              <td className="p-3 text-right font-semibold text-red-600">
-                                {stock.limit_up_count}
+                              <td className="p-3 text-right font-semibold" style={{color: (stock.change_pct ?? 0) >= 0 ? '#dc2626' : '#16a34a'}}>
+                                {stock.change_pct != null ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct.toFixed(2)}%` : 'N/A'}
                               </td>
                               <td className="p-3 text-right">
-                                ¥{stock.price.toFixed(2)}
+                                {stock.price != null ? `¥${stock.price.toFixed(2)}` : 'N/A'}
+                              </td>
+                              <td className="p-3 text-right">
+                                {stock.turnover != null ? `${(stock.turnover / 10000).toFixed(2)}万` : 'N/A'}
                               </td>
                             </tr>
                           ))}
@@ -296,6 +347,22 @@ export function ExtendedAnalysisPage({
                       </div>
                     </div>
                   )}
+                  
+                  {/* LLM评估结果 */}
+                  {sector.llm_evaluation && (
+                    <div className="p-4 bg-purple-50 border-t">
+                      <h5 className="font-medium text-purple-900 mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                        LLM智能评估
+                      </h5>
+                      <div className="text-sm text-purple-800 leading-relaxed">
+                        {typeof sector.llm_evaluation === 'string' 
+                          ? sector.llm_evaluation 
+                          : JSON.stringify(sector.llm_evaluation, null, 2)
+                        }
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -303,7 +370,7 @@ export function ExtendedAnalysisPage({
 
           {result.sectors.length === 0 && (
             <div className="bg-white border rounded-lg p-8 text-center">
-              <p className="text-gray-600">当日无涨停板块数据</p>
+              <p className="text-gray-600">当前无热点板块数据</p>
             </div>
           )}
         </div>
@@ -317,7 +384,7 @@ export function ExtendedAnalysisPage({
             <span className="text-blue-600 font-medium">正在运行扩展分析...</span>  
           </div>
           <p className="text-gray-600 text-sm">
-            正在分析最新交易日的板块涨停数据，请稍候...
+            正在分析实时热点股票的板块数据，请稍候...
           </p>
         </div>
       )}

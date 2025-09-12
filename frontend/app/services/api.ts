@@ -114,6 +114,10 @@ export const api = {
     return () => es.close()
   },
 
+  async getExtendedAnalysisResults(): Promise<any> {
+    return apiCall<any>('/extended-analysis/results')
+  },
+
   async clearExtendedAnalysisCache(): Promise<any> {
     return apiCall<any>('/extended-analysis/cache', {
       method: 'DELETE',

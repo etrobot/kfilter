@@ -40,7 +40,7 @@ export class AuthService {
   /**
    * 设置认证信息
    */
-  static setAuth(token: string, userInfo: { name?: string; email: string }): void {
+  static setAuth(token: string, userInfo: { name?: string; email: string; is_admin?: boolean }): void {
     sessionStorage.setItem(this.AUTH_TOKEN_KEY, token)
     sessionStorage.setItem(this.AUTH_TIME_KEY, Date.now().toString())
     sessionStorage.setItem(this.USER_INFO_KEY, JSON.stringify(userInfo))
@@ -49,7 +49,7 @@ export class AuthService {
   /**
    * 获取当前用户信息
    */
-  static getUserInfo(): { name?: string; email: string } | null {
+  static getUserInfo(): { name?: string; email: string; is_admin?: boolean } | null {
     const userInfoStr = sessionStorage.getItem(this.USER_INFO_KEY)
     if (!userInfoStr) return null
     
@@ -63,7 +63,7 @@ export class AuthService {
   /**
    * 用户认证
    */
-  static async authenticate(username: string, email: string): Promise<{ success: boolean; error?: string }> {
+  static async authenticate(username: string, email: string): Promise<{ success: boolean; error?: string; message?: string; user?: any }> {
     try {
       // Use the same API base URL logic as the api service
       const API_BASE_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000'
@@ -78,8 +78,9 @@ export class AuthService {
 
       if (response.ok) {
         const data = await response.json()
-        this.setAuth(data.token || 'authenticated', { name: username, email })
-        return { success: true }
+        const userInfo = data.user || { name: username, email, is_admin: false }
+        this.setAuth(data.token || 'authenticated', userInfo)
+        return { success: true, message: data.message, user: userInfo }
       } else {
         const error = await response.json()
         return { success: false, error: error.message || '认证失败' }
@@ -127,7 +128,7 @@ export function useAuth() {
     AuthService.clearAuth()
   }
 
-  const setAuth = (token: string, userInfo: { name?: string; email: string }) => {
+  const setAuth = (token: string, userInfo: { name?: string; email: string; is_admin?: boolean }) => {
     AuthService.setAuth(token, userInfo)
   }
 

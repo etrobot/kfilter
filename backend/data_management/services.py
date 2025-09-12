@@ -77,13 +77,6 @@ def clear_extended_analysis_cache() -> None:
         EXTENDED_ANALYSIS_CACHE.clear()
 
 
-# TTL-based validation removed: extended analysis cache persists until a new analysis task completes.
-# Keeping function name out to avoid accidental imports.
-
-
-
-
-
 def run_analysis_wrapper(task_id: str, top_n: int, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True, stop_event: Optional[threading.Event] = None):
     """Wrapper to handle task errors properly and cleanup registries"""
     error_occurred = False

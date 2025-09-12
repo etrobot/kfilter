@@ -1,0 +1,202 @@
+{
+  "analysis_date": "2025-09-12",
+  "analysis_type": "hotspot_based",
+  "total_sectors_with_hotspots": 3,
+  "sectors_with_deepsearch_analysis": 3,
+  "sectors_with_llm_evaluation": 3,
+  "sectors": [
+    {
+      "sector_code": "BK1128",
+      "sector_name": "CPO概念",
+      "total_stocks": 45,
+      "hotspot_count": 13,
+      "hotspot_ratio": 28.89,
+      "stocks": [
+        "688256",
+        "300476",
+        "002475",
+        "300502",
+        "300308"
+      ],
+      "concept_analysis": "我收集的详细信息，我现在为您提供A股CPO概念的全面分析：#A股CPO概念全面分析报告## 一、CPO概念定义与技术背景### 1. 基本定义CPO（Co-Packaged Optics，共封装光学）是一种新型的光电子集成技术，将交换芯片和光引擎共同装配在同一个插槽上，形成芯片和模组的共封装。",
+      "llm_evaluation": {
+        "criteria_result": {
+          "category": "激光设备(先进制造)"
+        },
+        "overall_score": 60.0,
+        "detailed_scores": {
+          "产业革命新旧替代": {
+            "score": "3",
+            "explanation": "CPO技术具备替代传统光模块的潜力"
+          },
+          "政策利好": {
+            "score": "3",
+            "explanation": "已纳入国家光通信与5G/6G发展规划"
+          },
+          "业绩爆发增长": {
+            "score": "3",
+            "explanation": "相关企业业绩增长在15%-30%区间"
+          },
+          "高层次需求爆发": {
+            "score": "4",
+            "explanation": "数据中心、5G/6G需求快速增长"
+          }
+        },
+        "top_scoring_criterion": "高层次需求爆发",
+        "top_score": 80.0
+      }
+    },
+    {
+      "sector_code": "BK0893",
+      "sector_name": "无线耳机",
+      "total_stocks": 83,
+      "hotspot_count": 11,
+      "hotspot_ratio": 13.25,
+      "stocks": [
+        "300014",
+        "002384",
+        "300803",
+        "002600",
+        "002475"
+      ],
+      "concept_analysis": "无线耳机概念分析：随着消费电子升级和音频技术发展，无线耳机市场持续增长。主要驱动力包括智能手机取消耳机孔、蓝牙技术成熟、降噪技术普及等。",
+      "llm_evaluation": {
+        "criteria_result": {
+          "category": "消费电子"
+        },
+        "overall_score": 55.0,
+        "detailed_scores": {
+          "产业革命新旧替代": {
+            "score": "4",
+            "explanation": "无线耳机替代有线耳机趋势明显"
+          },
+          "政策利好": {
+            "score": "2",
+            "explanation": "缺乏明确的政策扶持"
+          },
+          "业绩爆发增长": {
+            "score": "3",
+            "explanation": "市场增长稳定但不算爆发式"
+          },
+          "高层次需求爆发": {
+            "score": "3",
+            "explanation": "消费级需求稳定增长"
+          }
+        },
+        "top_scoring_criterion": "产业革命新旧替代",
+        "top_score": 80.0
+      }
+    },
+    {
+      "sector_code": "BK1161",
+      "sector_name": "英伟达概念",
+      "total_stocks": 55,
+      "hotspot_count": 9,
+      "hotspot_ratio": 16.36,
+      "stocks": [
+        "000977",
+        "002837",
+        "600699",
+        "601138",
+        "002851"
+      ],
+      "concept_analysis": "英伟达概念分析：AI算力需求爆发推动GPU及相关产业链快速发展。英伟达在AI训练和推理领域的领导地位，带动国内相关供应链企业受益。",
+      "llm_evaluation": {
+        "criteria_result": {
+          "category": "人工智能"
+        },
+        "overall_score": 70.0,
+        "detailed_scores": {
+          "产业革命新旧替代": {
+            "score": "5",
+            "explanation": "AI革命正在重塑计算产业"
+          },
+          "政策利好": {
+            "score": "4",
+            "explanation": "国家大力支持AI产业发展"
+          },
+          "业绩爆发增长": {
+            "score": "4",
+            "explanation": "AI相关企业业绩快速增长"
+          },
+          "高层次需求爆发": {
+            "score": "5",
+            "explanation": "AI算力需求呈指数级增长"
+          }
+        },
+        "top_scoring_criterion": "产业革命新旧替代",
+        "top_score": 100.0
+      }
+    }
+  ],
+  "sunburst_data": {
+    "name": "行业分类分析",
+    "value": 185.0,
+    "children": [
+      {
+        "name": "二级市场投资研究七大方向",
+        "value": 185.0,
+        "children": [
+          {
+            "name": "工业 (Industrials)",
+            "value": 60.0,
+            "children": [
+              {
+                "name": "产业替代革命",
+                "value": 60.0,
+                "children": [
+                  {
+                    "name": "激光设备(先进制造)",
+                    "value": 60.0,
+                    "children": [
+                      {
+                        "name": "CPO概念",
+                        "value": 60.0,
+                        "category": "激光设备(先进制造)"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "科技 (Technology)",
+            "value": 125.0,
+            "children": [
+              {
+                "name": "产业替代革命",
+                "value": 125.0,
+                "children": [
+                  {
+                    "name": "人工智能(AI)芯片与算力",
+                    "value": 70.0,
+                    "children": [
+                      {
+                        "name": "英伟达概念",
+                        "value": 70.0,
+                        "category": "人工智能"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "消费电子",
+                    "value": 55.0,
+                    "children": [
+                      {
+                        "name": "无线耳机",
+                        "value": 55.0,
+                        "category": "消费电子"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "from_cache": false
+}

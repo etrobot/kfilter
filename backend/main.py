@@ -45,36 +45,8 @@ app = FastAPI(title="Quant Dashboard")
 create_db_and_tables()
 logger.info("Database initialized successfully")
 
-def create_admin_user():
-    """Create admin user from environment variables if provided"""
-    admin_username = os.getenv('ADMIN_USERNAME')
-    admin_email = os.getenv('ADMIN_EMAIL')
-    
-    if admin_username and admin_email:
-        try:
-            with next(get_session()) as session:
-                # Check if admin user already exists
-                statement = select(User).where(
-                    User.name == admin_username,
-                    User.email == admin_email
-                )
-                existing_user = session.exec(statement).first()
-                
-                if not existing_user:
-                    # Create new admin user
-                    admin_user = User(name=admin_username, email=admin_email)
-                    session.add(admin_user)
-                    session.commit()
-                    logger.info(f"Admin user created: {admin_username} ({admin_email})")
-                else:
-                    logger.info(f"Admin user already exists: {admin_username} ({admin_email})")
-        except Exception as e:
-            logger.error(f"Failed to create admin user: {e}")
-    else:
-        logger.info("No admin user credentials provided in environment variables")
-
-# Create admin user if credentials are provided
-create_admin_user()
+# Admin user will be automatically created as the first user to register
+logger.info("Admin user will be automatically assigned to the first user who registers")
 
 app.add_middleware(
     CORSMiddleware,
@@ -212,6 +184,13 @@ def get_dashboard_kline_amplitude(n_days: int = 30):
 
 
 # Extended Analysis route
+
+@app.get("/extended-analysis/results")
+def get_extended_analysis_results_endpoint():
+    """Get cached extended analysis results or load from JSON file"""
+    from api import get_extended_analysis_results
+    return get_extended_analysis_results()
+
 
 @app.post("/extended-analysis/run")
 def run_extended_analysis_endpoint():

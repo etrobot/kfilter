@@ -71,6 +71,7 @@ class AuthResponse(BaseModel):
     success: bool
     token: Optional[str] = None
     message: str
+    user: Optional[dict] = None
 
 
 # 数据库模型
@@ -82,6 +83,7 @@ class User(SQLModel, table=True):
     name: Optional[str] = None
     email: str
     image: Optional[str] = None
+    is_admin: bool = Field(default=False, description="是否为管理员")
     created_at: dt_datetime = Field(default_factory=lambda: dt_datetime.now(timezone.utc))
 
 
