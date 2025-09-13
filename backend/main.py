@@ -43,6 +43,9 @@ from factors import list_factors
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import scheduler functions
+from scheduler import start_daily_scheduler
+
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
@@ -54,6 +57,9 @@ logger.info("Database initialized successfully")
 
 # Admin user will be automatically created as the first user to register
 logger.info("Admin user will be automatically assigned to the first user who registers")
+
+# Start daily scheduler for automated analysis
+start_daily_scheduler()
 
 app.add_middleware(
     CORSMiddleware,

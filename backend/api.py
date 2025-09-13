@@ -16,6 +16,9 @@ from config import get_zai_credentials, is_zai_configured, get_openai_config, is
 from datetime import datetime
 import json
 import threading
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def read_root():
