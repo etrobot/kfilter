@@ -21,7 +21,6 @@ interface ResultsTableProps {
 export function ResultsTable({ 
   data, 
   factorMeta = [], 
-  extended, 
   onRunAnalysis, 
   onStopAnalysis, 
   currentTaskId, 

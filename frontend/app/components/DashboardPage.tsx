@@ -72,8 +72,13 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
 
+    // Use actual dates from the first stock that has dates, or fallback to indices
+    const labels = data.top_5.length > 0 && data.top_5[0].dates && data.top_5[0].dates.length > 0
+      ? data.top_5[0].dates
+      : Array.from({ length: Math.max(...data.top_5.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
+
     const chartData = {
-      labels: Array.from({ length: Math.max(...data.top_5.map(stock => stock.trend_data?.length || 0)) }, (_, i) => i + 1),
+      labels,
       datasets: data.top_5.map((stock, idx) => ({
         label: `${stock.code} ${stock.name}`,
         data: stock.trend_data || [],
@@ -105,7 +110,13 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
         },
         tooltip: {
           callbacks: {
-            title: (context: any) => `第${context[0].label}个交易日`,
+            title: (context: any) => {
+              // Show actual date if available, otherwise show trading day index
+              const label = context[0].label
+              return typeof label === 'string' && label.includes('-') 
+                ? label 
+                : `第${label}个交易日`
+            },
             label: (context: any) => {
               return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`
             },
@@ -116,7 +127,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
         x: {
           title: {
             display: true,
-            text: '交易日',
+            text: labels.length > 0 && typeof labels[0] === 'string' && labels[0].includes('-') ? '日期' : '交易日',
             font: {
               size: 12,
             },
@@ -125,6 +136,9 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
             font: {
               size: 10,
             },
+            maxTicksLimit: 8, // Limit number of ticks to prevent overcrowding
+            maxRotation: 45, // Rotate labels if they're dates
+            minRotation: 0,
           },
           grid: {
             display: false,

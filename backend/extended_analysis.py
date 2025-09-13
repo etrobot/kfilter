@@ -2,10 +2,9 @@ from __future__ import annotations
 import logging
 import os
 import json
-from datetime import date, timedelta
+from datetime import datetime
 from typing import List, Dict, Optional, Callable
 from collections import defaultdict
-from config import parse_category_hierarchy
 from data_management.llm_client import evaluate_content_with_llm
 
 
@@ -18,84 +17,70 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
     Returns:
         Dict with 'concept_analysis' and 'llm_evaluation' keys, or None if failed
     """
-    try:
-        from data_management.deepsearch import ZAIChatClient
-        from config import is_zai_configured, get_zai_credentials
-        
-        # Check if credentials are properly configured
-        if not is_zai_configured():
-            logger.warning("ZAI credentials not properly configured, skipping deepsearch analysis")
-            return None
-            
-        # Get credentials from config
-        bearer_token, cookie_str = get_zai_credentials()
-            
-        client = ZAIChatClient(bearer_token=bearer_token, cookie_str=cookie_str)
-        
-        # Create search query for the concept
-        search_query = f"A股{concept_name}概念分析"
-        
-        messages = [
-            {
-                'role': 'user',
-                'content': search_query
-            }
-        ]
-        
-        # Stream the response and collect it
-        full_response = ""
-        if on_progress:
-            on_progress(f"深度搜索：开始分析板块 {concept_name}")
-        for chunk in client.stream_chat_completion(messages, model="0727-360B-API"):
-            # Check if cancellation was requested
-            if stop_event and stop_event.is_set():
-                if on_progress:
-                    on_progress(f"深度搜索已被取消：{concept_name}")
-                return None
-                
-            if on_progress and chunk:
-                on_progress(f"深度搜索输出字符：{chunk}")
-            full_response += chunk
-            
-        concept_analysis = full_response.strip() if full_response else None
-        
-        # If we got search results, immediately evaluate them with LLM
-        if concept_analysis:
-            if on_progress:
-                on_progress(f"深度搜索完成，开始LLM评估：{concept_name}")
-            
-            # Check if cancellation was requested before evaluation
-            if stop_event and stop_event.is_set():
-                if on_progress:
-                    on_progress(f"LLM评估已被取消：{concept_name}")
-                return None
-            
-            try:
-                llm_evaluation = evaluate_content_with_llm(concept_analysis)
-                if on_progress:
-                    on_progress(f"LLM评估完成：{concept_name}")
-                
-                return {
-                    'concept_analysis': concept_analysis,
-                    'llm_evaluation': llm_evaluation
-                }
-            except Exception as eval_e:
-                logger.warning(f"Failed to evaluate concept analysis for {concept_name}: {eval_e}")
-                if on_progress:
-                    on_progress(f"LLM评估失败：{concept_name} - {str(eval_e)}")
-                # If evaluation fails, we don't return partial results
-                return None
-        else:
-            if on_progress:
-                on_progress(f"深度搜索未获得有效结果：{concept_name}")
-            return None
-        
-    except Exception as e:
-        logger.warning(f"Failed to get deepsearch analysis for concept {concept_name}: {e}")
-        if on_progress:
-            on_progress(f"深度搜索失败：{concept_name} - {str(e)}")
+    from data_management.deepsearch import ZAIChatClient
+    from config import is_zai_configured, get_zai_credentials
+    
+    # Check if credentials are properly configured
+    if not is_zai_configured():
+        logger.warning("ZAI credentials not properly configured, skipping deepsearch analysis")
         return None
-
+        
+    # Get credentials from config
+    bearer_token, cookie_str = get_zai_credentials()
+        
+    client = ZAIChatClient(bearer_token=bearer_token, cookie_str=cookie_str)
+    
+    # Create search query for the concept
+    search_query = f"{datetime.now().year}A股{concept_name}概念分析"
+    
+    messages = [
+        {
+            'role': 'user',
+            'content': search_query
+        }
+    ]
+    
+    # Stream the response and collect it
+    full_response = ""
+    if on_progress:
+        on_progress(f"开始深度搜索板块 {concept_name}")
+    for chunk in client.stream_chat_completion(messages, model="0727-360B-API"):
+        # Check if cancellation was requested
+        if stop_event and stop_event.is_set():
+            if on_progress:
+                on_progress(f"深度搜索已被取消：{concept_name}")
+            return None
+            
+        if on_progress and chunk:
+            on_progress(f"深度搜索输出：{chunk}")
+        full_response += chunk
+        
+    concept_analysis = full_response.strip() if full_response else None
+    
+    # If we got search results, immediately evaluate them with LLM
+    if concept_analysis:
+        if on_progress:
+            on_progress(f"深度搜索完成，开始LLM评估：{concept_name}")
+        
+        # Check if cancellation was requested before evaluation
+        if stop_event and stop_event.is_set():
+            if on_progress:
+                on_progress(f"LLM评估已被取消：{concept_name}")
+            return None
+        
+        llm_evaluation = evaluate_content_with_llm(concept_analysis)
+        if on_progress:
+            on_progress(f"LLM评估完成：{concept_name}")
+        
+        return {
+            'concept_analysis': concept_analysis,
+            'llm_evaluation': llm_evaluation
+        }
+    else:
+        if on_progress:
+            on_progress(f"深度搜索未获得有效结果：{concept_name}")
+        return None                         
+        
 
 def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress: Optional[Callable[[str], None]] = None, stop_event: Optional[object] = None) -> dict:
     """Get sector-based analysis using real-time hotspot stocks from fetch_hot_spot

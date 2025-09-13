@@ -121,8 +121,8 @@ SUPPORT_FACTOR = Factor(
     description=f"基于最长K线实体距离的支撑强度：计算{DEFAULT_WINDOW_SIZE}日窗口内最长K线实体（相对昨收幅度）到当前的天数，天数越多支撑越强，值越大越好",
     columns=[
         {"key": "支撑因子", "label": "支撑因子", "type": "number", "sortable": True},
-        {"key": "支撑评分", "label": "支撑评分", "type": "score", "sortable": True},
-        {"key": "最长K线天数", "label": f"最长K线天数({DEFAULT_WINDOW_SIZE}日)", "type": "number", "sortable": True},
+        # {"key": "支撑评分", "label": "支撑评分", "type": "score", "sortable": True},
+        {"key": "最长K线天数", "label": f"{DEFAULT_WINDOW_SIZE}日最长K线距今", "type": "number", "sortable": True},
     ],
     compute=lambda history, top_spot=None: compute_support_with_default_window(history, top_spot),
 )

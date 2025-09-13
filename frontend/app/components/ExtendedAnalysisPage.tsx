@@ -181,7 +181,7 @@ export function ExtendedAnalysisPage({
   }
 
   return (
-    <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
+    <div className={`${isMobile ? 'p-2' : 'p-8'} space-y-4`}>
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -229,9 +229,9 @@ export function ExtendedAnalysisPage({
 
       {/* Success Message */}
       {successMessage && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+        <div className="bg-green-50 border border-green-200 rounded-md p-1">
           <div className="text-green-800">
-            <strong>成功:</strong> {successMessage}
+            {successMessage}
           </div>
         </div>
       )}
@@ -240,7 +240,7 @@ export function ExtendedAnalysisPage({
       {result && (
         <div className="space-y-2">
           {/* Summary Stats */}
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-2">
             <div className="flex gap-4 text-sm">
               <div>
                 <span className="text-gray-600">分析日期: </span>

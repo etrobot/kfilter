@@ -233,12 +233,12 @@ export function SectorList({ sectors }: SectorListProps) {
               
               {/* 概念分析内容 */}
               {sector.concept_analysis && (
-                <div className="p-4 bg-blue-50 border-t">
+                <div className="p-4 bg-blue-50 border-t text-xs">
                   <h5 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
                     <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                     概念深度分析
                   </h5>
-                  <div className="text-sm text-blue-800 leading-relaxed prose prose-sm max-w-none prose-headings:text-blue-900 prose-strong:text-blue-900 prose-code:bg-blue-100 prose-code:text-blue-900 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs">
+                  <div className="text-sm text-blue-900 leading-relaxed prose prose-sm max-w-none prose-headings:text-blue-900 prose-strong:text-blue-900 prose-code:bg-blue-100 prose-code:text-blue-900 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs">
                     <ReactMarkdown>{sector.concept_analysis}</ReactMarkdown>
                   </div>
                 </div>
