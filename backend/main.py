@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
+from config import load_config_json,set_system_config
 import os
 
 # Load environment variables at startup
@@ -22,13 +23,19 @@ except ImportError:
 except Exception as e:
     logging.warning(f"Failed to load .env file: {e}")
 
+try:
+    set_system_config(load_config_json())
+except Exception as e:
+    logging.warning(f"Failed to load config.json: {e}")
+
+
 from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, AuthRequest, AuthResponse, create_db_and_tables, User, get_session
 from sqlmodel import select
 from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
     list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard,
-    run_extended_analysis, login_user, get_zai_config, update_zai_config
+    run_extended_analysis, stop_extended_analysis, login_user, get_zai_config, update_zai_config
 )
 from factors import list_factors
 
@@ -211,6 +218,12 @@ def clear_extended_analysis_cache_endpoint():
     from data_management.services import clear_extended_analysis_cache
     clear_extended_analysis_cache()
     return {"message": "Extended analysis cache cleared"}
+
+
+@app.post("/extended-analysis/{task_id}/stop")
+def stop_extended_analysis_endpoint(task_id: str):
+    """Stop a running extended analysis task"""
+    return stop_extended_analysis(task_id)
 
 
 # Authentication routes

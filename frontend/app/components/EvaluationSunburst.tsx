@@ -23,22 +23,25 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
     );
 
   const getColor = () => {
-    // 动态生成颜色方案
+    // 马卡龙色系配色方案
     const colorPalette = [
-      '#3B82F6', // 蓝色
-      '#10B981', // 绿色
-      '#F59E0B', // 黄色
-      '#8B5CF6', // 紫色
-      '#EF4444', // 红色
-      '#06B6D4', // 青色
-      '#84CC16', // 青绿
-      '#F97316', // 橙色
-      '#EC4899', // 粉色
-      '#6B7280', // 灰色
+      '#FFB3BA', // 粉红
+      '#FFDFBA', // 桃色
+      '#FFFFBA', // 柠檬黄
+      '#BAFFC9', // 薄荷绿
+      '#BAE1FF', // 天蓝
+      '#E6BAFF', // 淡紫
+      '#FFE1BA', // 杏色
+      '#FFBAE1', // 樱花粉
+      '#BAFFFF', // 浅青
+      '#D4BAFF', // 薰衣草
+      '#C9FFBA', // 浅绿
+      '#FFCABA', // 珊瑚色
     ];
 
     if (!data?.children) return d3.scaleOrdinal<string, string>().range([colorPalette[0]]);
 
+    // 为每个顶级板块分配固定的马卡龙色
     const domain = data.children.map((c) => c.name);
     return d3.scaleOrdinal<string, string>().domain(domain).range(colorPalette);
   };
@@ -57,7 +60,16 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
     // 找到顶级父节点以保持颜色一致性
     let node = d;
     while (node.depth > 1) node = node.parent!;
-    return color(node.data.name);
+    
+    const baseColor = color(node.data.name);
+    
+    // 为不同层级添加透明度变化，创造深浅效果
+    if (d.depth === 1) {
+      return baseColor; // 顶级使用原色
+    } else {
+      // 子级使用稍微深一点的颜色
+      return d3.color(baseColor)?.darker(0.2)?.toString() || baseColor;
+    }
   };
 
   const getTextTransform = (d: d3.HierarchyRectangularNode<SunburstData>) => {

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
-import { PlayIcon, RefreshCwIcon, ClockIcon } from 'lucide-react'
+import { PlayIcon, RefreshCwIcon, ClockIcon, BarChart3Icon, ListIcon } from 'lucide-react'
 import { api } from '../services/api'
 import { useIsMobile } from '../hooks/use-mobile'
 import { AuthDialog } from './AuthDialog'
 import { AuthService } from '../services/auth'
 import { ConfigDialog } from './ConfigDialog'
 import EvaluationSunburst from './EvaluationSunburst'
+import { SectorList } from './SectorList'
 import { SunburstData } from '../types'
 
 interface SectorStock {
@@ -67,6 +68,7 @@ export function ExtendedAnalysisPage({
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [pendingAction, setPendingAction] = useState<null | 'run' | 'config'>(null)
   const [hasLoadedCache, setHasLoadedCache] = useState(false)
+  const [activeTab, setActiveTab] = useState<'chart' | 'list'>('chart')
 
   // Load cached results on component mount
   useEffect(() => {
@@ -236,10 +238,10 @@ export function ExtendedAnalysisPage({
 
       {/* Results */}
       {result && (
-        <div className="space-y-4">
+        <div className="space-y-2">
+          {/* Summary Stats */}
           <div className="bg-white border rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4">分析结果</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex gap-4 text-sm">
               <div>
                 <span className="text-gray-600">分析日期: </span>
                 <span className="font-medium">{result.analysis_date}</span>
@@ -262,117 +264,55 @@ export function ExtendedAnalysisPage({
               )}
             </div>
           </div>
+
+          {/* Tab Navigation */}
           <div className="bg-white border rounded-lg overflow-hidden">
-            <div className="p-4 border-b bg-gray-50">
-              <h3 className="font-semibold">板块热点分析</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                按热点比例排序，显示各板块的热点股票及其实时表现
-              </p>
+            <div className="border-b">
+              <div className="flex">
+                <button
+                  onClick={() => setActiveTab('chart')}
+                  className={`flex items-center gap-2 px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
+                    activeTab === 'chart'
+                      ? 'border-blue-500 text-blue-600 bg-blue-50'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <BarChart3Icon size={16} />
+                  可视化图表
+                </button>
+                <button
+                  onClick={() => setActiveTab('list')}
+                  className={`flex items-center gap-2 px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
+                    activeTab === 'list'
+                      ? 'border-blue-500 text-blue-600 bg-blue-50'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <ListIcon size={16} />
+                  详细列表
+                </button>
+              </div>
             </div>
-            
-            {/* 旭日图可视化 */}
-            <div className="p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-              <h4 className="font-medium text-gray-900 mb-4 text-center">板块热点可视化</h4>
-              <EvaluationSunburst data={convertToSunburstData(result)} />
-            </div>
-            
-            <div className="max-h-[70vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
-              {result.sectors.map((sector, index) => (
-                <div key={sector.sector_code} className="border-b last:border-b-0">
-                  <div className="p-4 bg-gray-25">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-medium text-gray-900">
-                          #{index + 1} {sector.sector_name}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          代码: {sector.sector_code}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-red-600">
-                          {sector.hotspot_ratio}%
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {sector.hotspot_count}/{sector.total_stocks} 热点
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {sector.stocks.length > 0 && (
-                    <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="text-left p-3 font-medium">序号</th>
-                            <th className="text-left p-3 font-medium">股票代码</th>
-                            <th className="text-left p-3 font-medium">股票名称</th>
-                            <th className="text-right p-3 font-medium">涨跌幅</th>
-                            <th className="text-right p-3 font-medium">当前价格</th>
-                            <th className="text-right p-3 font-medium">成交额</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sector.stocks.map((stock, stockIndex) => (
-                            <tr key={stock.code} className="border-t">
-                              <td className="p-3">{stockIndex + 1}</td>
-                              <td className="p-3 font-mono">{stock.code}</td>
-                              <td className="p-3">{stock.name}</td>
-                              <td className="p-3 text-right font-semibold" style={{color: (stock.change_pct ?? 0) >= 0 ? '#dc2626' : '#16a34a'}}>
-                                {stock.change_pct != null ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct.toFixed(2)}%` : 'N/A'}
-                              </td>
-                              <td className="p-3 text-right">
-                                {stock.price != null ? `¥${stock.price.toFixed(2)}` : 'N/A'}
-                              </td>
-                              <td className="p-3 text-right">
-                                {stock.turnover != null ? `${(stock.turnover / 10000).toFixed(2)}万` : 'N/A'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  
-                  {/* 概念分析内容 */}
-                  {sector.concept_analysis && (
-                    <div className="p-4 bg-blue-50 border-t">
-                      <h5 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                        概念深度分析
-                      </h5>
-                      <div className="text-sm text-blue-800 leading-relaxed whitespace-pre-wrap">
-                        {sector.concept_analysis}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* LLM评估结果 */}
-                  {sector.llm_evaluation && (
-                    <div className="p-4 bg-purple-50 border-t">
-                      <h5 className="font-medium text-purple-900 mb-2 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                        LLM智能评估
-                      </h5>
-                      <div className="text-sm text-purple-800 leading-relaxed">
-                        {typeof sector.llm_evaluation === 'string' 
-                          ? sector.llm_evaluation 
-                          : JSON.stringify(sector.llm_evaluation, null, 2)
-                        }
-                      </div>
-                    </div>
-                  )}
+
+            {/* Tab Content */}
+            <div className="min-h-[400px]">
+              {activeTab === 'chart' && (
+                <div className="p-6 bg-gray-50">
+                  <h3 className="font-semibold text-gray-900 mb-4 text-center">板块热点可视化</h3>
+                  <p className="text-sm text-gray-600 mb-6 text-center">
+                    旭日图展示各板块热点比例及其包含的热点股票分布
+                  </p>
+                  <EvaluationSunburst data={convertToSunburstData(result)} />
                 </div>
-              ))}
+              )}
+              
+              {activeTab === 'list' && (
+                <div className="p-0">
+                  <SectorList sectors={result.sectors} />
+                </div>
+              )}
             </div>
           </div>
-
-          {result.sectors.length === 0 && (
-            <div className="bg-white border rounded-lg p-8 text-center">
-              <p className="text-gray-600">当前无热点板块数据</p>
-            </div>
-          )}
         </div>
       )}
 

@@ -14,7 +14,7 @@ PROJECT_ROOT = BASE_DIR.parent
 # JSON config file path (preferred over .env)
 CONFIG_JSON_PATH = BASE_DIR / 'config.json'
 
-def _load_config_json() -> Dict[str, Any]:
+def load_config_json() -> Dict[str, Any]:
     """Load JSON config from disk if exists, otherwise return empty dict."""
     try:
         if CONFIG_JSON_PATH.is_file():
@@ -25,7 +25,7 @@ def _load_config_json() -> Dict[str, Any]:
         pass
     return {}
 
-def _save_config_json(data: Dict[str, Any]) -> None:
+def save_config_json(data: Dict[str, Any]) -> None:
     """Persist JSON config to disk atomically."""
     CONFIG_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = CONFIG_JSON_PATH.with_suffix('.json.tmp')
@@ -44,19 +44,27 @@ def is_zai_configured() -> bool:
                 cookie != 'your_cookie_string_here')
 
 def get_zai_credentials() -> Tuple[str, str]:
-    """Get ZAI credentials (always read latest)."""
-    return _load_config_json().get('ZAI_BEARER_TOKEN').strip(), _load_config_json().get('ZAI_COOKIE_STR').strip()
+    """Get ZAI credentials (always read latest).
+    
+    Returns:
+        Tuple containing (bearer_token, cookie_str). Returns empty strings if not configured.
+    """
+    config = load_config_json()
+    bearer = config.get('ZAI_BEARER_TOKEN', '')
+    cookie = config.get('ZAI_COOKIE_STR', '')
+    return (bearer.strip() if bearer else '', 
+            cookie.strip() if cookie else '')
 
 def set_zai_credentials(bearer_token: str, cookie_str: str) -> None:
     """Persist ZAI credentials to backend/config.json."""
-    data = _load_config_json()
+    data = load_config_json()
     data['ZAI_BEARER_TOKEN'] = bearer_token
     data['ZAI_COOKIE_STR'] = cookie_str
-    _save_config_json(data)
+    save_config_json(data)
 
 def get_openai_config() -> Tuple[str, str]:
     """Get OpenAI API configuration (API key and base URL)."""
-    cfg = _load_config_json()
+    cfg = load_config_json()
     api_key = (cfg.get('OPENAI_API_KEY') or '').strip()
     base_url = (cfg.get('OPENAI_BASE_URL') or '').strip()
     
@@ -69,21 +77,25 @@ def is_openai_configured() -> bool:
 
 def set_system_config(config_data: dict) -> None:
     """Persist system configuration (ZAI + OpenAI) to backend/config.json."""
-    data = _load_config_json()
+    data = load_config_json()
     
     # Update ZAI configuration if provided
     if 'ZAI_BEARER_TOKEN' in config_data:
         data['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
+        os.environ['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
     if 'ZAI_COOKIE_STR' in config_data:
         data['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
+        os.environ['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
     
     # Update OpenAI configuration if provided
     if 'OPENAI_API_KEY' in config_data:
         data['OPENAI_API_KEY'] = config_data['OPENAI_API_KEY']
+        os.environ['OPENAI_API_KEY'] = config_data['OPENAI_API_KEY']
     if 'OPENAI_BASE_URL' in config_data:
         data['OPENAI_BASE_URL'] = config_data['OPENAI_BASE_URL']
+        os.environ['OPENAI_BASE_URL'] = config_data['OPENAI_BASE_URL']
     
-    _save_config_json(data)
+    save_config_json(data)
 
 
 CATEGORY='''

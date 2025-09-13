@@ -227,8 +227,8 @@ class ZAIChatClient:
                                 if 'delta_content' in data['data']:
                                     content = data['data']['delta_content']
                                 # Check for edit_content (full content updates)
-                                elif 'edit_content' in data['data']:
-                                    content = data['data']['edit_content']
+                                # elif 'edit_content' in data['data']:
+                                #     content = data['data']['edit_content']
                                 # Check for content (direct content)
                                 elif 'content' in data['data']:
                                     content = data['data']['content']

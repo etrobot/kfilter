@@ -5,14 +5,14 @@ from models import RunRequest, RunResponse, TaskResult, TaskStatus, Message, Con
 from sqlmodel import select, func
 from utils import (
     get_task, get_all_tasks, get_last_completed_task,
-    get_concept_task, get_all_concept_tasks, get_last_completed_concept_task
+    get_concept_task, get_all_concept_tasks, get_last_completed_concept_task,
+    EXTENDED_ANALYSIS_THREADS, EXTENDED_ANALYSIS_STOP_EVENTS
 )
 from data_management.services import create_analysis_task
 from utils import TASK_STOP_EVENTS, get_task
 
 from data_management.concept_service import create_concept_collection_task, get_concepts_from_db
-from factors import list_factors
-from config import get_zai_credentials, set_zai_credentials, is_zai_configured, get_openai_config, is_openai_configured, set_system_config
+from config import get_zai_credentials, is_zai_configured, get_openai_config, is_openai_configured, set_system_config
 from datetime import datetime
 import json
 import threading
@@ -266,15 +266,22 @@ def run_extended_analysis_stream():
     from data_management.services import cache_extended_analysis
     from extended_analysis import run_standalone_extended_analysis
     from data_management.chart_data_generator import generate_category_based_sunburst_chart_data
+    from uuid import uuid4
 
-    result_holder = {"done": False, "result": None, "error": None, "last_msg": None}
+    # Generate a unique task ID for this extended analysis
+    task_id = str(uuid4())
+    result_holder = {"done": False, "result": None, "error": None, "last_msg": None, "task_id": task_id}
+
+    # Create stop event for cancellation
+    stop_event = threading.Event()
+    EXTENDED_ANALYSIS_STOP_EVENTS[task_id] = stop_event
 
     def worker():
         try:
             def _on_progress(msg: str):
                 # 使用队列或直接yield不方便，这里简单地更新最近消息，由主循环按tick发出
                 result_holder["last_msg"] = msg
-            res = run_standalone_extended_analysis(on_progress=_on_progress)
+            res = run_standalone_extended_analysis(on_progress=_on_progress, stop_event=stop_event)
             if isinstance(res, dict) and 'error' in res:
                 result_holder["error"] = res.get('error')
             else:
@@ -292,6 +299,9 @@ def run_extended_analysis_stream():
             result_holder["error"] = str(e)
         finally:
             result_holder["done"] = True
+            # Cleanup
+            EXTENDED_ANALYSIS_THREADS.pop(task_id, None)
+            EXTENDED_ANALYSIS_STOP_EVENTS.pop(task_id, None)
 
     def format_event(event: str, data: dict) -> str:
         import json as _json
@@ -302,29 +312,46 @@ def run_extended_analysis_stream():
     from datetime import datetime as _dt
 
     thread = _threading.Thread(target=worker, daemon=True)
+    EXTENDED_ANALYSIS_THREADS[task_id] = thread
     thread.start()
 
     def event_stream():
-        yield format_event("start", {"time": _dt.now().isoformat(), "message": "开始扩展分析"})
+        yield format_event("start", {"time": _dt.now().isoformat(), "message": "开始扩展分析", "task_id": task_id})
         # Heartbeat/progress ticks while worker runs
         i = 0
         while not result_holder["done"]:
             i += 1
             msg = result_holder.get("last_msg") or "正在计算扩展分析..."
-            yield format_event("progress", {"time": _dt.now().isoformat(), "message": msg, "tick": i})
+            yield format_event("progress", {"time": _dt.now().isoformat(), "message": msg, "tick": i, "task_id": task_id})
             _time.sleep(1.0)
         # Completed
         if result_holder["error"] is not None:
-            yield format_event("error", {"ok": False, "error": result_holder["error"]})
+            yield format_event("error", {"ok": False, "error": result_holder["error"], "task_id": task_id})
         else:
             result = result_holder["result"] or {}
             try:
                 cache_extended_analysis(result)
             except Exception:
                 pass
-            yield format_event("complete", {"ok": True, "result": result})
+            yield format_event("complete", {"ok": True, "result": result, "task_id": task_id})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+def stop_extended_analysis(task_id: str) -> dict:
+    """Signal a running extended analysis task to stop and return its status"""
+    stop_event = EXTENDED_ANALYSIS_STOP_EVENTS.get(task_id)
+    if not stop_event:
+        raise HTTPException(status_code=404, detail="Extended analysis task not found or already finished")
+
+    # Signal cancellation
+    stop_event.set()
+
+    return {
+        "task_id": task_id,
+        "status": "stopping",
+        "message": "已请求停止扩展分析，正在清理..."
+    }
 
 
 # Configuration API functions

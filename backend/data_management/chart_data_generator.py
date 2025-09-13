@@ -154,6 +154,26 @@ def generate_category_based_sunburst_chart_data(sectors_data: List[dict]) -> dic
             root_children.append(child_node)
             total_value += category_data["total_score"]
     
+    # 检查是否只有一个顶级分类，如果是则尝试展开其子分类
+    if len(root_children) == 1 and "children" in root_children[0]:
+        single_category = root_children[0]
+        # 如果该分类有子分类，则将子分类提升为顶级分类
+        if single_category["children"] and len(single_category["children"]) > 1:
+            logger.info(f"检测到只有一个顶级分类 '{single_category['name']}'，将其子分类提升为顶级分类")
+            root_children = single_category["children"]
+        elif single_category["children"] and len(single_category["children"]) == 1:
+            # 如果子分类也只有一个，继续向下展开
+            sub_category = single_category["children"][0]
+            if "children" in sub_category and sub_category["children"] and len(sub_category["children"]) > 1:
+                logger.info(f"检测到单一子分类 '{sub_category['name']}'，继续展开其子分类")
+                root_children = sub_category["children"]
+            else:
+                # 如果所有层级都只有一个分类，直接使用板块数据
+                all_sectors = _get_all_sectors(single_category)
+                if len(all_sectors) > 1:
+                    logger.info(f"所有分类层级都只有单一分类，直接展示 {len(all_sectors)} 个板块")
+                    root_children = all_sectors
+    
     # 按总分排序
     root_children.sort(key=lambda x: x["value"], reverse=True)
     

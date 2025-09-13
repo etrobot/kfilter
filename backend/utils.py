@@ -21,6 +21,10 @@ LAST_COMPLETED_TASK: Optional[Task] = None
 TASK_THREADS: Dict[str, _threading.Thread] = {}
 TASK_STOP_EVENTS: Dict[str, _threading.Event] = {}
 
+# Thread and cancellation management for extended analysis tasks
+EXTENDED_ANALYSIS_THREADS: Dict[str, _threading.Thread] = {}
+EXTENDED_ANALYSIS_STOP_EVENTS: Dict[str, _threading.Event] = {}
+
 # Global concept task storage
 CONCEPT_TASKS: Dict[str, ConceptTask] = {}
 LAST_COMPLETED_CONCEPT_TASK: Optional[ConceptTask] = None

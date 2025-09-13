@@ -12,8 +12,12 @@ from data_management.llm_client import evaluate_content_with_llm
 logger = logging.getLogger(__name__)
 
 
-def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, on_progress: Optional[Callable[[str], None]] = None) -> Optional[str]:
-    """Use deepsearch to analyze a specific concept"""
+def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, on_progress: Optional[Callable[[str], None]] = None, stop_event: Optional[object] = None) -> Optional[Dict]:
+    """Use deepsearch to analyze a specific concept and evaluate it with LLM in one atomic operation
+    
+    Returns:
+        Dict with 'concept_analysis' and 'llm_evaluation' keys, or None if failed
+    """
     try:
         from data_management.deepsearch import ZAIChatClient
         from config import is_zai_configured, get_zai_credentials
@@ -43,30 +47,70 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
         if on_progress:
             on_progress(f"深度搜索：开始分析板块 {concept_name}")
         for chunk in client.stream_chat_completion(messages, model="0727-360B-API"):
+            # Check if cancellation was requested
+            if stop_event and stop_event.is_set():
+                if on_progress:
+                    on_progress(f"深度搜索已被取消：{concept_name}")
+                return None
+                
             if on_progress and chunk:
-                on_progress(f"深度搜索输出 {len(chunk)} 字符")
+                on_progress(f"深度搜索输出字符：{chunk}")
             full_response += chunk
             
-        return full_response.strip() if full_response else None
+        concept_analysis = full_response.strip() if full_response else None
+        
+        # If we got search results, immediately evaluate them with LLM
+        if concept_analysis:
+            if on_progress:
+                on_progress(f"深度搜索完成，开始LLM评估：{concept_name}")
+            
+            # Check if cancellation was requested before evaluation
+            if stop_event and stop_event.is_set():
+                if on_progress:
+                    on_progress(f"LLM评估已被取消：{concept_name}")
+                return None
+            
+            try:
+                llm_evaluation = evaluate_content_with_llm(concept_analysis)
+                if on_progress:
+                    on_progress(f"LLM评估完成：{concept_name}")
+                
+                return {
+                    'concept_analysis': concept_analysis,
+                    'llm_evaluation': llm_evaluation
+                }
+            except Exception as eval_e:
+                logger.warning(f"Failed to evaluate concept analysis for {concept_name}: {eval_e}")
+                if on_progress:
+                    on_progress(f"LLM评估失败：{concept_name} - {str(eval_e)}")
+                # If evaluation fails, we don't return partial results
+                return None
+        else:
+            if on_progress:
+                on_progress(f"深度搜索未获得有效结果：{concept_name}")
+            return None
         
     except Exception as e:
         logger.warning(f"Failed to get deepsearch analysis for concept {concept_name}: {e}")
+        if on_progress:
+            on_progress(f"深度搜索失败：{concept_name} - {str(e)}")
         return None
 
 
-def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress: Optional[Callable[[str], None]] = None) -> dict:
+def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress: Optional[Callable[[str], None]] = None, stop_event: Optional[object] = None) -> dict:
     """Get sector-based analysis using real-time hotspot stocks from fetch_hot_spot
     
     Args:
         session: Database session
         top_n: Number of top concepts by stock count to analyze
         on_progress: Progress callback function
+        stop_event: Optional threading.Event to signal cancellation
     
     Returns:
         Dict with sector codes as keys and their stock analysis as values
     """
     from sqlmodel import select, func
-    from models import ConceptInfo, ConceptStock, StockBasicInfo
+    from models import ConceptInfo, ConceptStock
     from market_data.data_fetcher import fetch_hot_spot
     
     # Get real-time hotspot stocks
@@ -144,47 +188,70 @@ def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress
     result = {}
     
     for sector_code, stock_codes in sorted_concepts:
-        sector_name = concept_map.get(sector_code, sector_code)
-        
-        # Get total stocks in this concept (not just hotspot stocks)
-        total_stocks_query = select(func.count(ConceptStock.stock_code)).where(
-            ConceptStock.concept_code == sector_code
-        )
-        total_stocks_in_sector = session.exec(total_stocks_query).first() or 0
-        
-        hotspot_count = len(stock_codes)
-        
-        if on_progress:
-            on_progress(f"分析板块 {sector_name}（{sector_code}）… 共 {total_stocks_in_sector} 只，热点股票 {hotspot_count} 只")
-        
-        
-        # Get deepsearch analysis for this concept
-        concept_analysis = get_concept_analysis_with_deepsearch(sector_code, sector_name, on_progress=on_progress)
-        
-        llm_evaluation = evaluate_content_with_llm(concept_analysis)
-        
-        result[sector_code] = {
-            "sector_code": sector_code,
-            "sector_name": sector_name,
-            "total_stocks": total_stocks_in_sector,
-            "hotspot_count": hotspot_count,
-            "hotspot_ratio": round(hotspot_count / total_stocks_in_sector * 100, 2) if total_stocks_in_sector > 0 else 0,
-            "stocks": list(stock_codes),
-            "concept_analysis": concept_analysis,
-            "llm_evaluation": llm_evaluation
-        }
+        # Check if cancellation was requested
+        if stop_event and stop_event.is_set():
+            if on_progress:
+                on_progress("分析已被取消")
+            break
+            
+        try:
+            sector_name = concept_map.get(sector_code, sector_code)
+            
+            # Get total stocks in this concept (not just hotspot stocks)
+            total_stocks_query = select(func.count(ConceptStock.stock_code)).where(
+                ConceptStock.concept_code == sector_code
+            )
+            total_stocks_in_sector = session.exec(total_stocks_query).first() or 0
+            
+            hotspot_count = len(stock_codes)
+            
+            if on_progress:
+                on_progress(f"分析板块 {sector_name}（{sector_code}）… 共 {total_stocks_in_sector} 只，热点股票 {hotspot_count} 只")
+            
+            # Get deepsearch analysis and LLM evaluation in one atomic operation
+            analysis_result = get_concept_analysis_with_deepsearch(sector_code, sector_name, on_progress=on_progress, stop_event=stop_event)
+            
+            # Extract analysis and evaluation from the combined result
+            concept_analysis = analysis_result.get('concept_analysis') if analysis_result else None
+            llm_evaluation = analysis_result.get('llm_evaluation') if analysis_result else None
+            
+            result[sector_code] = {
+                "sector_code": sector_code,
+                "sector_name": sector_name,
+                "total_stocks": total_stocks_in_sector,
+                "hotspot_count": hotspot_count,
+                "hotspot_ratio": round(hotspot_count / total_stocks_in_sector * 100, 2) if total_stocks_in_sector > 0 else 0,
+                "stocks": list(stock_codes),
+                "concept_analysis": concept_analysis,
+                "llm_evaluation": llm_evaluation,
+                "error": None
+            }
+        except Exception as e:
+            error_msg = f"分析板块 {sector_code} 时出错: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            if on_progress:
+                on_progress(error_msg)
+            
+            # Still add the sector to results but with error information
+            result[sector_code] = {
+                "sector_code": sector_code,
+                "sector_name": concept_map.get(sector_code, sector_code),
+                "error": str(e),
+                "stocks": list(stock_codes)  # Still include the stock codes we found
+            }
     
     return result
         
 
 
 
-def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]] = None, output_file: str = "extended_analysis_results.json") -> dict:
+def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]] = None, output_file: str = "extended_analysis_results.json", stop_event: Optional[object] = None) -> dict:
     """Run standalone extended analysis using real-time hotspot stocks
     
     Args:
         on_progress: Optional callback for progress updates
         output_file: Output file path for results (default: extended_analysis_results.json)
+        stop_event: Optional threading.Event to signal cancellation
     
     Returns:
         Dict with analysis results
@@ -195,13 +262,17 @@ def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]
         from datetime import datetime
         
         with Session(engine) as session:
+            # Check if cancellation was requested
+            if stop_event and stop_event.is_set():
+                return {"error": "分析已被取消"}
+            
             # Get current date for analysis
             current_date = datetime.now().date()
             
             # Get sector analysis using hotspot stocks
             if on_progress:
                 on_progress("开始基于实时热点股票进行板块分析")
-            sector_analysis = get_sector_analysis_with_hotspot_stocks(session, top_n=10, on_progress=on_progress)
+            sector_analysis = get_sector_analysis_with_hotspot_stocks(session, top_n=10, on_progress=on_progress, stop_event=stop_event)
             
             # Sort sectors by hotspot ratio
             sorted_sectors = sorted(
@@ -222,6 +293,13 @@ def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]
                 "sectors_with_llm_evaluation": sectors_with_llm_evaluation,
                 "sectors": sorted_sectors
             }
+            
+            # Check if cancellation was requested before generating sunburst data
+            if stop_event and stop_event.is_set():
+                result["cancelled"] = True
+                if on_progress:
+                    on_progress("分析已被取消")
+                return result
             
             # Generate sunburst data for visualization
             try:
