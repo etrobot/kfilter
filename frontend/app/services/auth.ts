@@ -76,14 +76,14 @@ export class AuthService {
         body: JSON.stringify({ name: username, email }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
         const userInfo = data.user || { name: username, email, is_admin: false }
-        this.setAuth(data.token || 'authenticated', userInfo)
+        this.setAuth(data.token, userInfo)
         return { success: true, message: data.message, user: userInfo }
       } else {
-        const error = await response.json()
-        return { success: false, error: error.message || '认证失败' }
+        return { success: false, error: data.message || '认证失败' }
       }
     } catch (error) {
       return { success: false, error: '网络错误，请重试' }
