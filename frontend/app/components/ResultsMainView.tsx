@@ -96,7 +96,7 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
 
   // Derive any missing factor columns from the actual data as a fallback
   const knownBaseKeys = new Set<string>([
-    '代码', '名称', '当前价格', '收盘', '涨跌幅', '涨跌幅', '换手板', '综合评分'
+    '代码', '名称', '当前价格', '收盘', '涨跌幅', '涨跌幅', '换手板', '综合评分', '所属板块'
   ])
   if (data && data.length > 0) {
     const existingKeys = new Set(factorColumns.map(c => c.key))
@@ -127,13 +127,19 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
 
   const renderCell = (record: FactorRecord, col: ColumnSpec) => {
     const value = getValue(record, col.key)
+    
+    // Special handling for "最长K线天数" - always treat as integer
+    if (col.key === '最长K线天数' || col.key.startsWith('最长K线天数_')) {
+      return Math.round(Number(value || 0))
+    }
+    
     switch (col.type) {
       case 'percent':
         return `${(Number(value || 0) * 100).toFixed(2)}%`
       case 'score':
         return <ScoreBar value={Number(value || 0)} />
       case 'integer':
-        return Number(value || 0)
+        return Math.round(Number(value || 0))
       case 'number':
         return Number(value || 0).toFixed(2)
       default:
@@ -149,6 +155,9 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
             <th className="text-center p-2 bg-muted sticky left-0 z-30 border-r whitespace-nowrap">序号</th>
             <th className={getColumnClassName('名称', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted sticky left-[40px] z-30 border-r whitespace-nowrap")} onClick={() => handleSort('名称')}>
               股票{renderSortIcon('名称')}
+            </th>
+            <th className={getColumnClassName('所属板块', "text-left p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('所属板块')}>
+              所属板块{renderSortIcon('所属板块')}
             </th>
             <th className={getColumnClassName('当前价格', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('当前价格')}>
               当前价格{renderSortIcon('当前价格')}
@@ -196,6 +205,9 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
                 <td className="p-2 text-center text-gray-500 font-mono sticky left-0 bg-white z-20 border-r">{index + 1}</td>
                 <td className={getColumnClassName('名称', "p-2 sticky left-[40px] bg-white z-20 border-r")}>
                   <StockLink code={record.代码} name={record.名称} />
+                </td>
+                <td className={getColumnClassName('所属板块', "p-2")}>
+                  {record.所属板块 || '-'}
                 </td>
                 <td className={getColumnClassName('当前价格', "p-2 text-right")}>{currentPrice.toFixed(2)}</td>
                 <td className={getColumnClassName('涨跌幅', `p-2 text-right ${changePct >= 0 ? 'text-red-500' : 'text-green-500'}`)}>

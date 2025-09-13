@@ -193,3 +193,44 @@ def get_concepts_from_db() -> List[Dict]:
             }
             for concept in concepts
         ]
+
+
+def get_stocks_sectors_from_extended_analysis(stock_codes: List[str], extended_results_path: str = "extended_analysis_results.json") -> Dict[str, tuple[str, int]]:
+    """从扩展分析结果中获取股票所属板块及其评分排名"""
+    import json
+    import os
+    
+    try:
+        # 读取扩展分析结果文件
+        if not os.path.exists(extended_results_path):
+            logger.warning(f"Extended analysis results file not found: {extended_results_path}")
+            return {}
+            
+        with open(extended_results_path, 'r', encoding='utf-8') as f:
+            extended_data = json.load(f)
+        
+        # 获取所有板块
+        sectors = extended_data.get('sectors', [])
+        
+        
+        # 构建股票到板块的映射
+        stock_to_sector_map = {}
+        
+        # 按评分顺序处理每个板块（排名从1开始）
+        for rank, sector_info in enumerate(sectors, 1):
+            sector_name = sector_info['sector_name']
+            
+            # 处理该板块的所有股票
+            for stock_code in sector_info['stocks']:
+                # 确保股票代码格式一致
+                clean_code = stock_code[2:] if len(stock_code) == 8 and stock_code[:2] in ['sz', 'sh'] else stock_code
+                if clean_code in stock_codes:
+                    # 如果股票已经在更高排名的板块中，跳过（只保留最高排名板块）
+                    if clean_code not in stock_to_sector_map:
+                        stock_to_sector_map[clean_code] = (sector_name, rank)
+        
+        return stock_to_sector_map
+        
+    except Exception as e:
+        logger.error(f"Error reading extended analysis results: {e}")
+        return {}

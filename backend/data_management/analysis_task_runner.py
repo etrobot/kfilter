@@ -21,6 +21,7 @@ from .stock_data_manager import (
     save_spot_as_daily_data,
     backfill_limit_up_texts_using_ths
 )
+from .concept_service import get_stocks_sectors_from_extended_analysis
 from market_data import (
     calculate_and_save_weekly_data,
     calculate_and_save_monthly_data
@@ -277,6 +278,20 @@ def compute_factors_and_analysis(task_id: str, top_spot: pd.DataFrame, stock_cod
             df[col] = df[col].astype(float, errors='ignore')
     
     data = df.to_dict(orient="records") if not df.empty else []
+    
+    # 添加板块信息和排名前缀（从扩展分析结果获取）
+    if data:
+        update_task_progress(task_id, 0.97, "添加板块信息和排名前缀")
+        stock_codes_for_sectors = [record.get('代码') for record in data if '代码' in record]
+        sectors_map = get_stocks_sectors_from_extended_analysis(stock_codes_for_sectors)
+        
+        # 为每条记录添加所属板块（带排名前缀）
+        for record in data:
+            stock_code = record.get('代码')
+            if stock_code and stock_code in sectors_map:
+                sector_name, rank = sectors_map[stock_code]
+                # 在所属板块字段中添加排名前缀（如：#01英伟达概念）
+                record['所属板块'] = f"{rank:02d}-{sector_name}"
 
     return {
         "data": data,

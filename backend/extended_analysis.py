@@ -274,10 +274,10 @@ def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]
                 on_progress("开始基于实时热点股票进行板块分析")
             sector_analysis = get_sector_analysis_with_hotspot_stocks(session, top_n=10, on_progress=on_progress, stop_event=stop_event)
             
-            # Sort sectors by hotspot ratio
+            # Sort sectors by LLM evaluation overall_score (descending)
             sorted_sectors = sorted(
                 sector_analysis.values(),
-                key=lambda x: x["hotspot_ratio"],
+                key=lambda x: x.get("llm_evaluation", {}).get("overall_score", 0) if x.get("llm_evaluation") else 0,
                 reverse=True
             )
             

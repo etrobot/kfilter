@@ -12,29 +12,6 @@ error() { echo -e "\033[0;31m$1\033[0m"; }
 
 info "🚀 Starting deployment of Quant Dashboard..."
 
-# Read user info from env or prompt
-info "👤 Setting up user information..."
-if [ -z "$ADMIN_USERNAME" ]; then
-  read -p "请输入用户名 (Username): " ADMIN_USERNAME
-fi
-if [ -z "$ADMIN_EMAIL" ]; then
-  read -p "请输入邮箱 (Email): " ADMIN_EMAIL
-fi
-
-# Validate email format (basic validation)
-case "$ADMIN_EMAIL" in
-  *[@]*.*) : ;;  # looks ok
-  *) error "❌ 邮箱格式无效，请输入有效的邮箱地址"; exit 1;;
-esac
-
-success "✅ 用户信息设置完成:"
-echo "  - 用户名: $ADMIN_USERNAME"
-echo "  - 邮箱: $ADMIN_EMAIL"
-echo ""
-
-export ADMIN_USERNAME
-export ADMIN_EMAIL
-
 # Create necessary directories
 info "📁 Creating directories..."
 mkdir -p data
