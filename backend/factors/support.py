@@ -7,35 +7,20 @@ import numpy as np
 from models import Factor
 
 
-def days_from_longest_candle(candles, window_size):
-    """计算最长K线实体到最新价格的天数"""
-    # 取最后 window_size+1 根K线，这样窗口内的每根K线都有昨收数据
-    # 实际分析的是最后 window_size 根K线
-    extended_window = candles[-(window_size + 1):]
+def calculate_days_from_longest_candle(df_window):
+    """计算最长K线实体到最新价格的天数（向量化版本）"""
+    if len(df_window) < 2:
+        return 0
     
-    # 找到最大实体的索引（使用相对昨收的幅度）
-    # 从索引1开始，因为索引0是用来提供昨收数据的
-    # 从后往前遍历，这样相同长度时会选择最近的K线
-    max_body_length = 0
-    max_body_idx = 1  # 默认第一个可用索引
+    # 计算相对昨收的实体幅度
+    first_close = df_window.iloc[0]['收盘']
+    body_lengths = (df_window.iloc[1:]['收盘'] - df_window.iloc[1:]['开盘']).abs() * 100 / first_close
     
-    for i in range(len(extended_window) - 1, 0, -1):  # 从后往前遍历
-        body_length = calculate_relative_body_length(extended_window, i)
-        if body_length > max_body_length:  # > 确保找到真正的最大值，从后往前所以最近的会被选中
-            max_body_length = body_length
-            max_body_idx = i
+    # 找到最大实体的索引（从后往前，所以相同长度时选择最近的）
+    max_idx_rev = body_lengths.iloc[::-1].idxmax()
     
-    # 返回天数差（调整索引，因为我们从1开始计算）
-    return len(extended_window) - max_body_idx
-
-
-def calculate_relative_body_length(window, idx):
-    """计算K线实体相对昨收的幅度"""
-    candle = window[idx]
-    
-    # 计算实体长度
-    body_length_ratio = int(abs(candle['close'] - candle['open'])*100/window[-1]['close'])
-    return body_length_ratio
+    # 返回天数差（从最后一天往前数）
+    return len(df_window) - 1 - max_idx_rev + 1
 
 
 def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None, window_size: int = 60) -> pd.DataFrame:
@@ -71,10 +56,13 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
             })
         
         # Calculate days from longest candle with specified window
-        # We need window_size + 1 candles to have proper previous close for all window candles
-        actual_window = min(window_size, len(candles) - 1)
+        # We need window_size + 1 days for proper previous close reference
+        actual_window = min(window_size, len(df_sorted) - 1)
         
-        days_from_longest = days_from_longest_candle(candles, actual_window)
+        # Get the extended window data (window_size + 1 days)
+        df_extended_window = df_sorted.iloc[-(actual_window + 1):]
+        
+        days_from_longest = calculate_days_from_longest_candle(df_extended_window)
         
         # Support factor: days from longest candle (more distant longest candle = better support)
         # Normalize to 0-1 range, where farther from recent = higher score
@@ -86,7 +74,22 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
         # Use window first price / window last price as described
         # For support factor, we want higher values when price has declined from window start
 
-        price_ratio = (window[-1]['close']-window[-1]['open'])/ window[0]['close']
+        # Calculate price ratio: (昨开-昨收)/(昨低-今低)-1
+        if len(window) >= 2:
+            yesterday = window[-2]
+            today = window[-1]
+            yesterday_open = yesterday['open']
+            yesterday_close = yesterday['close']
+            yesterday_low = yesterday['low']
+            today_low = today['low']
+            
+            denominator = yesterday_low - today_low
+            if denominator != 0:
+                price_ratio = (yesterday_open - yesterday_close) * 2 / denominator
+            else:
+                price_ratio = 1.0
+        else:
+            price_ratio = 1.0
         
         # Final support factor: combine time factor with price movement
         # Higher values indicate stronger support (recent longest candle + price decline)
