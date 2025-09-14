@@ -398,9 +398,10 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         return
 
     # Step 5: 回填涨停板类型
-    has_error = backfill_limit_up_data(task_id)
-    if has_error or check_cancel():
-        return
+    if collect_latest_data:
+        has_error = backfill_limit_up_data(task_id)
+        if has_error or check_cancel():
+            return
 
     # Step 6: 计算周K线和月K线数据
     has_error = calculate_weekly_monthly_data(task_id, stock_codes, should_upsert_spot, collect_latest_data)
