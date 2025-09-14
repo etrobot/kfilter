@@ -1,47 +1,183 @@
-# PNPM + UV Demo Project
+# 量化分析系统 - 个人市场分析工具
 
-This is a monorepo demonstrating a fullstack application using pnpm for package management and UV for Python dependency management.
+个人用的市场分析工具，主要用于判断市场风浪大小和个股评分参考。
 
-## Project Structure
+## 🎯 系统概述
 
-- `backend/`: Python backend using FastAPI and Uvicorn, with UV for dependency management.
-- `frontend/`: React frontend using Vite and pnpm for dependency management.
+本系统主要用于个人交易决策辅助，核心功能：
+- **市场风浪评估**：通过面板观察市场风浪大小，判断交易时机
+- **K线统计分析**：统计大成交额股票过去几十天的最长K线
+- **个股评分系统**：为个股买入提供量化评分参考
+- **概念信息查看**：提供热点概念和扩展分析（仅供参考）
 
-## Getting Started
+## 🧠 核心分析理念
 
-### Prerequisites
+### 市场风浪评估机制
+系统通过以下方式帮助判断市场波动：
+- **面板观察**：实时监控市场情绪和波动性
+- **K线统计**：分析大成交额股票过去几十天的最长K线
+- **交易决策**：当市场出现大量大阳或大阴线时建议谨慎，优选大部分小阳线的市场环境
 
-- Node.js (with pnpm installed)
-- Python (with UV installed)
+### 扩展分析方法论
+- **逆向深度搜索**：基于智谱Z.ai的深度搜索能力，反向分析概念投资机会
+- **AI概念评估**：使用免费LLM模型，对搜索到的概念进行智能评估
+- **实时热点捕捉**：基于市场实时热点股票数据，动态更新分析结果
 
-### Installation
+## 🏗️ 技术架构
 
-1. **Install all dependencies (frontend and backend):**
+### 后端技术栈
+- **FastAPI**: 高性能Python Web框架
+- **Uvicorn**: ASGI服务器
+- **SQLModel**: 现代Python SQL工具包
+- **UV**: Python依赖管理和虚拟环境
 
-   ```bash
-   pnpm run install:all
-   ```
+### 前端技术栈
+- **React**: 现代化用户界面开发
+- **Vite**: 快速构建工具
+- **TypeScript**: 类型安全开发
+- **pnpm**: 高效的包管理器
 
-### Running the Development Servers
+### AI集成
+- **智谱Z.ai**: 深度搜索功能
+- **多重LLM**: 免费大语言模型概念评估
+- **流式处理**: 实时响应和分析反馈
 
-To run both the frontend and backend development servers concurrently:
+## 🚀 快速开始
 
+### 前置要求
+- Node.js (已安装pnpm)
+- Python (已安装UV)
+
+### 安装依赖
 ```bash
-pnpm run dev
+# 安装所有依赖（前端和后端）
+pnpm run install:all
 ```
 
-This will start:
-- The backend server (FastAPI/Uvicorn) with auto-reloading.
-- The frontend development server (Vite).
-
-### Building the Project
-
-To build both the frontend and backend:
-
+### 开发模式运行
 ```bash
+# 同时启动前后端开发服务器
+pnpm run dev
+```
+启动后：
+- 前端开发服务器: http://localhost:5173
+- 后端API服务: http://localhost:8000
+- API文档: http://localhost:8000/docs
+
+### 构建项目
+```bash
+# 构建前端和后端
 pnpm run build
 ```
 
-This will:
-- Build the frontend for production.
-- (Note: Backend build step is currently a placeholder and not fully implemented.)
+## 🎯 核心功能详解
+
+### 1. 扩展分析功能
+- **实时热点捕捉**：从市场获取最新的热点股票数据
+- **板块分析**：识别包含热点股票的概念板块
+- **深度搜索**：对每个概念板块进行深度分析
+- **LLM评估**：使用AI模型对分析结果进行评分和验证
+
+### 2. 可视化展示
+- **旭日图**：直观展示板块热点分布和相关股票
+- **评分系统**：为每个概念提供量化评分
+- **实时状态**：显示分析进度和任务状态
+
+### 3. 概念收集
+- **概念面板**：专门收集和整理市场概念信息
+- **智能分类**：将股票按概念进行分类管理
+- **动态更新**：根据市场变化实时更新概念数据
+
+## 🛠️ 分析流程
+
+### 数据收集阶段
+1. 获取实时热点股票数据
+2. 匹配对应的概念/板块信息
+3. 统计各板块包含的热点股票数量
+
+### 深度分析阶段
+1. 筛选热点股票最多的板块（默认前20个）
+2. 对每个板块执行深度搜索分析
+3. 使用LLM模型评估搜索结果
+4. 生成综合评分和推荐
+
+### 结果输出
+1. 生成可视化图表数据（旭日图）
+2. 提供详细的概念分析文本
+3. 输出个股买入参考评分
+
+## 🔧 配置管理
+
+系统支持灵活的配置管理：
+- **分析参数**：可调整分析的板块数量、评分标准等
+- **API配置**：支持配置智谱API和其他LLM服务
+- **数据缓存**：支持结果缓存和历史数据查看
+
+## 🐳 生产部署
+
+### Docker部署
+支持单容器部署，集成Traefik反向代理：
+- **自动域名解析**：支持域名访问
+- **SSL证书**：自动申请和续期Let's Encrypt证书
+- **数据持久化**：数据库文件持久化存储
+
+详细部署指南请参考 [Docker部署指南](README-Docker.md)
+
+## 📊 数据源
+
+### 实时数据
+- **热点股票**：实时获取市场热点股票
+- **概念信息**：获取最新的概念股信息
+- **市场数据**：支持多种数据源接入
+
+### 历史数据
+- **K线数据**：支持历史K线分析
+- **交易数据**：包含价格、成交量等关键指标
+- **概念数据**：历史概念股分类信息
+
+## 🔒 安全特性
+
+- **身份验证**：支持管理员权限验证
+- **任务控制**：支持分析任务的启动、停止和管理
+- **错误处理**：完善的错误提示和处理机制
+
+## 📈 使用建议
+
+### 市场观察
+1. 定期查看扩展分析结果
+2. 关注概念板块的评分变化
+3. 结合市场情绪和基本面分析
+
+### 交易策略
+1. 参考概念分析文本判断投资机会
+2. 使用个股评分作为买卖参考
+3. 在市场波动较小时寻找优质机会
+
+### 风险控制
+1. 避免在市场风浪大时盲目操作
+2. 分散投资，不要过度集中于单一概念
+3. 结合技术分析和基本面分析
+
+## 🤝 贡献指南
+
+欢迎提交问题报告和功能建议：
+- 提交Issue描述遇到的问题
+- 提供详细的错误信息和复现步骤
+- 分享使用经验和改进建议
+
+## 📝 免责声明
+
+本系统仅供学习和研究使用，不构成投资建议。使用本系统进行投资决策时，请：
+- 结合自身风险承受能力
+- 咨询专业投资顾问意见
+- 充分了解市场风险
+
+股市有风险，投资需谨慎！
+
+## 📄 许可证
+
+本项目采用MIT许可证，详见LICENSE文件。
+
+---
+
+**核心理念**：通过量化和AI技术，为投资者提供客观、准确的市场分析工具，帮助做出更明智的投资决策。
