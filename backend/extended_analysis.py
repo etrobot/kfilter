@@ -31,7 +31,7 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
     client = ZAIChatClient(bearer_token=bearer_token, cookie_str=cookie_str)
     
     # Create search query for the concept
-    search_query = f"{datetime.now().year}A股{concept_name}概念分析"
+    search_query = f"{datetime.now().year}A股{concept_name}概念投资机会分析"
     
     messages = [
         {
@@ -257,7 +257,7 @@ def run_standalone_extended_analysis(on_progress: Optional[Callable[[str], None]
             # Get sector analysis using hotspot stocks
             if on_progress:
                 on_progress("开始基于实时热点股票进行板块分析")
-            sector_analysis = get_sector_analysis_with_hotspot_stocks(session, top_n=10, on_progress=on_progress, stop_event=stop_event)
+            sector_analysis = get_sector_analysis_with_hotspot_stocks(session, top_n=20, on_progress=on_progress, stop_event=stop_event)
             
             # Sort sectors by LLM evaluation overall_score (descending)
             sorted_sectors = sorted(

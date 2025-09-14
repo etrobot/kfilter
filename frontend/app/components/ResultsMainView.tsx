@@ -26,15 +26,19 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
   }
 
   const getValue = (record: FactorRecord, key: string): any => {
+    const value = (record as any)[key]
+    
     switch (key) {
       case '名称':
         return record.名称 || record.代码
+      case '所属板块':
+        return record.所属板块 || ''
       case '当前价格':
         return record.当前价格 || record.收盘 || 0
       case '涨跌幅':
         return record.涨跌幅 || 0
       default:
-        return (record as any)[key]
+        return value
     }
   }
 
@@ -44,6 +48,14 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
     return [...data].sort((a, b) => {
       const aValue: any = getValue(a, sortField)
       const bValue: any = getValue(b, sortField)
+
+      // Handle undefined/null values - always push to end
+      if (aValue === null || aValue === undefined || aValue === '') {
+        return 1 // a goes after b
+      }
+      if (bValue === null || bValue === undefined || bValue === '') {
+        return -1 // b goes after a
+      }
 
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortDirection === 'asc' 
