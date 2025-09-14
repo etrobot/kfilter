@@ -65,7 +65,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   }
 
 
-  
+
 
   const renderTrendChart = () => {
     if (!data?.top_5) return null
@@ -113,8 +113,8 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
             title: (context: any) => {
               // Show actual date if available, otherwise show trading day index
               const label = context[0].label
-              return typeof label === 'string' && label.includes('-') 
-                ? label 
+              return typeof label === 'string' && label.includes('-')
+                ? label
                 : `第${label}个交易日`
             },
             label: (context: any) => {
@@ -184,7 +184,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
     return (
       <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <h3 className="text-lg font-semibold mb-4">股票列表</h3>
+        <h3 className="text-lg font-semibold mb-4">K线实体列表</h3>
         <div className="space-y-2 h-80 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
           <div className="flex items-center space-x-3 pb-2 border-b font-semibold text-sm text-gray-600">
             <div className="w-16">代码</div>
@@ -221,7 +221,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <label className="text-sm font-medium">天数:</label>
-            <select 
+            <select
               value={nDays}
               onChange={(e) => setNDays(Number(e.target.value))}
               className="border rounded px-2 py-1 text-sm"
@@ -239,7 +239,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="text-red-800">错误: {error}</div>
-          <button 
+          <button
             onClick={() => setError(null)}
             className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
           >

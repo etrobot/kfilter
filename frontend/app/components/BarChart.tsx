@@ -34,10 +34,10 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
       {
         label: '幅度',
         data: stocks.map(stock => stock.amplitude),
-        backgroundColor: stocks.map(stock => 
+        backgroundColor: stocks.map(stock =>
           stock.amplitude >= 0 ? '#ef4444' : '#22c55e'
         ),
-        borderColor: stocks.map(stock => 
+        borderColor: stocks.map(stock =>
           stock.amplitude >= 0 ? '#dc2626' : '#16a34a'
         ),
         borderWidth: 1,
@@ -65,11 +65,12 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
     scales: {
       x: {
         ticks: {
-          maxRotation: 45,
+          maxRotation: 50,
           minRotation: 45,
           font: {
             size: 10,
           },
+          autoSkip: false
         },
         grid: {
           display: false,
@@ -99,8 +100,8 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
           {/* 固定Y轴部分 */}
           {/* <div className="absolute left-0 top-0 bottom-0 z-10 bg-white" style={{ width: '60px' }}>
             <div style={{ width: '60px', height: '100%' }}>
-              <Bar 
-                data={chartData} 
+              <Bar
+                data={chartData}
                 options={{
                   ...options,
                   responsive: true,
@@ -115,27 +116,27 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
                       }
                     }
                   }
-                }} 
+                }}
               />
             </div>
           </div> */}
-          
+
           {/* 可滚动内容部分 */}
-          <div 
-            className="absolute left-0 right-0 top-0 bottom-0 overflow-x-auto" 
-            style={{ 
-              WebkitOverflowScrolling: 'touch', 
+          <div
+            className="absolute left-0 right-0 top-0 bottom-0 overflow-x-auto"
+            style={{
+              WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'none'
             }}
           >
-            <div style={{ minWidth: '1200px', height: '100%' }}>
-              <Bar 
-                data={chartData} 
+            <div style={{ minWidth: '1400px', height: '100%' }}>
+              <Bar
+                data={chartData}
                 options={{
                   ...options,
                   responsive: true,
                   maintainAspectRatio: false
-                }} 
+                }}
               />
             </div>
           </div>
