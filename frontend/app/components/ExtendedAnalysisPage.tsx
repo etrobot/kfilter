@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
-import { PlayIcon, RefreshCwIcon, ClockIcon, BarChart3Icon, ListIcon } from 'lucide-react'
+import { PlayIcon, RefreshCwIcon, ClockIcon, BarChart3Icon, ListIcon, StopCircleIcon } from 'lucide-react'
 import { api } from '../services/api'
 import { useIsMobile } from '../hooks/use-mobile'
 import { AuthDialog } from './AuthDialog'
@@ -69,6 +69,30 @@ export function ExtendedAnalysisPage({
   const [pendingAction, setPendingAction] = useState<null | 'run' | 'config'>(null)
   const [hasLoadedCache, setHasLoadedCache] = useState(false)
   const [activeTab, setActiveTab] = useState<'chart' | 'list'>('chart')
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
+  const [runningTaskStatus, setRunningTaskStatus] = useState<any>(null)
+
+  // Check for running tasks on component mount
+  useEffect(() => {
+    const checkRunningTask = async () => {
+      try {
+        const status = await api.getRunningExtendedAnalysisStatus()
+        if (status.status === 'running') {
+          setCurrentTaskId(status.task_id)
+          setRunningTaskStatus(status)
+          onLoadingChange(true)
+          onSuccessChange(status.message || '正在运行扩展分析...')
+          // Start polling for this task
+          startTaskPolling(status.task_id)
+        }
+      } catch (error) {
+        // Silently ignore if no running task
+        console.log('No running extended analysis task found')
+      }
+    }
+
+    checkRunningTask()
+  }, [])
 
   // Load cached results on component mount
   useEffect(() => {
@@ -91,6 +115,44 @@ export function ExtendedAnalysisPage({
     loadCachedResults()
   }, [result, hasLoadedCache, isRunning, onResultChange])
 
+  const startTaskPolling = (taskId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const taskStatus = await api.getExtendedAnalysisTaskStatus(taskId)
+        setRunningTaskStatus(taskStatus)
+        onSuccessChange(taskStatus.message || '正在运行扩展分析...')
+        
+        if (taskStatus.status === 'completed') {
+          clearInterval(pollInterval)
+          if (taskStatus.result) {
+            onResultChange(taskStatus.result)
+            onSuccessChange(`分析完成！找到 ${taskStatus.result.total_sectors_with_hotspots} 个包含热点股票的板块`)
+            setTimeout(() => onSuccessChange(null), 3000)
+          }
+          onLoadingChange(false)
+          setCurrentTaskId(null)
+          setRunningTaskStatus(null)
+        } else if (taskStatus.status === 'failed') {
+          clearInterval(pollInterval)
+          onErrorChange(taskStatus.error || '扩展分析失败')
+          onSuccessChange(null)
+          onLoadingChange(false)
+          setCurrentTaskId(null)
+          setRunningTaskStatus(null)
+        }
+      } catch (error) {
+        clearInterval(pollInterval)
+        onErrorChange('获取任务状态失败')
+        onLoadingChange(false)
+        setCurrentTaskId(null)
+        setRunningTaskStatus(null)
+      }
+    }, 2000) // Poll every 2 seconds
+    
+    // Store interval for cleanup
+    return pollInterval
+  }
+
   const runAnalysis = async (forceRefresh: boolean = false) => {
     onLoadingChange(true)
     onErrorChange(null)
@@ -103,7 +165,11 @@ export function ExtendedAnalysisPage({
     // 通过 SSE 获取过程反馈
     const close = api.createExtendedAnalysisStream((type, payload) => {
       if (type === 'start') {
-        // 开始
+        // 开始 - 获取任务ID
+        const taskId = payload?.task_id
+        if (taskId) {
+          setCurrentTaskId(taskId)
+        }
       } else if (type === 'progress') {
         // 实时进度提示
         const msg = payload?.message || '正在计算扩展分析...'
@@ -119,10 +185,14 @@ export function ExtendedAnalysisPage({
           setTimeout(() => onSuccessChange(null), 3000)
         }
         onLoadingChange(false)
+        setCurrentTaskId(null)
+        setRunningTaskStatus(null)
       } else if (type === 'error') {
         onErrorChange(payload?.error || '运行分析时发生错误')
         onSuccessChange(null)
         onLoadingChange(false)
+        setCurrentTaskId(null)
+        setRunningTaskStatus(null)
       }
     })
 
@@ -153,6 +223,23 @@ export function ExtendedAnalysisPage({
     } else {
       setPendingAction('config')
       setShowAuthDialog(true)
+    }
+  }
+
+  const handleStopClick = async () => {
+    if (currentTaskId) {
+      try {
+        await api.stopExtendedAnalysisTask(currentTaskId)
+        onSuccessChange('已请求停止任务...')
+        setTimeout(() => {
+          onLoadingChange(false)
+          setCurrentTaskId(null)
+          setRunningTaskStatus(null)
+          onSuccessChange(null)
+        }, 2000)
+      } catch (error) {
+        onErrorChange('停止任务失败')
+      }
     }
   }
 
@@ -198,6 +285,16 @@ export function ExtendedAnalysisPage({
           >
             配置
           </Button>
+          {isRunning && currentTaskId ? (
+            <Button 
+              onClick={handleStopClick}
+              variant="outline"
+              className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <StopCircleIcon size={16} />
+              停止任务
+            </Button>
+          ) : null}
           <Button 
             onClick={handleRunClick}
             disabled={isRunning}
@@ -232,6 +329,11 @@ export function ExtendedAnalysisPage({
         <div className="bg-green-50 border border-green-200 rounded-md p-1">
           <div className="text-green-800">
             {successMessage}
+            {currentTaskId && isRunning && (
+              <span className="text-xs text-green-600 ml-2">
+                (任务ID: {currentTaskId.slice(0, 8)})
+              </span>
+            )}
           </div>
         </div>
       )}

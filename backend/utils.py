@@ -27,6 +27,10 @@ TASK_STOP_EVENTS: Dict[str, _threading.Event] = {}
 EXTENDED_ANALYSIS_THREADS: Dict[str, _threading.Thread] = {}
 EXTENDED_ANALYSIS_STOP_EVENTS: Dict[str, _threading.Event] = {}
 
+# Extended analysis task tracking
+EXTENDED_ANALYSIS_TASKS: Dict[str, Dict] = {}
+LAST_COMPLETED_EXTENDED_ANALYSIS: Optional[Dict] = None
+
 # Global concept task storage
 CONCEPT_TASKS: Dict[str, ConceptTask] = {}
 LAST_COMPLETED_CONCEPT_TASK: Optional[ConceptTask] = None
@@ -118,3 +122,68 @@ def get_last_completed_concept_task() -> Optional[ConceptTask]:
 def get_all_concept_tasks() -> Dict[str, ConceptTask]:
     """Get all concept tasks"""
     return CONCEPT_TASKS
+
+
+# Extended analysis task management functions
+
+def add_extended_analysis_task(task_id: str, status: str = "running", message: str = "开始扩展分析") -> None:
+    """Add extended analysis task to tracking"""
+    EXTENDED_ANALYSIS_TASKS[task_id] = {
+        "task_id": task_id,
+        "status": status,
+        "message": message,
+        "created_at": datetime.now().isoformat(),
+        "progress": 0.0
+    }
+    logger.info(f"Extended analysis task {task_id} added to tracking")
+
+
+def update_extended_analysis_task(task_id: str, status: str = None, message: str = None, progress: float = None) -> None:
+    """Update extended analysis task status"""
+    if task_id in EXTENDED_ANALYSIS_TASKS:
+        task = EXTENDED_ANALYSIS_TASKS[task_id]
+        if status:
+            task["status"] = status
+        if message:
+            task["message"] = message
+        if progress is not None:
+            task["progress"] = progress
+        if status in ["completed", "failed"]:
+            task["completed_at"] = datetime.now().isoformat()
+        logger.info(f"Extended analysis task {task_id}: {status or task['status']} - {message or task['message']}")
+
+
+def get_extended_analysis_task(task_id: str) -> Optional[Dict]:
+    """Get extended analysis task by ID"""
+    return EXTENDED_ANALYSIS_TASKS.get(task_id)
+
+
+def get_running_extended_analysis_task() -> Optional[Dict]:
+    """Get currently running extended analysis task"""
+    for task in EXTENDED_ANALYSIS_TASKS.values():
+        if task["status"] == "running":
+            return task
+    return None
+
+
+def complete_extended_analysis_task(task_id: str, result: Dict = None, error: str = None) -> None:
+    """Complete extended analysis task"""
+    global LAST_COMPLETED_EXTENDED_ANALYSIS
+    if task_id in EXTENDED_ANALYSIS_TASKS:
+        task = EXTENDED_ANALYSIS_TASKS[task_id]
+        if error:
+            task["status"] = "failed"
+            task["error"] = error
+            task["message"] = f"扩展分析失败: {error}"
+        else:
+            task["status"] = "completed"
+            task["message"] = "扩展分析完成"
+            task["result"] = result
+            LAST_COMPLETED_EXTENDED_ANALYSIS = task
+        task["completed_at"] = datetime.now().isoformat()
+        logger.info(f"Extended analysis task {task_id} completed with status: {task['status']}")
+
+
+def get_all_extended_analysis_tasks() -> Dict[str, Dict]:
+    """Get all extended analysis tasks"""
+    return EXTENDED_ANALYSIS_TASKS

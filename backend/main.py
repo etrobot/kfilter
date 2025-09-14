@@ -41,7 +41,8 @@ from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
     list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard,
-    run_extended_analysis, stop_extended_analysis, login_user, get_zai_config, update_zai_config
+    run_extended_analysis, stop_extended_analysis, login_user, get_zai_config, update_zai_config,
+    get_extended_analysis_task_status, get_running_extended_analysis_status
 )
 from factors import list_factors
 
@@ -236,6 +237,18 @@ def clear_extended_analysis_cache_endpoint():
 def stop_extended_analysis_endpoint(task_id: str):
     """Stop a running extended analysis task"""
     return stop_extended_analysis(task_id)
+
+
+@app.get("/extended-analysis/{task_id}/status")
+def get_extended_analysis_task_status_endpoint(task_id: str):
+    """Get status of a specific extended analysis task"""
+    return get_extended_analysis_task_status(task_id)
+
+
+@app.get("/extended-analysis/status")
+def get_running_extended_analysis_status_endpoint():
+    """Get status of currently running extended analysis task"""
+    return get_running_extended_analysis_status()
 
 
 # Authentication routes

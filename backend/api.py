@@ -6,7 +6,10 @@ from sqlmodel import select, func
 from utils import (
     get_task, get_all_tasks, get_last_completed_task,
     get_concept_task, get_all_concept_tasks, get_last_completed_concept_task,
-    EXTENDED_ANALYSIS_THREADS, EXTENDED_ANALYSIS_STOP_EVENTS
+    EXTENDED_ANALYSIS_THREADS, EXTENDED_ANALYSIS_STOP_EVENTS,
+    add_extended_analysis_task, update_extended_analysis_task, 
+    get_extended_analysis_task, get_running_extended_analysis_task,
+    complete_extended_analysis_task, get_all_extended_analysis_tasks
 )
 from data_management.services import create_analysis_task
 from utils import TASK_STOP_EVENTS, get_task
@@ -271,9 +274,18 @@ def run_extended_analysis_stream():
     from data_management.chart_data_generator import generate_category_based_sunburst_chart_data
     from uuid import uuid4
 
+    # Check if there's already a running task
+    running_task = get_running_extended_analysis_task()
+    if running_task:
+        # Return existing task stream or error
+        return {"error": f"扩展分析任务已在运行中 (任务ID: {running_task['task_id']})"}
+
     # Generate a unique task ID for this extended analysis
     task_id = str(uuid4())
     result_holder = {"done": False, "result": None, "error": None, "last_msg": None, "task_id": task_id}
+
+    # Add task to tracking system
+    add_extended_analysis_task(task_id, "running", "开始扩展分析")
 
     # Create stop event for cancellation
     stop_event = threading.Event()
@@ -284,8 +296,16 @@ def run_extended_analysis_stream():
             def _on_progress(msg: str):
                 # 使用队列或直接yield不方便，这里简单地更新最近消息，由主循环按tick发出
                 result_holder["last_msg"] = msg
+                update_extended_analysis_task(task_id, message=msg)
+            
             res = run_standalone_extended_analysis(on_progress=_on_progress, stop_event=stop_event)
-            if isinstance(res, dict) and 'error' in res:
+            
+            if stop_event.is_set():
+                # Task was cancelled
+                complete_extended_analysis_task(task_id, error="任务已被取消")
+                result_holder["error"] = "任务已被取消"
+            elif isinstance(res, dict) and 'error' in res:
+                complete_extended_analysis_task(task_id, error=res.get('error'))
                 result_holder["error"] = res.get('error')
             else:
                 # Generate sunburst data and add to result
@@ -294,11 +314,14 @@ def run_extended_analysis_stream():
                         sunburst_data = generate_category_based_sunburst_chart_data(res['sectors'])
                         res['sunburst_data'] = sunburst_data
                         result_holder["last_msg"] = "生成旭日图数据完成"
+                        update_extended_analysis_task(task_id, message="生成旭日图数据完成")
                     except Exception as e:
                         logger.warning(f"Failed to generate sunburst data: {e}")
                         res['sunburst_data'] = None
+                complete_extended_analysis_task(task_id, result=res)
                 result_holder["result"] = res
         except Exception as e:
+            complete_extended_analysis_task(task_id, error=str(e))
             result_holder["error"] = str(e)
         finally:
             result_holder["done"] = True
@@ -349,12 +372,33 @@ def stop_extended_analysis(task_id: str) -> dict:
 
     # Signal cancellation
     stop_event.set()
+    
+    # Update task status
+    update_extended_analysis_task(task_id, status="stopping", message="已请求停止扩展分析，正在清理...")
 
     return {
         "task_id": task_id,
         "status": "stopping",
         "message": "已请求停止扩展分析，正在清理..."
     }
+
+
+def get_extended_analysis_task_status(task_id: str) -> dict:
+    """Get status of a specific extended analysis task"""
+    task = get_extended_analysis_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Extended analysis task not found")
+    
+    return task
+
+
+def get_running_extended_analysis_status() -> dict:
+    """Get status of currently running extended analysis task"""
+    running_task = get_running_extended_analysis_task()
+    if not running_task:
+        return {"status": "idle", "message": "没有正在运行的扩展分析任务"}
+    
+    return running_task
 
 
 # Configuration API functions

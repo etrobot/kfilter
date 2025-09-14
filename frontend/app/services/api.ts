@@ -124,6 +124,20 @@ export const api = {
     })
   },
 
+  async getExtendedAnalysisTaskStatus(taskId: string): Promise<any> {
+    return apiCall<any>(`/extended-analysis/${taskId}/status`)
+  },
+
+  async getRunningExtendedAnalysisStatus(): Promise<any> {
+    return apiCall<any>('/extended-analysis/status')
+  },
+
+  async stopExtendedAnalysisTask(taskId: string): Promise<any> {
+    return apiCall<any>(`/extended-analysis/${taskId}/stop`, {
+      method: 'POST',
+    })
+  },
+
   // Config APIs
   async getZaiConfig(): Promise<{
     configured: boolean
