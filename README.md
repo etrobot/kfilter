@@ -17,11 +17,15 @@
 - **面板观察**：实时监控市场情绪和波动性
 - **K线统计**：分析大成交额股票过去几十天的最长K线
 - **交易决策**：当市场出现大量大阳或大阴线时建议谨慎，优选大部分小阳线的市场环境
+<img width="2400" height="1800" alt="WX20250914-200002@2x" src="https://github.com/user-attachments/assets/01d5a1ef-4312-4245-8638-4855bd4ab80b" />
+<img width="2400" height="1800" alt="WX20250914-200036@2x" src="https://github.com/user-attachments/assets/7a0a24a1-7714-453f-b230-04eaf3f618e3" />
 
 ### 扩展分析方法论
 - **逆向深度搜索**：基于智谱Z.ai的深度搜索能力，反向分析概念投资机会
 - **AI概念评估**：使用免费LLM模型，对搜索到的概念进行智能评估
 - **实时热点捕捉**：基于市场实时热点股票数据，动态更新分析结果
+<img width="2400" height="1800" alt="WX20250914-195942@2x" src="https://github.com/user-attachments/assets/a0519af5-9330-4b2a-bcd3-c8f3162416cf" />
+
 
 ## 🏗️ 技术架构
 
