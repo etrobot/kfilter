@@ -202,7 +202,7 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "data_management" / "s
 # 确保数据库目录存在
 Path(DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL, echo=False)
 
 
 def create_db_and_tables():

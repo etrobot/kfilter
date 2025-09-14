@@ -11,6 +11,8 @@ import threading as _threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+# Suppress verbose SQLAlchemy logging
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Global task storage

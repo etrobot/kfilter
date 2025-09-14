@@ -7,6 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
+
+# Suppress verbose SQLAlchemy logging IMMEDIATELY
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.engine.Engine').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
+
 from config import load_config_json,set_system_config
 import os
 

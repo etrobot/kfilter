@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BarChart3, Lightbulb, TrendingUp, Target } from 'lucide-react'
 import { PageHeader } from './components/PageHeader'
 import { TaskProgressCard } from './components/TaskProgressCard'
 import { ResultsTable } from './components/ResultsTable'
 import { ConceptsPage } from './components/ConceptsPage'
 import { DashboardPage } from './components/DashboardPage'
 import { ExtendedAnalysisPage } from './components/ExtendedAnalysisPage'
-import { MobileNavigation } from './components/MobileNavigation'
+import { Navigation } from './components/Navigation'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt'
 import { api, createTaskStatusPoller } from './services/api'
@@ -201,57 +200,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex w-full">
-      {/* Desktop Sidebar - hidden on mobile */}
-      {!isMobile && (
-        <nav className="bg-white shadow-md w-20 flex flex-col">
-          <div className="flex flex-col space-y-4 p-4">
-            <button
-              onClick={() => setCurrentPage('dashboard')}
-              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-                currentPage === 'dashboard'
-                  ? 'bg-indigo-100 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <TrendingUp size={24} />
-              <span className="text-xs mt-1">面板</span>
-            </button>
-            <button
-              onClick={() => setCurrentPage('ranking')}
-              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-                currentPage === 'ranking'
-                  ? 'bg-indigo-100 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <BarChart3 size={24} />
-              <span className="text-xs mt-1">分析</span>
-            </button>
-            <button
-              onClick={() => setCurrentPage('extended-analysis')}
-              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-                currentPage === 'extended-analysis'
-                  ? 'bg-indigo-100 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <Target size={24} />
-              <span className="text-xs mt-1">扩展</span>
-            </button>
-            <button
-              onClick={() => setCurrentPage('concepts')}
-              className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${
-                currentPage === 'concepts'
-                  ? 'bg-indigo-100 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <Lightbulb size={24} />
-              <span className="text-xs mt-1">概念</span>
-            </button>
-          </div>
-        </nav>
-      )}
+      {/* Navigation - responsive (handles both desktop and mobile) */}
+      <Navigation 
+        currentPage={currentPage} 
+        setCurrentPage={setCurrentPage} 
+      />
 
       {/* Main Content */}
       <div className={`flex-1 ${isMobile ? 'pb-16' : ''} w-full`}>
@@ -297,14 +250,6 @@ function App() {
           />
         )}
       </div>
-
-      {/* Mobile Navigation */}
-      {isMobile && (
-        <MobileNavigation 
-          currentPage={currentPage} 
-          setCurrentPage={setCurrentPage} 
-        />
-      )}
 
       {/* PWA Components */}
       <PWAInstallPrompt />

@@ -198,16 +198,6 @@ def evaluate_content_with_llm(content: str,model='gpt-oss-120b') -> Dict:
                 logger.warning(f"无效的分数格式: {k} = {v}")
                 continue
     
-    if not valid_criteria:
-        logger.warning("没有找到有效的评分项")
-        return {
-            "criteria_result": result,
-            "overall_score": 0,
-            "detailed_scores": result,
-            "top_scoring_criterion": "无",
-            "top_score": 0,
-        }
-    
     # 计算总分和最高分
     total_score = sum(float(v['score']) for v in valid_criteria.values()) / 5 * 100 / len(valid_criteria)
     top_item = max(valid_criteria.items(), key=lambda x: float(x[1]['score']))
