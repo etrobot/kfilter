@@ -63,6 +63,7 @@ export type TaskResult = {
   count?: number
   extended?: ExtendedAnalysis
   error?: string
+  from_cache?: boolean
 }
 
 export type RunResponse = {
@@ -75,6 +76,7 @@ export type TaskMeta = {
   task_id?: string
   created_at?: string
   count?: number
+  from_cache?: boolean
 }
 
 export type ConceptRecord = {

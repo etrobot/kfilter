@@ -301,6 +301,8 @@ def compute_factors_and_analysis(task_id: str, top_spot: pd.DataFrame, stock_cod
 
 def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
     """完成分析任务"""
+    import json
+    import os
     from utils import set_last_completed_task
     from .services import ANALYSIS_RESULTS_CACHE, CACHE_LOCK
     
@@ -315,20 +317,33 @@ def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
     task.completed_at = datetime.now().isoformat()
     task.result = result
 
+    # Prepare full result data for JSON and cache
+    full_result = {
+        "task_id": task_id,
+        "status": task.status.value,
+        "progress": task.progress,
+        "message": task.message,
+        "completed_at": task.completed_at,
+        "created_at": task.created_at,
+        "top_n": task.top_n,
+        "selected_factors": task.selected_factors,
+        "data": result["data"],
+        "count": result["count"],
+        "from_cache": False
+    }
+
     # Store results in memory cache for frontend access
     with CACHE_LOCK:
-        ANALYSIS_RESULTS_CACHE[task_id] = {
-            "task_id": task_id,
-            "status": task.status.value,
-            "progress": task.progress,
-            "message": task.message,
-            "completed_at": task.completed_at,
-            "created_at": task.created_at,
-            "top_n": task.top_n,
-            "selected_factors": task.selected_factors,
-            "data": result["data"],
-            "count": result["count"],
-        }
+        ANALYSIS_RESULTS_CACHE[task_id] = full_result.copy()
+
+    # Save results to JSON file for persistence across server restarts
+    try:
+        json_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ranking.json")
+        with open(json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(full_result, f, ensure_ascii=False, indent=2)
+        logger.info(f"Analysis results saved to {json_file_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save analysis results to JSON file: {e}")
 
     set_last_completed_task(task)
     logger.info(f"Analysis completed successfully with database integration. Found {result['count']} results")

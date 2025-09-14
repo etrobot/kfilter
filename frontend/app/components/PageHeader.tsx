@@ -13,6 +13,11 @@ export function PageHeader({ meta, currentTask }: PageHeaderProps) {
       {meta?.created_at && (
         <p className="text-xs text-muted-foreground mt-1">
           最近运行: {new Date(meta.created_at).toLocaleString()} — {meta?.count ?? 0} 条记录
+          {meta.from_cache && (
+            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+              缓存数据
+            </span>
+          )}
         </p>
       )}
     </div>

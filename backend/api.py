@@ -93,24 +93,54 @@ def get_task_status(task_id: str) -> TaskResult:
 
 def get_latest_results() -> TaskResult | Message:
     """Get the latest completed task results"""
-    last_task = get_last_completed_task()
-    if not last_task:
-        return Message(message="No results yet. POST /run to start a calculation.")
+    import os
+    import json
     
-    return TaskResult(
-        task_id=last_task.task_id,
-        status=last_task.status,
-        progress=last_task.progress,
-        message=last_task.message,
-        created_at=last_task.created_at,
-        completed_at=last_task.completed_at,
-        top_n=last_task.top_n,
-        selected_factors=last_task.selected_factors,
-        data=last_task.result["data"] if last_task.result else None,
-        count=last_task.result["count"] if last_task.result else None,
-        extended=last_task.result.get("extended") if last_task.result else None,
-        error=last_task.error
-    )
+    last_task = get_last_completed_task()
+    if last_task:
+        return TaskResult(
+            task_id=last_task.task_id,
+            status=last_task.status,
+            progress=last_task.progress,
+            message=last_task.message,
+            created_at=last_task.created_at,
+            completed_at=last_task.completed_at,
+            top_n=last_task.top_n,
+            selected_factors=last_task.selected_factors,
+            data=last_task.result["data"] if last_task.result else None,
+            count=last_task.result["count"] if last_task.result else None,
+            extended=last_task.result.get("extended") if last_task.result else None,
+            error=last_task.error
+        )
+    
+    # If no task in memory, try to load from JSON file
+    json_file = "ranking.json"
+    if os.path.exists(json_file):
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                cached_result = json.load(f)
+            
+            # Mark as from cache
+            cached_result['from_cache'] = True
+            
+            return TaskResult(
+                task_id=cached_result.get("task_id", "cached"),
+                status=cached_result.get("status", "completed"),
+                progress=cached_result.get("progress", 1.0),
+                message=cached_result.get("message", "从缓存加载的分析结果"),
+                created_at=cached_result.get("created_at", ""),
+                completed_at=cached_result.get("completed_at", ""),
+                top_n=cached_result.get("top_n", 0),
+                selected_factors=cached_result.get("selected_factors", []),
+                data=cached_result.get("data", []),
+                count=cached_result.get("count", 0),
+                extended=cached_result.get("extended"),
+                error=None
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load ranking results from {json_file}: {e}")
+    
+    return Message(message="No results yet. POST /run to start a calculation.")
 
 
 def list_all_tasks() -> List[TaskResult]:

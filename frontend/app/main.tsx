@@ -97,7 +97,8 @@ function App() {
         setMeta({ 
           task_id: task.task_id, 
           created_at: task.created_at, 
-          count: task.count 
+          count: task.count,
+          from_cache: task.from_cache
         })
         setExtended((task as any).extended || null)
         setCurrentTask(null)
@@ -135,6 +136,7 @@ function App() {
             task_id: result.task_id,
             created_at: result.created_at,
             count: result.count,
+            from_cache: result.from_cache
           })
           setExtended((result as any).extended || null)
         }
@@ -168,6 +170,7 @@ function App() {
                   task_id: task.task_id,
                   created_at: task.created_at,
                   count: task.count,
+                  from_cache: task.from_cache
                 })
                 setExtended((task as any).extended || null)
                 setCurrentTask(null)
