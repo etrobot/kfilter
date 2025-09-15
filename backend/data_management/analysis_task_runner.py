@@ -13,7 +13,7 @@ from utils import (
     get_task, 
     update_task_progress,
 )
-from market_data import fetch_hot_spot, fetch_history, compute_factors
+from market_data import fetch_hot_spot, fetch_history, compute_factors, fetch_dragon_tiger_data
 from .stock_data_manager import (
     save_daily_data,
     save_stock_basic_info,
@@ -74,7 +74,7 @@ def collect_spot_data_and_select_stocks(task_id: str, top_n: int, latest_trade_d
     return spot, stock_codes, False
 
 
-def check_and_upsert_spot_data(task_id: str, spot: pd.DataFrame, latest_trade_date) -> bool:
+def check_and_upsert_spot_data(task_id: str,stock_codes: List[str], spot: pd.DataFrame, latest_trade_date) -> bool:
     """检查是否需要upsert spot数据到日K数据库"""
     update_task_progress(task_id, 0.18, "检查是否需要更新当日K线数据")
     
@@ -94,8 +94,7 @@ def check_and_upsert_spot_data(task_id: str, spot: pd.DataFrame, latest_trade_da
             select(func.count(DailyMarketData.id))
             .where(DailyMarketData.date == previous_trade_date)
         ).first()
-        # logger.info(f"Found {previous_data_count} records for previous_trade_date: {previous_trade_date}")
-        
+
         # 只有当今天有数据且前一个交易日也有数据时，才进行upsert
         if latest_data_count == 0:
             should_upsert_spot = False
@@ -106,7 +105,18 @@ def check_and_upsert_spot_data(task_id: str, spot: pd.DataFrame, latest_trade_da
         else:
             should_upsert_spot = True
             logger.info(f"Found {latest_data_count} records for {latest_trade_date} and {previous_data_count} records for {previous_trade_date}, will upsert spot data")
-    
+
+        # 检查是否所有代码都有数据
+        has_all_codes_data = session.exec(
+            select(func.count(DailyMarketData.id))
+            .where(DailyMarketData.code.in_(stock_codes))
+        ).all()
+        logger.info(f"Found {has_all_codes_data} records for {stock_codes}")
+
+        if len(has_all_codes_data) != len(stock_codes):
+            should_upsert_spot = False
+            logger.info(f"Not all codes have daily K data, will upsert spot data")
+        
     if should_upsert_spot:
         # 添加日期列到spot数据进行upsert
         spot_with_date = spot.copy()
@@ -368,18 +378,23 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     latest_trade_date, has_error = get_latest_trade_date_and_setup(task_id)
     if has_error or check_cancel():
         return
-    
+
     # 初始化是否需要upsert spot数据的标志
     should_upsert_spot = False
-    
+
     if collect_latest_data:
         # Step 2: 收集实时数据并筛选股票
         top_spot, stock_codes, has_error = collect_spot_data_and_select_stocks(task_id, top_n, latest_trade_date)
+        dragon_tiger_codes = fetch_dragon_tiger_data(
+            page_number=1, page_size=100, statistics_cycle="04"
+        )["代码"].tolist()
+        stock_codes = list(set(stock_codes + dragon_tiger_codes))
+        print('number:', len(stock_codes))
         if has_error or check_cancel():
             return
         
         # Step 3: 检查并upsert spot数据
-        should_upsert_spot = check_and_upsert_spot_data(task_id, top_spot, latest_trade_date)
+        should_upsert_spot = check_and_upsert_spot_data(task_id, stock_codes, top_spot, latest_trade_date)
         if check_cancel():
             return
     else:
@@ -387,6 +402,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         top_spot, stock_codes, has_error = get_stocks_from_database(task_id, top_n)
         if has_error or check_cancel():
             return
+
     
     # Step 4: 获取历史数据
     has_error = fetch_and_save_historical_data(task_id, stock_codes, should_upsert_spot, collect_latest_data, latest_trade_date)

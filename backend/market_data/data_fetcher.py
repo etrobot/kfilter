@@ -348,3 +348,163 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
 
     logger.info(f"Calculated factors for {len(result)} stocks with 换手板 counts")
     return result
+
+def fetch_dragon_tiger_data(page_number: int = 1, page_size: int = 50, statistics_cycle: str = "04") -> pd.DataFrame:
+    """
+    获取东方财富网龙虎榜数据
+    
+    Parameters:
+    - page_number: 页码，默认第1页
+    - page_size: 每页数据量，默认50条  
+    - statistics_cycle: 统计周期，"04"表示近一年
+    
+    Returns:
+    - pandas.DataFrame: 龙虎榜数据
+    """
+    import requests
+    import pandas as pd
+    import json
+    import re
+    import time
+    
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    headers = {
+        'Accept': '*/*',
+        'Accept-Language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5',
+        'Connection': 'keep-alive',
+        'Referer': 'https://data.eastmoney.com/stock/stockstatistic.html',
+        'Sec-Fetch-Dest': 'script',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'same-site',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"'
+    }
+    
+    # 生成回调函数名（模拟jQuery）
+    callback_name = f"jQuery{int(time.time() * 1000)}_{int(time.time() * 1000000)}"
+    
+    params = {
+        'callback': callback_name,
+        'sortColumns': 'BILLBOARD_TIMES,LATEST_TDATE,SECURITY_CODE',
+        'sortTypes': '-1,-1,1',
+        'pageSize': str(page_size),
+        'pageNumber': str(page_number),
+        'reportName': 'RPT_BILLBOARD_TRADEALLNEW',
+        'columns': 'ALL',
+        'source': 'WEB',
+        'client': 'WEB',
+        'filter': f'(STATISTICS_CYCLE="{statistics_cycle}")'
+    }
+    
+    response = requests.get(url, params=params, headers=headers, timeout=15)
+    response.raise_for_status()
+    
+    # 获取响应文本
+    response_text = response.text
+    
+    # 解析JSONP响应
+    if response_text.startswith(callback_name):
+        # 提取JSON数据（去掉JSONP回调函数包装）
+        json_match = re.search(r'\((.*)\)', response_text)
+        if json_match:
+            json_str = json_match.group(1)
+            data_json = json.loads(json_str)
+        else:
+            raise ValueError("无法解析JSONP响应")
+    else:
+        # 直接解析JSON
+        data_json = response.json()
+    
+    # 检查数据结构
+    if 'result' not in data_json or 'data' not in data_json['result']:
+        raise ValueError("API返回数据结构不正确")
+    
+    # 创建DataFrame
+    temp_df = pd.DataFrame(data_json['result']['data'])
+    
+    if temp_df.empty:
+        print("警告：获取到的数据为空")
+        return pd.DataFrame()
+    
+    # 定义列名映射
+    column_mapping = {
+        'SECURITY_CODE': '代码',
+        'SECURITY_NAME_ABBR': '名称',
+        'LATEST_TDATE': '最近上榜日',
+        'CLOSE_PRICE': '收盘价',
+        'CHANGE_RATE': '涨跌幅',
+        'BILLBOARD_TIMES': '上榜次数',
+        'BILLBOARD_NET_BUY': '龙虎榜净买额',
+        'BILLBOARD_BUY_AMT': '龙虎榜买入额',
+        'BILLBOARD_SELL_AMT': '龙虎榜卖出额',
+        'BILLBOARD_DEAL_AMT': '龙虎榜总成交额',
+        'ORG_BUY_TIMES': '买方机构次数',
+        'ORG_SELL_TIMES': '卖方机构次数',
+        'ORG_NET_BUY': '机构买入净额',
+        'ORG_BUY_AMT': '机构买入总额',
+        'ORG_SELL_AMT': '机构卖出总额',
+        'IPCT1M': '近1个月涨跌幅',
+        'IPCT3M': '近3个月涨跌幅',
+        'IPCT6M': '近6个月涨跌幅',
+        'IPCT1Y': '近1年涨跌幅'
+    }
+    
+    # 重命名列
+    temp_df.rename(columns=column_mapping, inplace=True)
+    
+    # 过滤退市和ST股票
+    if '名称' in temp_df.columns:
+        # 去掉名字以"退市"开头的股票
+        temp_df = temp_df[~temp_df['名称'].str.startswith('退市', na=False)]
+        # 去掉名字以"*ST"开头的股票
+        temp_df = temp_df[~temp_df['名称'].str.startswith('*ST', na=False)]
+    
+    # 添加序号列
+    temp_df.reset_index(drop=True, inplace=True)
+    temp_df['序号'] = temp_df.index + 1
+    
+    # 选择需要的列并重新排序
+    columns_order = [
+        '序号', '代码', '名称', '最近上榜日', '收盘价', '涨跌幅', '上榜次数',
+        '龙虎榜净买额', '龙虎榜买入额', '龙虎榜卖出额', '龙虎榜总成交额',
+        '买方机构次数', '卖方机构次数', '机构买入净额', '机构买入总额', '机构卖出总额',
+        '近1个月涨跌幅', '近3个月涨跌幅', '近6个月涨跌幅', '近1年涨跌幅'
+    ]
+    
+    # 只保留存在的列
+    available_columns = [col for col in columns_order if col in temp_df.columns]
+    temp_df = temp_df[available_columns]
+    
+    # 数据格式化
+    # 处理日期格式
+    if '最近上榜日' in temp_df.columns:
+        temp_df['最近上榜日'] = pd.to_datetime(temp_df['最近上榜日']).dt.strftime('%Y-%m-%d')
+    
+    # 转换金额单位（从元转为万元）
+    money_columns = [
+        '龙虎榜净买额', '龙虎榜买入额', '龙虎榜卖出额', '龙虎榜总成交额',
+        '机构买入净额', '机构买入总额', '机构卖出总额'
+    ]
+    
+    for col in money_columns:
+        if col in temp_df.columns:
+            temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce') / 10000
+            temp_df[col] = temp_df[col].round(2)
+    
+    # 数值型列处理
+    numeric_columns = [
+        '收盘价', '涨跌幅', '上榜次数', '买方机构次数', '卖方机构次数',
+        '近1个月涨跌幅', '近3个月涨跌幅', '近6个月涨跌幅', '近1年涨跌幅'
+    ] + money_columns
+    
+    for col in numeric_columns:
+        if col in temp_df.columns:
+            if col not in money_columns:  # 金额列已经处理过了
+                temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
+            if col in ['涨跌幅', '近1个月涨跌幅', '近3个月涨跌幅', '近6个月涨跌幅', '近1年涨跌幅']:
+                temp_df[col] = temp_df[col].round(2)
+    
+    return temp_df

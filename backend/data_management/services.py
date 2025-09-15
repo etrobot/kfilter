@@ -98,7 +98,7 @@ def run_analysis_wrapper(task_id: str, top_n: int, selected_factors: Optional[Li
         logger.error(f"Task {task_id} encountered an error and was marked as failed")
 
 
-def create_analysis_task(top_n: int = 100, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True) -> str:
+def create_analysis_task(top_n: int = 200, selected_factors: Optional[List[str]] = None, collect_latest_data: bool = True) -> str:
     """Create and start a new analysis task"""
     task_id = str(uuid4())
     

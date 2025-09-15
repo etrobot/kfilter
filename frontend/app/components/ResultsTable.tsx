@@ -60,7 +60,7 @@ export function ResultsTable({
 
   const handleFactorConfirm = async (selectedFactors: string[], collectLatestData: boolean) => {
     try {
-      const response = await api.startAnalysis(100, selectedFactors, collectLatestData)
+      const response = await api.startAnalysis(200, selectedFactors, collectLatestData)
       if (onRunAnalysis) {
         onRunAnalysis(response.task_id)
       }

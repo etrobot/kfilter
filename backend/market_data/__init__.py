@@ -1,7 +1,7 @@
 """Market data processing modules"""
 
-from .data_fetcher import fetch_hot_spot, fetch_history, calculate_momentum_factor, calculate_support_factor
-from .data_fetcher import compute_factors
+from .data_fetcher import fetch_hot_spot, fetch_history, fetch_dragon_tiger_data
+from .data_fetcher import compute_factors,calculate_momentum_factor, calculate_support_factor
 from .kline_processor import (
     calculate_and_save_weekly_data,
     calculate_and_save_monthly_data,
@@ -12,6 +12,7 @@ from .kline_processor import (
 __all__ = [
     'fetch_hot_spot',
     'fetch_history',
+    'fetch_dragon_tiger_data',
     'calculate_momentum_factor',
     'calculate_support_factor', 
     'compute_factors',
