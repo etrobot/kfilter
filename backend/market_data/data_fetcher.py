@@ -213,55 +213,6 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
     return history
 
 
-def calculate_momentum_factor(history: Dict[str, pd.DataFrame], period: int = 20) -> pd.DataFrame:
-    """Calculate momentum factor based on price returns over specified period"""
-    momentum_data = []
-    
-    for code, df in history.items():
-        if df is None or df.empty or len(df) < period + 1:
-            continue
-            
-        df_sorted = df.sort_values("日期")
-        
-        # Calculate momentum as return over period
-        if len(df_sorted) >= period + 1:
-            last_price = float(df_sorted["收盘"].iloc[-1])
-            first_price = float(df_sorted["收盘"].iloc[-(period + 1)])
-            momentum = (last_price - first_price) / first_price if first_price > 0 else 0
-            
-            momentum_data.append({
-                "代码": code,
-                "动量因子": momentum
-            })
-    
-    return pd.DataFrame(momentum_data)
-
-
-def calculate_support_factor(history: Dict[str, pd.DataFrame], period: int = 5) -> pd.DataFrame:
-    """Calculate support factor based on recent low prices"""
-    support_data = []
-    
-    for code, df in history.items():
-        if df is None or df.empty or len(df) < period:
-            continue
-            
-        df_sorted = df.sort_values("日期")
-        
-        # Calculate support level as mean of recent lows
-        recent_lows = df_sorted["最低"].tail(period)
-        support_level = float(recent_lows.mean())
-        
-        # Current price distance to support
-        current_price = float(df_sorted["收盘"].iloc[-1])
-        support_distance = (current_price - support_level) / support_level if support_level > 0 else 0
-        
-        support_data.append({
-            "代码": code,
-            "支撑因子": support_distance,
-            "支撑位": support_level
-        })
-    
-    return pd.DataFrame(support_data)
 
 
 def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], task_id: Optional[str] = None, selected_factors: Optional[List[str]] = None) -> pd.DataFrame:
@@ -274,7 +225,11 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
         update_task_progress(task_id, 0.7, "计算各类因子")
 
     # Filter history to only include top stocks
+    logger.info(f"开始因子计算：输入history包含 {len(history)} 个股票")
+    logger.info(f"top_spot包含 {len(top_spot)} 个股票")
     filtered_history = {code: df for code, df in history.items() if code in top_spot["代码"].values}
+    logger.info(f"过滤后的history包含 {len(filtered_history)} 个股票")
+    logger.info(f"过滤后的股票代码：{list(filtered_history.keys())[:10]}{'...' if len(filtered_history) > 10 else ''}")
 
     # Compute selected or all registered factor dataframes
     if selected_factors:
@@ -288,6 +243,8 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
         logger.warning("No factor data calculated")
         # Still return basic info if available
         factors_df = pd.DataFrame({"代码": list(filtered_history.keys())})
+    else:
+        logger.info(f"因子计算完成，返回 {len(factors_df)} 个股票的因子数据")
 
     # Calculate count of '换手板' occurrences within the analysis window
     hs_counts = []
@@ -346,6 +303,7 @@ def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], ta
     if task_id:
         update_task_progress(task_id, 0.9, "计算因子评分")
 
+    logger.info(f"最终结果包含 {len(result)} 个股票")
     logger.info(f"Calculated factors for {len(result)} stocks with 换手板 counts")
     return result
 

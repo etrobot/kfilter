@@ -133,6 +133,7 @@ def check_and_upsert_spot_data(task_id: str,stock_codes: List[str], spot: pd.Dat
 
 def get_stocks_from_database(task_id: str, top_n: int) -> tuple[pd.DataFrame, List[str], bool]:
     """从数据库获取股票数据（当不收集最新数据时使用）"""
+    
     update_task_progress(task_id, 0.15, "使用历史数据进行分析（跳过热点数据采集）")
     
     # 从数据库获取股票代码（最近有足够数据的股票）
@@ -145,7 +146,6 @@ def get_stocks_from_database(task_id: str, top_n: int) -> tuple[pd.DataFrame, Li
             .order_by(func.count(DailyMarketData.id).desc())
             .limit(top_n * 2)  # 获取更多候选
         ).all()
-        
         if stocks_with_data:
             # 获取这些股票的最新日期
             candidate_codes = [code for code, _ in stocks_with_data]
@@ -155,38 +155,29 @@ def get_stocks_from_database(task_id: str, top_n: int) -> tuple[pd.DataFrame, Li
             ).first()
             
             if recent_date:
-                # 从候选股票中获取最近交易日按成交额排序的top股票
-                from models import StockBasicInfo
+                # 从候选股票中获取最近交易日按成交额排序的股票（不依赖StockBasicInfo）
                 recent_stocks = session.exec(
-                    select(DailyMarketData.code, DailyMarketData.amount, StockBasicInfo.name)
-                    .join(StockBasicInfo, DailyMarketData.code == StockBasicInfo.code)
+                    select(DailyMarketData.code, DailyMarketData.amount)
                     .where(
                         DailyMarketData.date == recent_date,
                         DailyMarketData.code.in_(candidate_codes)
                     )
                     .order_by(DailyMarketData.amount.desc())
-                    .limit(top_n)
                 ).all()
                 
                 if recent_stocks:
                     top_spot = pd.DataFrame([
-                        {"代码": code, "名称": name, "成交额": amount}
-                        for code, amount, name in recent_stocks
+                        {"代码": code, "名称": code, "成交额": amount}
+                        for code, amount in recent_stocks
                     ])
                     stock_codes = top_spot["代码"].tolist()
                     logger.info(f"Selected top {len(top_spot)} stocks with sufficient data from database (date: {recent_date})")
                     return top_spot, stock_codes, False
                 else:
-                    # 后备方案：使用前N个有足够数据的股票
-                    from models import StockBasicInfo
-                    fallback_stocks = session.exec(
-                        select(StockBasicInfo.code, StockBasicInfo.name)
-                        .where(StockBasicInfo.code.in_(candidate_codes))
-                        .limit(top_n)
-                    ).all()
+                    # 后备方案：直接使用候选股票代码
                     top_spot = pd.DataFrame([
-                        {"代码": code, "名称": name}
-                        for code, name in fallback_stocks
+                        {"代码": code, "名称": code}
+                        for code in candidate_codes
                     ])
                     stock_codes = top_spot["代码"].tolist()
                     logger.info(f"Using fallback: selected {len(top_spot)} stocks with sufficient data")
@@ -197,23 +188,61 @@ def get_stocks_from_database(task_id: str, top_n: int) -> tuple[pd.DataFrame, Li
             raise Exception("No stocks found with sufficient historical data (>=35 days). Please run with 'collect_latest_data=True' first.")
 
 
-def fetch_and_save_historical_data(task_id: str, stock_codes: List[str], should_upsert_spot: bool, collect_latest_data: bool, latest_trade_date: date) -> bool:
-    """获取并保存历史数据"""
+def fetch_and_save_historical_data(task_id: str, stock_codes: List[str], should_upsert_spot: bool, collect_latest_data: bool, latest_trade_date: date, stop_event: Optional[threading.Event] = None) -> bool:
+    """获取并保存历史数据 - 改进为批量处理，获取一批存一批"""
     if collect_latest_data:
         if not should_upsert_spot:
             # 如果没有最新交易日数据，获取历史数据进行回填
-            update_task_progress(task_id, 0.25, "从外部API获取历史数据")
+            update_task_progress(task_id, 0.25, "从外部API分批获取历史数据")
             
-            # 直接获取所有股票的最近365天数据并upsert
             end_date_str = latest_trade_date.strftime("%Y%m%d")
-            history = fetch_history(stock_codes, end_date=end_date_str, days=365, task_id=task_id)
+            total_stocks = len(stock_codes)
             
-            if history:
-                update_task_progress(task_id, 0.35, "保存历史数据到数据库")
-                save_daily_data(history)
-                logger.info(f"Upserted historical data for {len(history)} stocks")
-            else:
-                logger.warning("No historical data fetched")
+            logger.info(f"开始逐个获取历史数据，总共 {total_stocks} 个股票")
+            
+            successful_count = 0
+            failed_count = 0
+            
+            for i, stock_code in enumerate(stock_codes):
+                # 检查任务是否被取消
+                if stop_event and stop_event.is_set():
+                    logger.info(f"任务被取消，已处理 {successful_count} 个股票")
+                    return True
+                
+                # 更新进度
+                progress = 0.25 + (0.1 * i / total_stocks)  # 从0.25到0.35
+                update_task_progress(task_id, progress, f"获取第 {i+1}/{total_stocks} 个股票历史数据: {stock_code}")
+                
+                try:
+                    # 获取单个股票的历史数据（不传递task_id避免内部进度显示干扰）
+                    stock_history = fetch_history([stock_code], end_date=end_date_str, days=365, task_id=None)
+                    
+                    if stock_history:
+                        # 立即保存单个股票的数据
+                        save_daily_data(stock_history)
+                        logger.info(f"第 {i+1}/{total_stocks} 个股票 {stock_code} 历史数据保存完成，包含 {len(stock_history)} 条记录")
+                        successful_count += 1
+                    else:
+                        logger.warning(f"第 {i+1}/{total_stocks} 个股票 {stock_code} 未获取到历史数据")
+                        failed_count += 1
+                        
+                except Exception as e:
+                    logger.error(f"第 {i+1}/{total_stocks} 个股票 {stock_code} 历史数据获取/保存失败: {e}")
+                    failed_count += 1
+                    # 继续处理下一个股票，不中断整个流程
+                    continue
+            
+            update_task_progress(task_id, 0.35, f"历史数据获取完成，成功 {successful_count} 个，失败 {failed_count} 个")
+            logger.info(f"历史数据获取完成：成功 {successful_count}/{total_stocks} 个股票")
+            
+            # 如果失败股票过多，记录警告
+            if failed_count > successful_count:
+                logger.warning(f"历史数据获取失败股票较多: {failed_count}/{total_stocks}")
+            
+            # 只要有成功的股票就继续，不因为部分失败而终止
+            if successful_count == 0:
+                logger.error("所有股票都获取失败，无法继续分析")
+                return True  # 返回错误
         else:
             # 如果upsert了spot数据，跳过外部API调用，因为我们有当前数据
             update_task_progress(task_id, 0.35, "跳过外部API调用（已upsert当日spot数据）")
@@ -262,19 +291,56 @@ def calculate_weekly_monthly_data(task_id: str, stock_codes: List[str], should_u
     return False
 
 
-def compute_factors_and_analysis(task_id: str, top_spot: pd.DataFrame, stock_codes: List[str], 
+def compute_factors_and_analysis(task_id: str, stock_codes: List[str], 
                                 latest_trade_date, selected_factors: Optional[List[str]] = None) -> Dict[str, Any]:
     """计算因子并进行分析"""
     # Step 7: 从数据库加载数据进行因子计算
     update_task_progress(task_id, 0.7, "从数据库加载数据进行因子计算")
     
+    print(f"🔍 compute_factors_and_analysis: 分析 {len(stock_codes)} 个股票")
+    
     # 从数据库加载历史数据用于因子计算
     history_for_factors = load_daily_data_for_analysis(stock_codes, limit=120)
+    
+    # 直接从数据库构建所有股票的spot数据
+    print(f"🔧 从数据库构建 {len(stock_codes)} 个股票的spot数据...")
+    
+    from models import StockBasicInfo
+    from sqlmodel import Session, select
+    
+    complete_spot_data = []
+    
+    # 从数据库获取所有股票的基本信息和最新价格
+    with Session(engine) as session:
+        for code in stock_codes:
+            # 获取股票名称
+            stock_info = session.exec(
+                select(StockBasicInfo.name).where(StockBasicInfo.code == code)
+            ).first()
+            
+            # 获取最新价格和成交额
+            latest_data = session.exec(
+                select(DailyMarketData.close_price, DailyMarketData.amount)
+                .where(DailyMarketData.code == code)
+                .order_by(DailyMarketData.date.desc())
+                .limit(1)
+            ).first()
+            
+            complete_spot_data.append({
+                "代码": code,
+                "名称": stock_info or code,
+                "最新价": latest_data[0] if latest_data else 0,
+                "成交额": latest_data[1] if latest_data else 0
+            })
+    
+    # 创建完整的DataFrame
+    complete_spot = pd.DataFrame(complete_spot_data)
+    print(f"✅ 构建的spot数据包含 {len(complete_spot)} 个股票")
     
     # Step 8: 计算因子
     factor_msg = f"计算{'选定' if selected_factors else '所有'}因子"
     update_task_progress(task_id, 0.85, factor_msg)
-    df = compute_factors(top_spot, history_for_factors, task_id=task_id, selected_factors=selected_factors)
+    df = compute_factors(complete_spot, history_for_factors, task_id=task_id, selected_factors=selected_factors)
     
     update_task_progress(task_id, 0.95, "数据清理和格式化")
     
@@ -385,11 +451,26 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
     if collect_latest_data:
         # Step 2: 收集实时数据并筛选股票
         top_spot, stock_codes, has_error = collect_spot_data_and_select_stocks(task_id, top_n, latest_trade_date)
-        dragon_tiger_codes = fetch_dragon_tiger_data(
+        logger.info(f"热点股票数量: {len(stock_codes)}")
+        
+        dragon_tiger_data = fetch_dragon_tiger_data(
             page_number=1, page_size=100, statistics_cycle="04"
-        )["代码"].tolist()
+        )
+        dragon_tiger_codes = dragon_tiger_data["代码"].tolist()
+        logger.info(f"龙虎榜股票数量: {len(dragon_tiger_codes)}")
+        
+        # 保存龙虎榜股票的基本信息到StockBasicInfo
+        save_stock_basic_info(dragon_tiger_data)
+        
+        # 合并前记录总数
+        total_before_dedup = len(stock_codes) + len(dragon_tiger_codes)
+        logger.info(f"合并前总股票数: {total_before_dedup} (热点:{len(stock_codes)} + 龙虎榜:{len(dragon_tiger_codes)})")
+        
+        # 合并并去重
         stock_codes = list(set(stock_codes + dragon_tiger_codes))
+        logger.info(f"去重后最终股票数: {len(stock_codes)} (去除了 {total_before_dedup - len(stock_codes)} 个重复)")
         print('number:', len(stock_codes))
+        
         if has_error or check_cancel():
             return
         
@@ -405,7 +486,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
 
     
     # Step 4: 获取历史数据
-    has_error = fetch_and_save_historical_data(task_id, stock_codes, should_upsert_spot, collect_latest_data, latest_trade_date)
+    has_error = fetch_and_save_historical_data(task_id, stock_codes, should_upsert_spot, collect_latest_data, latest_trade_date, stop_event)
     if has_error or check_cancel():
         return
 
@@ -425,7 +506,7 @@ def run_analysis_task(task_id: str, top_n: int, selected_factors: Optional[List[
         return
     
     # Step 7-8: 计算因子并进行分析
-    result = compute_factors_and_analysis(task_id, top_spot, stock_codes, latest_trade_date, selected_factors)
+    result = compute_factors_and_analysis(task_id, stock_codes, latest_trade_date, selected_factors)
     if check_cancel():
         return
 

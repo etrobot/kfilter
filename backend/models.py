@@ -34,7 +34,7 @@ class Task(BaseModel):
 
 
 class RunRequest(BaseModel):
-    top_n: int = 100
+    top_n: int = 200
     selected_factors: Optional[List[str]] = None
     collect_latest_data: bool = True
 

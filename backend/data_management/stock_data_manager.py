@@ -365,8 +365,14 @@ def load_daily_data_for_analysis(stock_codes: List[str], limit: int = 60) -> Dic
     """从数据库加载日K数据用于因子分析"""
     history_data = {}
     
+    print(f"🔍 load_daily_data_for_analysis: 开始加载 {len(stock_codes)} 个股票的数据")
+    logger.info(f"load_daily_data_for_analysis: 开始加载 {len(stock_codes)} 个股票的数据")
+    
+    successful_count = 0
+    failed_count = 0
+    
     with Session(engine) as session:
-        for code in stock_codes:
+        for i, code in enumerate(stock_codes):
             stmt = select(DailyMarketData).where(
                 DailyMarketData.code == code
             ).order_by(DailyMarketData.date.desc()).limit(limit)
@@ -386,6 +392,16 @@ def load_daily_data_for_analysis(stock_codes: List[str], limit: int = 60) -> Dic
                 } for record in daily_records])
                 df = df.sort_values("日期")
                 history_data[code] = df
+                successful_count += 1
+            else:
+                failed_count += 1
+                if failed_count <= 5:  # 只打印前5个失败的
+                    print(f"❌ 股票 {code} 没有找到历史数据")
+            
+            # 每处理50个股票打印一次进度
+            if (i + 1) % 50 == 0:
+                print(f"📊 已处理 {i + 1}/{len(stock_codes)} 个股票，成功 {successful_count} 个")
     
-    logger.info(f"Loaded daily data for {len(history_data)} stocks from database")
+    print(f"✅ load_daily_data_for_analysis 完成：成功加载 {successful_count} 个股票，失败 {failed_count} 个")
+    logger.info(f"Loaded daily data for {len(history_data)} stocks from database (成功:{successful_count}, 失败:{failed_count})")
     return history_data
