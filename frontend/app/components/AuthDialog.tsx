@@ -38,9 +38,9 @@ export function AuthDialog({
       return
     }
 
-    // 简单的邮箱格式验证
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    // 更严格的邮箱格式验证
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailRegex.test(email.trim())) {
       setError('请输入有效的邮箱地址')
       return
     }
@@ -50,6 +50,8 @@ export function AuthDialog({
 
     try {
       const result = await AuthService.authenticate(username, email)
+      
+      console.log('Authentication result:', result) // Debug log
       
       if (result.success) {
         // 如果有成功消息，可以在这里显示
@@ -62,9 +64,11 @@ export function AuthDialog({
         setUsername('')
         setEmail('')
       } else {
-        setError(result.error || '认证失败')
+        // Make sure we show the backend error message
+        setError(result.error || result.message || '认证失败')
       }
     } catch (err) {
+      console.error('Authentication error:', err) // Debug log
       setError('验证失败，请重试')
     } finally {
       setLoading(false)

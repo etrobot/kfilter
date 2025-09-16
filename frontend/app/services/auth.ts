@@ -12,13 +12,19 @@ export class AuthService {
     const token = sessionStorage.getItem(this.AUTH_TOKEN_KEY)
     const authTime = sessionStorage.getItem(this.AUTH_TIME_KEY)
     
-    if (!token || !authTime) {
+    if (!token || !authTime || token.trim() === '') {
       return false
     }
 
     // 检查会话是否过期
     const now = Date.now()
     const authTimestamp = parseInt(authTime, 10)
+    
+    // Check for invalid timestamp
+    if (isNaN(authTimestamp)) {
+      this.clearAuth()
+      return false
+    }
     
     if (now - authTimestamp > this.SESSION_TIMEOUT) {
       this.clearAuth()
@@ -77,6 +83,8 @@ export class AuthService {
       })
 
       const data = await response.json()
+      
+      console.log('API Response:', { status: response.status, data }) // Debug log
       
       if (response.ok && data.success) {
         const userInfo = data.user || { name: username, email, is_admin: false }

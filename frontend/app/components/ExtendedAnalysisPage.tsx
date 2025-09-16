@@ -71,6 +71,7 @@ export function ExtendedAnalysisPage({
   const [activeTab, setActiveTab] = useState<'chart' | 'list'>('chart')
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
   const [runningTaskStatus, setRunningTaskStatus] = useState<any>(null)
+  const [currentPollInterval, setCurrentPollInterval] = useState<NodeJS.Timeout | null>(null)
 
   // Check for running tasks on component mount
   useEffect(() => {
@@ -83,7 +84,8 @@ export function ExtendedAnalysisPage({
           onLoadingChange(true)
           onSuccessChange(status.message || '正在运行扩展分析...')
           // Start polling for this task
-          startTaskPolling(status.task_id)
+          const pollInterval = startTaskPolling(status.task_id)
+          setCurrentPollInterval(pollInterval)
         }
       } catch (error) {
         // Silently ignore if no running task
@@ -92,7 +94,15 @@ export function ExtendedAnalysisPage({
     }
 
     checkRunningTask()
-  }, [])
+
+    // Cleanup function to clear polling interval on component unmount
+    return () => {
+      if (currentPollInterval) {
+        clearInterval(currentPollInterval)
+        setCurrentPollInterval(null)
+      }
+    }
+  }, []) // Empty dependency array - only run on mount/unmount
 
   // Load cached results on component mount
   useEffect(() => {
@@ -116,6 +126,11 @@ export function ExtendedAnalysisPage({
   }, [result, hasLoadedCache, isRunning, onResultChange])
 
   const startTaskPolling = (taskId: string) => {
+    // Clear any existing polling interval first
+    if (currentPollInterval) {
+      clearInterval(currentPollInterval)
+    }
+
     const pollInterval = setInterval(async () => {
       try {
         const taskStatus = await api.getExtendedAnalysisTaskStatus(taskId)
@@ -124,6 +139,7 @@ export function ExtendedAnalysisPage({
         
         if (taskStatus.status === 'completed') {
           clearInterval(pollInterval)
+          setCurrentPollInterval(null)
           if (taskStatus.result) {
             onResultChange(taskStatus.result)
             onSuccessChange(`分析完成！找到 ${taskStatus.result.total_sectors_with_hotspots} 个包含热点股票的板块`)
@@ -134,6 +150,7 @@ export function ExtendedAnalysisPage({
           setRunningTaskStatus(null)
         } else if (taskStatus.status === 'failed') {
           clearInterval(pollInterval)
+          setCurrentPollInterval(null)
           onErrorChange(taskStatus.error || '扩展分析失败')
           onSuccessChange(null)
           onLoadingChange(false)
@@ -142,6 +159,7 @@ export function ExtendedAnalysisPage({
         }
       } catch (error) {
         clearInterval(pollInterval)
+        setCurrentPollInterval(null)
         onErrorChange('获取任务状态失败')
         onLoadingChange(false)
         setCurrentTaskId(null)
@@ -154,6 +172,12 @@ export function ExtendedAnalysisPage({
   }
 
   const runAnalysis = async (forceRefresh: boolean = false) => {
+    // Clear any existing polling interval first
+    if (currentPollInterval) {
+      clearInterval(currentPollInterval)
+      setCurrentPollInterval(null)
+    }
+
     onLoadingChange(true)
     onErrorChange(null)
     onSuccessChange(null)
@@ -187,12 +211,14 @@ export function ExtendedAnalysisPage({
         onLoadingChange(false)
         setCurrentTaskId(null)
         setRunningTaskStatus(null)
+        setCurrentPollInterval(null)
       } else if (type === 'error') {
         onErrorChange(payload?.error || '运行分析时发生错误')
         onSuccessChange(null)
         onLoadingChange(false)
         setCurrentTaskId(null)
         setRunningTaskStatus(null)
+        setCurrentPollInterval(null)
       }
     })
 
@@ -229,6 +255,12 @@ export function ExtendedAnalysisPage({
   const handleStopClick = async () => {
     if (currentTaskId) {
       try {
+        // Clear polling interval immediately
+        if (currentPollInterval) {
+          clearInterval(currentPollInterval)
+          setCurrentPollInterval(null)
+        }
+
         await api.stopExtendedAnalysisTask(currentTaskId)
         onSuccessChange('已请求停止任务...')
         setTimeout(() => {

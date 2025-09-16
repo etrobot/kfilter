@@ -564,13 +564,33 @@ def update_zai_config(config_data: dict) -> dict:
 
 
 def login_user(request: AuthRequest) -> AuthResponse:
-    """User authentication with username and email"""
+    """Simple user authentication with username and email - no secure validation needed"""
     try:
+        # Basic validation
+        if not request.name or not request.name.strip():
+            return AuthResponse(
+                success=False,
+                message="用户名不能为空"
+            )
+        
+        if not request.email or not request.email.strip():
+            return AuthResponse(
+                success=False,
+                message="邮箱不能为空"
+            )
+        
+        # Simple email format check
+        if "@" not in request.email:
+            return AuthResponse(
+                success=False,
+                message="邮箱格式不正确"
+            )
+        
         with next(get_session()) as session:
             # Check if user exists with matching name and email
             statement = select(User).where(
-                User.name == request.name,
-                User.email == request.email
+                User.name == request.name.strip(),
+                User.email == request.email.strip().lower()
             )
             user = session.exec(statement).first()
             
@@ -594,10 +614,10 @@ def login_user(request: AuthRequest) -> AuthResponse:
                 user_count = session.exec(user_count_statement).first()
                 is_first_user = user_count == 0
                 
-                # Create new user
+                # Create new user automatically (simple validation approach)
                 new_user = User(
-                    name=request.name, 
-                    email=request.email,
+                    name=request.name.strip(), 
+                    email=request.email.strip().lower(),
                     is_admin=is_first_user  # First user becomes admin
                 )
                 session.add(new_user)
@@ -619,6 +639,7 @@ def login_user(request: AuthRequest) -> AuthResponse:
                 )
                 
     except Exception as e:
+        logger.error(f"Authentication error: {str(e)}")
         return AuthResponse(
             success=False,
             message=f"认证失败: {str(e)}"
