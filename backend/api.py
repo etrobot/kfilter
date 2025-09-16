@@ -25,7 +25,80 @@ logger = logging.getLogger(__name__)
 
 
 def read_root():
-    return {"service": "quant-dashboard-backend", "status": "running"}
+    """Root endpoint with comprehensive system status"""
+    from datetime import datetime
+    
+    # Get configuration status
+    zai_configured = is_zai_configured()
+    openai_configured = is_openai_configured()
+    system_configured = zai_configured and openai_configured
+    
+    # Basic system info
+    status_info = {
+        "service": "quant-dashboard-backend",
+        "status": "running",
+        "timestamp": datetime.now().isoformat(),
+        "configured": system_configured,
+        "configuration": {
+            "zai_configured": zai_configured,
+            "openai_configured": openai_configured,
+            "system_ready": system_configured
+        }
+    }
+    
+    return status_info
+
+
+def get_system_health():
+    """Comprehensive system health check endpoint"""
+    from datetime import datetime
+    import os
+    from pathlib import Path
+    
+    # Get configuration status
+    zai_configured = is_zai_configured()
+    openai_configured = is_openai_configured()
+    system_configured = zai_configured and openai_configured
+    
+    # Check file system status
+    backend_dir = Path(__file__).parent
+    config_file_exists = (backend_dir / 'config.json').exists()
+    
+    # Check database connectivity (basic check)
+    db_status = "unknown"
+    try:
+        from models import get_session
+        from sqlmodel import text
+        with next(get_session()) as session:
+            # Simple query to test DB connectivity
+            session.exec(text("SELECT 1")).first()
+            db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    # Get OpenAI config details (non-sensitive)
+    _, openai_base_url = get_openai_config()
+    
+    health_info = {
+        "service": "quant-dashboard-backend",
+        "status": "healthy" if system_configured else "configuration_required",
+        "timestamp": datetime.now().isoformat(),
+        "ready": system_configured,
+        "configuration": {
+            "zai_configured": zai_configured,
+            "openai_configured": openai_configured,
+            "system_ready": system_configured,
+            "config_file_exists": config_file_exists,
+            "openai_base_url": openai_base_url or "default"
+        },
+        "infrastructure": {
+            "database": db_status,
+            "config_storage": "available" if config_file_exists else "missing"
+        },
+        "version": "1.0.0"  # You can add version info here
+    }
+    
+    return health_info
 
 
 def run_analysis(request: RunRequest) -> RunResponse:

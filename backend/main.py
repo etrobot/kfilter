@@ -30,9 +30,15 @@ except Exception as e:
     logging.warning(f"Failed to load .env file: {e}")
 
 try:
-    set_system_config(load_config_json())
+    config_data = load_config_json()
+    if config_data:
+        set_system_config(config_data)
+        logging.info(f"Loaded configuration from config.json: {len(config_data)} settings")
+    else:
+        logging.info("No config.json found or empty, using environment variables only")
 except Exception as e:
     logging.warning(f"Failed to load config.json: {e}")
+    logging.info("System will start with environment variables only")
 
 
 from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, AuthRequest, AuthResponse, create_db_and_tables, User, get_session
@@ -42,7 +48,7 @@ from api import (
     collect_concepts, get_concept_task_status, get_latest_concept_results, 
     list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard,
     run_extended_analysis, stop_extended_analysis, login_user, get_zai_config, update_zai_config,
-    get_extended_analysis_task_status, get_running_extended_analysis_status
+    get_extended_analysis_task_status, get_running_extended_analysis_status, get_system_health
 )
 from factors import list_factors
 
@@ -64,6 +70,26 @@ logger.info("Database initialized successfully")
 
 # Admin user will be automatically created as the first user to register
 logger.info("Admin user will be automatically assigned to the first user who registers")
+
+# Check and log system configuration status
+try:
+    from config import is_zai_configured, is_openai_configured
+    zai_config = is_zai_configured()
+    openai_config = is_openai_configured()
+    system_ready = zai_config and openai_config
+    
+    logger.info(f"System configuration status:")
+    logger.info(f"  - ZAI configured: {zai_config}")
+    logger.info(f"  - OpenAI configured: {openai_config}")
+    logger.info(f"  - System ready: {system_ready}")
+    
+    if not system_ready:
+        logger.warning("System is not fully configured. Please configure via /config/zai endpoint")
+    else:
+        logger.info("System is fully configured and ready for operation")
+        
+except Exception as e:
+    logger.error(f"Failed to check configuration status: {e}")
 
 # Start daily scheduler for automated analysis
 start_daily_scheduler()
@@ -120,6 +146,18 @@ async def root_index():
         if os.path.isfile(index_path):
             return FileResponse(index_path)
     return {"message": "Quant Dashboard API", "docs": "/docs"}
+
+
+@app.get("/health")
+def health_check():
+    """System health check endpoint"""
+    return get_system_health()
+
+
+@app.get("/status")
+def status_check():
+    """Simple status endpoint (alias for health check)"""
+    return get_system_health()
 
 
 @app.post("/run", response_model=RunResponse)

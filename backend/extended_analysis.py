@@ -96,7 +96,7 @@ def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress
     """
     from sqlmodel import select, func
     from models import ConceptInfo, ConceptStock
-    from market_data.data_fetcher import fetch_hot_spot
+    from market_data.data_fetcher import fetch_hot_spot,fetch_dragon_tiger_data
     
     # Get real-time hotspot stocks
     if on_progress:
@@ -108,39 +108,17 @@ def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress
         logger.warning("No hotspot data found")
         return {}
     
-    # Extract and clean stock codes
-    hotspot_codes = []
-    for code in hot_spot_df["代码"].tolist():
-        # Keep original 6-digit code format as used in database
-        if len(code) == 6:
-            hotspot_codes.append(code)
-        elif len(code) == 8 and code[:2] in ['sz', 'sh']:
-            # Remove market prefix if exists
-            hotspot_codes.append(code[2:])
-        else:
-            hotspot_codes.append(code)
-    
-    # Create a mapping from clean codes to original DataFrame rows for lookup
-    code_to_row = {}
-    for _, row in hot_spot_df.iterrows():
-        code = row["代码"]
-        if len(code) == 6:
-            clean_code = code
-        elif len(code) == 8 and code[:2] in ['sz', 'sh']:
-            clean_code = code[2:]
-        else:
-            clean_code = code
-        code_to_row[clean_code] = row
+    codes=list(set(fetch_dragon_tiger_data()['代码'].tolist()+hot_spot_df['代码'].tolist()))
     
     if on_progress:
-        on_progress(f"获取到 {len(hotspot_codes)} 只热点股票")
+        on_progress(f"获取到 {len(codes)} 只热点股票")
     
     # Query database to get concept-stock relationships for hotspot stocks
     # This efficiently gets all concepts that contain hotspot stocks
     concept_stock_query = select(
         ConceptStock.concept_code,
         ConceptStock.stock_code
-    ).where(ConceptStock.stock_code.in_(hotspot_codes))
+    ).where(ConceptStock.stock_code.in_(codes))
     
     concept_stocks = session.exec(concept_stock_query).all() or []
     
