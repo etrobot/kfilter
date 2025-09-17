@@ -417,6 +417,8 @@ def fetch_dragon_tiger_data(page_number: int = 1, page_size: int = 50, statistic
     if '名称' in temp_df.columns:
         # 去掉名字以"退市"开头的股票
         temp_df = temp_df[~temp_df['名称'].str.startswith('退市', na=False)]
+        # 去掉名字以"退"结尾的股票
+        temp_df = temp_df[~temp_df['名称'].str.endswith('退', na=False)]
         # 去掉名字以"*ST"开头的股票
         temp_df = temp_df[~temp_df['名称'].str.startswith('*ST', na=False)]
     

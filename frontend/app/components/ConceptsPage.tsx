@@ -259,7 +259,7 @@ export function ConceptsPage() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {getSortedConcepts().map((concept, index) => (
-                <tr key={concept.code} className="hover:bg-gray-50">
+                <tr key={concept.code || `cpt-${index}`} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10 border-r">
                     <div>
                       <div>{concept.name}</div>
@@ -273,7 +273,7 @@ export function ConceptsPage() {
                     {concept.stock_count}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                    {concept.updated_at ? new Date(concept.updated_at).toLocaleString('zh-CN') : '-'}
+                    {concept.updated_at ? new Date(concept.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '-'}
                   </td>
                 </tr>
               ))}

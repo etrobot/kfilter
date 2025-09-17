@@ -215,7 +215,6 @@ function App() {
           <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
             <PageHeader 
               meta={meta} 
-              currentTask={currentTask} 
             />
 
             {currentTask && <TaskProgressCard task={currentTask} />}
