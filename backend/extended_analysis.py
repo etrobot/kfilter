@@ -192,17 +192,8 @@ def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress
         except Exception as e:
             error_msg = f"分析板块 {sector_code} 时出错: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            if on_progress:
-                on_progress(error_msg)
-            
-            # Still add the sector to results but with error information
-            result[sector_code] = {
-                "sector_code": sector_code,
-                "sector_name": concept_map.get(sector_code, sector_code),
-                "error": str(e),
-                "stocks": list(stock_codes)  # Still include the stock codes we found
-            }
-    
+            continue
+        
     return result
         
 
