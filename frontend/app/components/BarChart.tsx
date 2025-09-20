@@ -90,57 +90,41 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
     },
   }
 
-  // 创建两个相同的图表，一个用于固定Y轴，一个用于滚动
   return (
     <div className="bg-white p-2 rounded-lg shadow-md">
       <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
       <div className="h-64 w-full relative">
-        {/* 主容器 */}
-        <div className="h-full w-full relative">
-          {/* 固定Y轴部分 */}
-          {/* <div className="absolute left-0 top-0 bottom-0 z-10 bg-white" style={{ width: '60px' }}>
-            <div style={{ width: '60px', height: '100%' }}>
-              <Bar
-                data={chartData}
-                options={{
-                  ...options,
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  // 禁用X轴标签和网格线
-                  scales: {
-                    ...options.scales,
-                    x: {
-                      display: false,
-                      grid: {
-                        display: false
-                      }
-                    }
-                  }
-                }}
-              />
-            </div>
-          </div> */}
+        
+        {/* 底层固定图表 - 完全一样的图表 */}
+        <div className="absolute left-0 top-0 bottom-0 right-0 z-10">
+          <Bar
+            data={chartData}
+            options={options}
+          />
+        </div>
 
-          {/* 可滚动内容部分 */}
-          <div
-            className="absolute left-0 right-0 top-0 bottom-0 overflow-x-auto"
-            style={{
-              WebkitOverflowScrolling: 'touch',
-              overscrollBehavior: 'none'
-            }}
-          >
-            <div style={{ minWidth: '1400px', height: '100%' }}>
-              <Bar
-                data={chartData}
-                options={{
-                  ...options,
-                  responsive: true,
-                  maintainAspectRatio: false
-                }}
-              />
-            </div>
+        {/* 上层可滚动图表 - 完全一样的图表，向右偏移一点点 */}
+        <div 
+          className="absolute top-0 bottom-0 right-0 z-20 overflow-x-auto bg-white"
+          style={{
+            left: '28px', // 向右偏移28px，刚好覆盖住Y轴区域
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'none'
+          }}
+        >
+          <div style={{ minWidth: '1400px', height: '100%', position: 'relative' }}>
+            <Bar
+              data={chartData}
+              options={options}
+            />
+            {/* CSS遮罩层，遮住上层图表的Y轴标签区域 */}
+            <div 
+              className="absolute top-0 bottom-0 left-0 bg-white z-10"
+              style={{ width: '28px' }}
+            />
           </div>
         </div>
+        
       </div>
     </div>
   )

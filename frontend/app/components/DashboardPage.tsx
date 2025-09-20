@@ -32,6 +32,7 @@ import { BarChart } from './BarChart'
 interface DashboardData {
   stocks: KLineData[]
   top_5: KLineData[]
+  last_5: KLineData[]
 }
 
 interface DashboardPageProps {
@@ -146,11 +147,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
         },
         y: {
           title: {
-            display: true,
-            text: '涨跌幅 (%)',
-            font: {
-              size: 12,
-            },
+            display: false,
           },
           ticks: {
             callback: (value: any) => `${value}%`,
@@ -171,7 +168,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
     return (
       <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <h3 className="text-lg font-semibold mb-4">前五名走势叠加图</h3>
+        <h3 className="text-lg font-semibold mb-4">成交额前五名走势叠加图</h3>
         <div className="h-80">
           <Line data={chartData} options={options} />
         </div>
@@ -179,29 +176,109 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     )
   }
 
-  const renderStockList = () => {
-    if (!data?.stocks) return null
+  const renderLastFiveTrendChart = () => {
+    if (!data?.last_5) return null
+
+    const colors = ['#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b']
+
+    // Use actual dates from the first stock that has dates, or fallback to indices
+    const labels = data.last_5.length > 0 && data.last_5[0].dates && data.last_5[0].dates.length > 0
+      ? data.last_5[0].dates
+      : Array.from({ length: Math.max(...data.last_5.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
+
+    const chartData = {
+      labels,
+      datasets: data.last_5.map((stock, idx) => ({
+        label: `${stock.code} ${stock.name}`,
+        data: stock.trend_data || [],
+        borderColor: colors[idx % colors.length],
+        backgroundColor: colors[idx % colors.length] + '20',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      })),
+    }
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'circle',
+            font: {
+              size: 12,
+            },
+            boxWidth: 8,
+            boxHeight: 8,
+          },
+        },
+        tooltip: {
+          callbacks: {
+            title: (context: any) => {
+              // Show actual date if available, otherwise show trading day index
+              const label = context[0].label
+              return typeof label === 'string' && label.includes('-')
+                ? label
+                : `第${label}个交易日`
+            },
+            label: (context: any) => {
+              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: labels.length > 0 && typeof labels[0] === 'string' && labels[0].includes('-') ? '日期' : '交易日',
+            font: {
+              size: 12,
+            },
+          },
+          ticks: {
+            font: {
+              size: 10,
+            },
+            maxTicksLimit: 8,
+            maxRotation: 45,
+            minRotation: 0,
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          title: {
+            display: false,
+          },
+          ticks: {
+            callback: (value: any) => `${value}%`,
+            font: {
+              size: 10,
+            },
+          },
+          grid: {
+            display: true,
+          },
+        },
+      },
+      interaction: {
+        intersect: false,
+        mode: 'index' as const,
+      },
+    }
 
     return (
       <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <h3 className="text-lg font-semibold mb-4">K线实体列表</h3>
-        <div className="space-y-2 h-80 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
-          <div className="flex items-center space-x-3 pb-2 border-b font-semibold text-sm text-gray-600">
-            <div className="w-16">代码</div>
-            <div className="w-20">名称</div>
-            <div className="w-20 text-right">幅度%</div>
-            <div className="flex-1 text-center">排名</div>
-          </div>
-          {data.stocks.map((stock, index) => (
-            <div key={stock.code} className="flex items-center space-x-3 py-1">
-              <div className="text-sm font-mono w-16">{stock.code}</div>
-              <div className="text-sm w-20 truncate">{stock.name}</div>
-              <div className={`text-sm font-mono w-20 text-right ${stock.amplitude >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {stock.amplitude > 0 ? '+' : ''}{stock.amplitude.toFixed(2)}%
-              </div>
-              <div className="flex-1 text-center text-sm text-gray-500">#{index + 1}</div>
-            </div>
-          ))}
+        <h3 className="text-lg font-semibold mb-4">成交额后五名走势叠加图</h3>
+        <div className="h-80">
+          <Line data={chartData} options={options} />
         </div>
       </div>
     )
@@ -263,7 +340,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
           </div>
           <div className="md:flex md:gap-4">
             <div className="flex-1">{renderTrendChart()}</div>
-            <div className="flex-1">{renderStockList()}</div>
+            <div className="flex-1">{renderLastFiveTrendChart()}</div>
           </div>
         </div>
       )}

@@ -35,7 +35,7 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
             
             latest_date = end_date
             
-            # Get top stocks by trading volume on latest date
+            # Get top stocks by trading amount on latest date
             hot_stocks = session.exec(
                 select(DailyMarketData)
                 .where(DailyMarketData.date == latest_date)
@@ -46,16 +46,18 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
             
             if not hot_stocks:
                 logger.warning("No hot stocks found")
-                return {"stocks": [], "top_5": []}
+                return {"stocks": [], "top_5": [], "last_5": []}
             
-            # Extract clean stock codes (remove exchange prefix if exists)
+            # Extract clean stock codes and create amount mapping (remove exchange prefix if exists)
             hot_stock_codes = []
+            stock_amount_map = {}  # Map stock code to trading amount
             for stock in hot_stocks:
                 code = stock.code
                 # Remove exchange prefix (sh/sz) if it exists
                 if code.startswith(('sh', 'sz')):
                     code = code[2:]
                 hot_stock_codes.append(code)
+                stock_amount_map[code] = stock.amount
             
             # Get historical data for these stocks
             historical_data = session.exec(
@@ -75,10 +77,15 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
             
             # Calculate amplitude for each stock
             amplitude_results = []
+            filtered_count = 0
+            
+            logger.info(f"开始处理 {len(hot_stock_codes)} 只热门股票")
             
             for stock_code in hot_stock_codes:
                 stock_records = stock_data_map.get(stock_code, [])
                 if len(stock_records) < n_days // 2:  # Need minimum data
+                    filtered_count += 1
+                    logger.debug(f"股票 {stock_code} 历史数据不足，跳过 (需要至少 {n_days // 2} 天，实际 {len(stock_records)} 天)")
                     continue
                 
                 # Sort by date
@@ -127,18 +134,25 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
                         "name": stock_name,
                         "amplitude": max_amplitude,
                         "trend_data": trend_data,
-                        "dates": dates
+                        "dates": dates,
+                        "amount": stock_amount_map.get(stock_code, 0)
                     })
             
             # Sort by amplitude (ascending - from negative to positive)
             amplitude_results.sort(key=lambda x: x["amplitude"])
             
-            # Get top 5 by absolute amplitude for trend chart
-            top_5 = sorted(amplitude_results, key=lambda x: abs(x["amplitude"]), reverse=True)[:5]
+            logger.info(f"数据筛选完成：原始热门股票 {len(hot_stock_codes)} 只，过滤掉 {filtered_count} 只，最终有效股票 {len(amplitude_results)} 只")
             
+            # Get top 5 by trading amount (highest amount) from the hot stocks
+            top_5 = sorted(amplitude_results, key=lambda x: x.get("amount", 0), reverse=True)[:5]
+
+            # Get last 5 by trading amount (lowest amount) from the hot stocks
+            last_5 = sorted(amplitude_results, key=lambda x: x.get("amount", 0))[:5]
+
             return {
                 "stocks": amplitude_results,
                 "top_5": top_5,
+                "last_5": last_5,
                 "n_days": n_days,
                 "analysis_date": end_date.isoformat(),
                 "total_stocks": len(amplitude_results)
@@ -149,5 +163,6 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
         return {
             "stocks": [],
             "top_5": [],
+            "last_5": [],
             "error": str(e)
         }
