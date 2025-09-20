@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from api import run_analysis, run_extended_analysis
 from models import RunRequest, StockBasicInfo, DailyMarketData, WeeklyMarketData, MonthlyMarketData, get_session
+from sqlmodel import or_
 import time
 import pytz
 import logging

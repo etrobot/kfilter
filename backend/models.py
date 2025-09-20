@@ -237,5 +237,4 @@ class Factor(BaseModel):
 
 def get_session():
     """获取数据库会话"""
-    with Session(engine) as session:
-        yield session
+    return Session(engine)

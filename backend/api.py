@@ -69,7 +69,7 @@ def get_system_health():
     try:
         from models import get_session
         from sqlmodel import text
-        with next(get_session()) as session:
+        with get_session() as session:
             # Simple query to test DB connectivity
             session.exec(text("SELECT 1")).first()
             db_status = "connected"
@@ -586,7 +586,7 @@ def login_user(request: AuthRequest) -> AuthResponse:
                 message="邮箱格式不正确"
             )
         
-        with next(get_session()) as session:
+        with get_session() as session:
             # Check if user exists with matching name and email
             statement = select(User).where(
                 User.name == request.name.strip(),

@@ -273,7 +273,7 @@ export function ConceptsPage() {
                     {concept.stock_count}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                    {concept.updated_at ? new Date(concept.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '-'}
+                    {concept.updated_at ? new Date(concept.updated_at).toLocaleString('zh-CN') : '-'}
                   </td>
                 </tr>
               ))}
