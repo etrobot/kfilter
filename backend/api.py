@@ -564,7 +564,7 @@ def update_zai_config(config_data: dict) -> dict:
 
 
 def login_user(request: AuthRequest) -> AuthResponse:
-    """Simple user authentication with username and email - no secure validation needed"""
+    """User authentication - only existing users can login"""
     try:
         # Basic validation
         if not request.name or not request.name.strip():
@@ -612,30 +612,36 @@ def login_user(request: AuthRequest) -> AuthResponse:
                 # Check if this is the first user (no users exist)
                 user_count_statement = select(func.count(User.id))
                 user_count = session.exec(user_count_statement).first()
-                is_first_user = user_count == 0
+                is_empty_table = user_count == 0
                 
-                # Create new user automatically (simple validation approach)
-                new_user = User(
-                    name=request.name.strip(), 
-                    email=request.email.strip().lower(),
-                    is_admin=is_first_user  # First user becomes admin
-                )
-                session.add(new_user)
-                session.commit()
-                session.refresh(new_user)
+                if is_empty_table:
+                    # Create the first user using the provided credentials
+                    first_user = User(
+                        name=request.name.strip(), 
+                        email=request.email.strip().lower(),
+                        is_admin=True  # First user becomes admin
+                    )
+                    session.add(first_user)
+                    session.commit()
+                    session.refresh(first_user)
+                    
+                    token = f"token_{first_user.id}"
+                    return AuthResponse(
+                        success=True,
+                        token=token,
+                        message="管理员账户创建成功，认证通过",
+                        user={
+                            "id": first_user.id,
+                            "name": first_user.name,
+                            "email": first_user.email,
+                            "is_admin": first_user.is_admin
+                        }
+                    )
                 
-                token = f"token_{new_user.id}"
-                message = "管理员账户创建成功，认证通过" if is_first_user else "用户创建成功，认证通过"
+                # User does not exist - reject authentication
                 return AuthResponse(
-                    success=True,
-                    token=token,
-                    message=message,
-                    user={
-                        "id": new_user.id,
-                        "name": new_user.name,
-                        "email": new_user.email,
-                        "is_admin": new_user.is_admin
-                    }
+                    success=False,
+                    message="用户不存在，请联系管理员"
                 )
                 
     except Exception as e:

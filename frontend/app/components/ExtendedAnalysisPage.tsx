@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
-import { PlayIcon, RefreshCwIcon, ClockIcon, BarChart3Icon, ListIcon, StopCircleIcon } from 'lucide-react'
+import { PlayIcon, RefreshCwIcon, Settings2Icon, BarChart3Icon, ListIcon, StopCircleIcon } from 'lucide-react'
 import { api } from '../services/api'
 import { useIsMobile } from '../hooks/use-mobile'
 import { AuthDialog } from './AuthDialog'
@@ -306,7 +306,7 @@ export function ExtendedAnalysisPage({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">扩展分析</h1>
           <p className="text-gray-600 mt-1">
-            基于实时热点股票的板块分析，展示各板块热点股票及其市场表现
+            板块深度分析
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -315,7 +315,7 @@ export function ExtendedAnalysisPage({
             variant="outline"
             disabled={isRunning}
           >
-            配置
+            <Settings2Icon />
           </Button>
           {isRunning && currentTaskId ? (
             <Button 
@@ -340,7 +340,7 @@ export function ExtendedAnalysisPage({
             ) : (
               <>
                 <PlayIcon size={16} />
-                运行分析
+                运行
               </>
             )}
           </Button>
