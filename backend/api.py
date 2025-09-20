@@ -320,6 +320,12 @@ def get_kline_amplitude_dashboard(n_days: int = 30):
     return get_kline_amplitude_analysis(n_days)
 
 
+def get_random_stocks_dashboard(n_days: int = 30):
+    """Get random 5 stocks for dashboard chart"""
+    from data_management.dashboard_service import get_random_stocks_analysis
+    return get_random_stocks_analysis(n_days)
+
+
 def run_extended_analysis():
     """Run standalone extended analysis focusing on sector analysis.
     Behavior: always compute a fresh result on manual trigger, cache it, and return it.

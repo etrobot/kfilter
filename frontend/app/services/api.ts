@@ -86,6 +86,10 @@ export const api = {
     return apiCall<any>(`/dashboard/kline-amplitude?n_days=${nDays}`)
   },
 
+  async getRandomStocks(nDays: number = 30): Promise<any> {
+    return apiCall<any>(`/dashboard/random-stocks?n_days=${nDays}`)
+  },
+
   async runExtendedAnalysis(): Promise<any> {
     return apiCall<any>('/extended-analysis/run', {
       method: 'POST',

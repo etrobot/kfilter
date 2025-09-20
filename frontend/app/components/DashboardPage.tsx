@@ -28,11 +28,13 @@ import { TaskProgressCard } from './TaskProgressCard'
 import { TaskResult, KLineData } from '../types'
 import { useIsMobile } from '../hooks/use-mobile'
 import { BarChart } from './BarChart'
+import { Button } from './ui/button'
 
 interface DashboardData {
   stocks: KLineData[]
   top_5: KLineData[]
   last_5: KLineData[]
+  random_5?: KLineData[]
 }
 
 interface DashboardPageProps {
@@ -45,6 +47,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nDays, setNDays] = useState<number>(30)
+  const [randomLoading, setRandomLoading] = useState(false)
 
   const isTaskRunning = currentTask?.status === 'running' || currentTask?.status === 'pending'
 
@@ -62,6 +65,18 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
       setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const refreshRandomStocks = async () => {
+    try {
+      setRandomLoading(true)
+      const randomStocks = await api.getRandomStocks(nDays)
+      setData(prev => prev ? { ...prev, random_5: randomStocks.random_5 } : null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch random stocks')
+    } finally {
+      setRandomLoading(false)
     }
   }
 
@@ -177,18 +192,19 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   }
 
   const renderLastFiveTrendChart = () => {
-    if (!data?.last_5) return null
+    const chartData = data?.random_5 || data?.last_5
+    if (!chartData) return null
 
     const colors = ['#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b']
 
     // Use actual dates from the first stock that has dates, or fallback to indices
-    const labels = data.last_5.length > 0 && data.last_5[0].dates && data.last_5[0].dates.length > 0
-      ? data.last_5[0].dates
-      : Array.from({ length: Math.max(...data.last_5.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
+    const labels = chartData.length > 0 && chartData[0].dates && chartData[0].dates.length > 0
+      ? chartData[0].dates
+      : Array.from({ length: Math.max(...chartData.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
 
-    const chartData = {
+    const chartDataConfig = {
       labels,
-      datasets: data.last_5.map((stock, idx) => ({
+      datasets: chartData.map((stock, idx) => ({
         label: `${stock.code} ${stock.name}`,
         data: stock.trend_data || [],
         borderColor: colors[idx % colors.length],
@@ -276,9 +292,19 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
     return (
       <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <h3 className="text-lg font-semibold mb-4">成交额后五名走势叠加图</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">随机五名走势叠加图</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshRandomStocks}
+            disabled={randomLoading || isTaskRunning}
+          >
+            {randomLoading ? '请求中...' : '换一批'}
+          </Button>
+        </div>
         <div className="h-80">
-          <Line data={chartData} options={options} />
+          <Line data={chartDataConfig} options={options} />
         </div>
       </div>
     )

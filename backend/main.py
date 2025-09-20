@@ -45,10 +45,11 @@ from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResu
 from sqlmodel import select
 from api import (
     read_root, run_analysis, get_task_status, get_latest_results, list_all_tasks,
-    collect_concepts, get_concept_task_status, get_latest_concept_results, 
+    collect_concepts, get_concept_task_status, get_latest_concept_results,
     list_all_concept_tasks, get_concepts_list, stop_analysis, get_kline_amplitude_dashboard,
     run_extended_analysis, stop_extended_analysis, login_user, get_zai_config, update_zai_config,
-    get_extended_analysis_task_status, get_running_extended_analysis_status, get_system_health
+    get_extended_analysis_task_status, get_running_extended_analysis_status, get_system_health,
+    get_random_stocks_dashboard
 )
 from factors import list_factors
 
@@ -239,6 +240,12 @@ def get_concepts():
 def get_dashboard_kline_amplitude(n_days: int = 30):
     """Get K-line amplitude analysis for dashboard"""
     return get_kline_amplitude_dashboard(n_days)
+
+
+@app.get("/dashboard/random-stocks")
+def get_dashboard_random_stocks(n_days: int = 30):
+    """Get random 5 stocks for dashboard chart"""
+    return get_random_stocks_dashboard(n_days)
 
 
 # Extended Analysis route
