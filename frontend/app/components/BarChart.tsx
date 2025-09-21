@@ -105,7 +105,7 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
 
         {/* 上层可滚动图表 - 完全一样的图表，向右偏移一点点 */}
         <div 
-          className="absolute top-0 bottom-0 right-0 z-20 overflow-x-auto bg-white"
+          className="absolute top-0 bottom-0 right-0 z-20 overflow-x-auto bg-white md:hidden"
           style={{
             left: '28px', // 向右偏移28px，刚好覆盖住Y轴区域
             WebkitOverflowScrolling: 'touch',

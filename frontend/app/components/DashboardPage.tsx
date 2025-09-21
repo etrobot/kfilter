@@ -29,6 +29,7 @@ import { TaskResult, KLineData } from '../types'
 import { useIsMobile } from '../hooks/use-mobile'
 import { BarChart } from './BarChart'
 import { Button } from './ui/button'
+import { StockLink } from './StockLink'
 
 interface DashboardData {
   stocks: KLineData[]
@@ -68,6 +69,88 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     }
   }
 
+  const createChartOptions = (isDateData: boolean) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          title: (context: any) => {
+            const label = context[0].label
+            return typeof label === 'string' && label.includes('-')
+              ? label
+              : `第${label}个交易日`
+          },
+          label: (context: any) => {
+            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        title: {
+          display: false,
+        },
+        ticks: {
+          font: {
+            size: 10,
+          },
+          maxTicksLimit: 8,
+          maxRotation: 45,
+          minRotation: 0,
+        },
+        grid: {
+          display: false,
+        },
+      },
+      y: {
+        title: {
+          display: false,
+        },
+        ticks: {
+          callback: (value: any) => `${value}%`,
+          font: {
+            size: 10,
+          },
+        },
+        grid: {
+          display: true,
+        },
+      },
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index' as const,
+    },
+  })
+
+  const createChartData = (stocks: KLineData[], colorPalette: string[]) => {
+    if (!stocks || stocks.length === 0) return null
+
+    const labels = stocks.length > 0 && stocks[0].dates && stocks[0].dates.length > 0
+      ? stocks[0].dates
+      : Array.from({ length: Math.max(...stocks.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
+
+    return {
+      labels,
+      datasets: stocks.map((stock, idx) => ({
+        label: `${stock.code} ${stock.name}`,
+        data: stock.trend_data || [],
+        borderColor: colorPalette[idx % colorPalette.length],
+        backgroundColor: colorPalette[idx % colorPalette.length] + '20',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      })),
+    }
+  }
+
   const refreshRandomStocks = async () => {
     try {
       setRandomLoading(true)
@@ -87,104 +170,25 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     if (!data?.top_5) return null
 
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
+    const chartData = createChartData(data.top_5, colors)
+    if (!chartData) return null
 
-    // Use actual dates from the first stock that has dates, or fallback to indices
-    const labels = data.top_5.length > 0 && data.top_5[0].dates && data.top_5[0].dates.length > 0
-      ? data.top_5[0].dates
-      : Array.from({ length: Math.max(...data.top_5.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
-
-    const chartData = {
-      labels,
-      datasets: data.top_5.map((stock, idx) => ({
-        label: `${stock.code} ${stock.name}`,
-        data: stock.trend_data || [],
-        borderColor: colors[idx % colors.length],
-        backgroundColor: colors[idx % colors.length] + '20',
-        borderWidth: 2,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-      })),
-    }
-
-    const options = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top' as const,
-          labels: {
-            usePointStyle: true,
-            pointStyle: 'circle',
-            font: {
-              size: 12,
-            },
-            boxWidth: 8,
-            boxHeight: 8,
-          },
-        },
-        tooltip: {
-          callbacks: {
-            title: (context: any) => {
-              // Show actual date if available, otherwise show trading day index
-              const label = context[0].label
-              return typeof label === 'string' && label.includes('-')
-                ? label
-                : `第${label}个交易日`
-            },
-            label: (context: any) => {
-              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: labels.length > 0 && typeof labels[0] === 'string' && labels[0].includes('-') ? '日期' : '交易日',
-            font: {
-              size: 12,
-            },
-          },
-          ticks: {
-            font: {
-              size: 10,
-            },
-            maxTicksLimit: 8, // Limit number of ticks to prevent overcrowding
-            maxRotation: 45, // Rotate labels if they're dates
-            minRotation: 0,
-          },
-          grid: {
-            display: false,
-          },
-        },
-        y: {
-          title: {
-            display: false,
-          },
-          ticks: {
-            callback: (value: any) => `${value}%`,
-            font: {
-              size: 10,
-            },
-          },
-          grid: {
-            display: true,
-          },
-        },
-      },
-      interaction: {
-        intersect: false,
-        mode: 'index' as const,
-      },
-    }
+    const options = createChartOptions(true)
 
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <h3 className="text-lg font-semibold mb-4">成交额前五名走势叠加图</h3>
-        <div className="h-80">
+      <div className="bg-white p-3 rounded-lg shadow-md h-96">
+        <h3 className="text-lg font-semibold mb-2">成交额前五名走势叠加图</h3>
+        <div className="flex w-full justify-between bg-gray-100 p-1">
+          {data.top_5.map((stock, idx) => (
+            <StockLink
+              key={stock.code}
+              code={stock.code}
+              name={stock.name}
+              className="text-xs"
+            />
+          ))}
+        </div>
+        <div className="h-72">
           <Line data={chartData} options={options} />
         </div>
       </div>
@@ -196,103 +200,14 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     if (!chartData) return null
 
     const colors = ['#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b']
+    const chartDataConfig = createChartData(chartData, colors)
+    if (!chartDataConfig) return null
 
-    // Use actual dates from the first stock that has dates, or fallback to indices
-    const labels = chartData.length > 0 && chartData[0].dates && chartData[0].dates.length > 0
-      ? chartData[0].dates
-      : Array.from({ length: Math.max(...chartData.map(stock => stock.trend_data?.length || 0)) }, (_, i) => (i + 1).toString())
-
-    const chartDataConfig = {
-      labels,
-      datasets: chartData.map((stock, idx) => ({
-        label: `${stock.code} ${stock.name}`,
-        data: stock.trend_data || [],
-        borderColor: colors[idx % colors.length],
-        backgroundColor: colors[idx % colors.length] + '20',
-        borderWidth: 2,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-      })),
-    }
-
-    const options = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top' as const,
-          labels: {
-            usePointStyle: true,
-            pointStyle: 'circle',
-            font: {
-              size: 12,
-            },
-            boxWidth: 8,
-            boxHeight: 8,
-          },
-        },
-        tooltip: {
-          callbacks: {
-            title: (context: any) => {
-              // Show actual date if available, otherwise show trading day index
-              const label = context[0].label
-              return typeof label === 'string' && label.includes('-')
-                ? label
-                : `第${label}个交易日`
-            },
-            label: (context: any) => {
-              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: labels.length > 0 && typeof labels[0] === 'string' && labels[0].includes('-') ? '日期' : '交易日',
-            font: {
-              size: 12,
-            },
-          },
-          ticks: {
-            font: {
-              size: 10,
-            },
-            maxTicksLimit: 8,
-            maxRotation: 45,
-            minRotation: 0,
-          },
-          grid: {
-            display: false,
-          },
-        },
-        y: {
-          title: {
-            display: false,
-          },
-          ticks: {
-            callback: (value: any) => `${value}%`,
-            font: {
-              size: 10,
-            },
-          },
-          grid: {
-            display: true,
-          },
-        },
-      },
-      interaction: {
-        intersect: false,
-        mode: 'index' as const,
-      },
-    }
+    const options = createChartOptions(true)
 
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-white p-3 rounded-lg shadow-md h-96">
+        <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-semibold">随机五名走势叠加图</h3>
           <Button
             variant="outline"
@@ -303,7 +218,17 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
             {randomLoading ? '请求中...' : '换一批'}
           </Button>
         </div>
-        <div className="h-80">
+        <div className="flex w-full justify-between bg-gray-100 p-1">
+          {chartData.map((stock, idx) => (
+            <StockLink
+              key={stock.code}
+              code={stock.code}
+              name={stock.name}
+              className="text-xs"
+            />
+          ))}
+        </div>
+        <div className="h-72">
           <Line data={chartDataConfig} options={options} />
         </div>
       </div>
@@ -314,7 +239,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     <div className={`${isMobile ? 'p-4' : 'p-8'} space-y-6`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900">大成交额标的分析</h1>
+          <h1 className="text-xl font-bold text-gray-900">大成交额标的分析</h1>
           {currentTask && (
             <div className="text-sm text-gray-600">
               {currentTask.message} ({(currentTask.progress * 100).toFixed(0)}%)

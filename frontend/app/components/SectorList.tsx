@@ -19,7 +19,7 @@ function LLMEvaluationDisplay({ evaluation }: { evaluation: any }) {
             LLM智能评估
           </h5>
         <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-purple-700">{overall_score}</span>
+          <span className="text-xl font-bold text-purple-700">{overall_score}</span>
           <span className="text-sm text-purple-600">/100</span>
         </div>
       </div>
@@ -215,7 +215,7 @@ export function SectorList({ sectors }: SectorListProps) {
   }
 
   return (
-    <div className="flex gap-6 w-full">
+    <div className="flex gap-3 w-full">
       <SectorSidebar sectors={sectors} />
       <div className="flex-1 bg-white rounded-lg overflow-hidden">
         {scrollContainer}

@@ -304,7 +304,7 @@ export function ExtendedAnalysisPage({
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">扩展分析</h1>
+          <h1 className="text-xl font-bold text-gray-900">扩展分析</h1>
           <p className="text-gray-600 mt-1">
             板块深度分析
           </p>
@@ -431,7 +431,7 @@ export function ExtendedAnalysisPage({
             {/* Tab Content */}
             <div className="min-h-[400px]">
               {activeTab === 'chart' && (
-                <div className="p-6 bg-gray-50">
+                <div className="p-3 bg-gray-50">
                   <h3 className="font-semibold text-gray-900 mb-4 text-center">板块热点可视化</h3>
                   <p className="text-sm text-gray-600 mb-6 text-center">
                     旭日图展示各板块热点比例及其包含的热点股票分布
