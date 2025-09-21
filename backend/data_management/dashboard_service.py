@@ -144,14 +144,18 @@ def get_kline_amplitude_analysis(n_days: int = 30) -> Dict[str, Any]:
             
             logger.info(f"数据筛选完成：原始热门股票 {len(hot_stock_codes)} 只，过滤掉 {filtered_count} 只，最终有效股票 {len(amplitude_results)} 只")
             
+            # Get all hot stocks sorted by trading amount (highest first)
+            hot_stocks_by_amount = sorted(amplitude_results, key=lambda x: x.get("amount", 0), reverse=True)
+            
             # Get top 5 by trading amount (highest amount) from the hot stocks
-            top_5 = sorted(amplitude_results, key=lambda x: x.get("amount", 0), reverse=True)[:5]
+            top_5 = hot_stocks_by_amount[:5]
 
             # Get last 5 by trading amount (lowest amount) from the hot stocks
             last_5 = sorted(amplitude_results, key=lambda x: x.get("amount", 0))[:5]
 
             return {
-                "stocks": amplitude_results,
+                "stocks": amplitude_results,  # Sorted by amplitude for bar chart
+                "hot_stocks": hot_stocks_by_amount,  # Sorted by trading amount for line chart pagination
                 "top_5": top_5,
                 "last_5": last_5,
                 "n_days": n_days,

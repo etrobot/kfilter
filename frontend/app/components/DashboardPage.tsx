@@ -33,6 +33,7 @@ import { StockLink } from './StockLink'
 
 interface DashboardData {
   stocks: KLineData[]
+  hot_stocks: KLineData[]
   top_5: KLineData[]
   last_5: KLineData[]
   random_5?: KLineData[]
@@ -49,6 +50,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [nDays, setNDays] = useState<number>(30)
   const [randomLoading, setRandomLoading] = useState(false)
+  const [paginationOffset, setPaginationOffset] = useState<number>(0)
 
   const isTaskRunning = currentTask?.status === 'running' || currentTask?.status === 'pending'
 
@@ -74,7 +76,15 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false
+        display: true,
+        position: 'bottom' as const,
+        labels: {
+          boxWidth: 12,
+          font: {
+            size: 10
+          },
+          padding: 5
+        }
       },
       tooltip: {
         callbacks: {
@@ -166,20 +176,70 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
 
 
 
+  const getPaginatedStocks = () => {
+    if (!data?.hot_stocks || data.hot_stocks.length === 0) return []
+    const startIndex = paginationOffset
+    const endIndex = paginationOffset + 5
+    // If we have fewer than 5 stocks, just return what we have
+    return data.hot_stocks.slice(startIndex, endIndex)
+  }
+
+  const handleNextPage = () => {
+    if (data?.hot_stocks && paginationOffset + 5 < data.hot_stocks.length) {
+      setPaginationOffset(prev => prev + 5)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (paginationOffset >= 5) {
+      setPaginationOffset(prev => prev - 5)
+    }
+  }
+
   const renderTrendChart = () => {
-    if (!data?.top_5) return null
+    const paginatedStocks = getPaginatedStocks()
+    if (paginatedStocks.length === 0) return null
 
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
-    const chartData = createChartData(data.top_5, colors)
+    const chartData = createChartData(paginatedStocks, colors)
     if (!chartData) return null
 
     const options = createChartOptions(true)
+    const currentPage = Math.floor(paginationOffset / 5) + 1
+    const totalPages = data?.hot_stocks ? Math.ceil(data.hot_stocks.length / 5) : 1
 
     return (
       <div className="bg-white p-3 rounded-lg shadow-md h-96">
-        <h3 className="text-lg font-semibold mb-2">成交额前五名走势叠加图</h3>
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-semibold">
+            成交额{paginationOffset + 1}-{Math.min(paginationOffset + 5, data?.stocks?.length || 0)} 走势叠加图
+          </h3>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={paginationOffset === 0 || loading}
+              className="text-xs"
+            >
+              上一页
+            </Button>
+            <span className="text-sm text-gray-600">
+              {currentPage} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={!data?.stocks || paginationOffset + 5 >= data.stocks.length || loading}
+              className="text-xs"
+            >
+              下一页
+            </Button>
+          </div>
+        </div>
         <div className="flex w-full justify-between bg-gray-100 p-1">
-          {data.top_5.map((stock, idx) => (
+          {paginatedStocks.map((stock, idx) => (
             <StockLink
               key={stock.code}
               code={stock.code}
