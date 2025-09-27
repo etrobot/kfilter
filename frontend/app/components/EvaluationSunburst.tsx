@@ -11,7 +11,8 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
   const [tooltipPosition, setTooltipPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
   const svgRef = React.useRef<SVGSVGElement>(null);
 
-  const SIZE = 500;
+  // Simple responsive sizing using CSS/Tailwind breakpoints
+  const SIZE = 320; // Mobile-first size that fits in most mobile screens
   const RADIUS = SIZE / 2;
 
   const partition = (data: SunburstData) =>
@@ -98,8 +99,14 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
   }
 
   return (
-    <div className="flex justify-center items-center" style={{ position: 'relative' }}>
-      <svg width={SIZE} height={SIZE} ref={svgRef}>
+    <div className="w-full flex justify-center items-center" style={{ position: 'relative' }}>
+      <svg 
+        width={SIZE} 
+        height={SIZE} 
+        ref={svgRef}
+        className="w-80 h-80 md:w-[500px] md:h-[500px]"
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+      >
         <g transform={`translate(${SIZE/2},${SIZE/2})`} fillOpacity={0.8}>
           {partition(data)
             .descendants()
@@ -144,8 +151,9 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
           transform={`translate(${SIZE/2},${SIZE/2})`}
           pointerEvents="none"
           textAnchor="middle"
-          fontSize={9}
+          fontSize={8}
           fontFamily="sans-serif"
+          className="text-xs md:text-sm"
         >
           {partition(data)
             .descendants()
@@ -156,9 +164,12 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
                 transform={getTextTransform(d)}
                 dy="0.35em"
                 dx="3"
-                style={{ fontSize: d.depth === 1 ? '10px' : '8px', fontWeight: d.depth === 1 ? 'bold' : 'normal' }}
+                style={{ 
+                  fontWeight: d.depth === 1 ? 'bold' : 'normal' 
+                }}
+                className={d.depth === 1 ? 'text-xs md:text-sm' : 'text-[10px] md:text-xs'}
               >
-                {truncateText(d.data.name)}
+                {truncateText(d.data.name, 7)}
               </text>
             ))}
         </g>
@@ -166,12 +177,11 @@ const EvaluationSunburst: React.FC<EvaluationSunburstProps> = ({ data }) => {
       
       {hoveredSegment && (
         <div
-          className="absolute bg-background border rounded-lg p-3 shadow-lg pointer-events-none text-sm z-50"
+          className="absolute bg-background border rounded-lg p-2 md:p-3 shadow-lg pointer-events-none text-xs md:text-sm z-50 min-w-20 md:min-w-28"
           style={{
-            left: tooltipPosition.x,
-            top: tooltipPosition.y,
-            transform: 'translate(10px, -50px)',
-            minWidth: '120px',
+            left: Math.min(tooltipPosition.x, SIZE - 100),
+            top: Math.max(tooltipPosition.y - 50, 10),
+            transform: 'translate(5px, -25px)',
           }}
         >
           <div className="font-semibold">{hoveredSegment.name}</div>
