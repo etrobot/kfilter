@@ -17,6 +17,7 @@ from utils import (
     TASK_THREADS
 )
 from .analysis_task_runner import run_analysis_task
+from config import get_zai_credentials, is_zai_configured
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,42 @@ logger = logging.getLogger(__name__)
 ANALYSIS_RESULTS_CACHE: Dict[str, Dict[str, Any]] = {}
 EXTENDED_ANALYSIS_CACHE: Dict[str, Any] = {}  # 扩展分析缓存
 CACHE_LOCK = threading.Lock()
+
+# ZAI client configuration cache
+_zai_client_config = None
+_zai_config_lock = threading.Lock()
+
+def get_zai_client_config() -> Optional[Dict[str, str]]:
+    """Get cached ZAI client configuration or load from config."""
+    global _zai_client_config
+    
+    with _zai_config_lock:
+        if _zai_client_config is None:
+            try:
+                if is_zai_configured():
+                    bearer_token, cookie_str, user_id = get_zai_credentials()
+                    _zai_client_config = {
+                        'bearer_token': bearer_token,
+                        'cookie_str': cookie_str,
+                        'user_id': user_id
+                    }
+                    logger.info("ZAI client configuration loaded from config")
+                else:
+                    logger.warning("ZAI credentials not configured")
+                    _zai_client_config = {}
+            except Exception as e:
+                logger.error(f"Failed to load ZAI configuration: {e}")
+                _zai_client_config = {}
+        
+        return _zai_client_config.copy() if _zai_client_config else None
+
+def refresh_zai_client_config() -> None:
+    """Refresh the cached ZAI client configuration."""
+    global _zai_client_config
+    
+    with _zai_config_lock:
+        _zai_client_config = None
+        get_zai_client_config()  # This will reload the config
 
 
 def get_cached_analysis_results(task_id: Optional[str] = None) -> Dict[str, Any]:

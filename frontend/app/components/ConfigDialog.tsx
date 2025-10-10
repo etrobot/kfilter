@@ -18,6 +18,7 @@ interface ConfigDialogProps {
 export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps) {
   const [bearer, setBearer] = useState('')
   const [cookie, setCookie] = useState('')
+  const [userId, setUserId] = useState('')
   const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -52,6 +53,7 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
           // Clear fields and only fill non-sensitive ones
           setBearer('')
           setCookie('')
+          setUserId('')
           setOpenaiApiKey('')
           if (cfg.OPENAI_BASE_URL) {
             setOpenaiBaseUrl(cfg.OPENAI_BASE_URL)
@@ -82,6 +84,7 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
       const config = {
         ZAI_BEARER_TOKEN: bearer.trim(),
         ZAI_COOKIE_STR: cookie.trim(),
+        ZAI_USER_ID: userId.trim(),
         OPENAI_API_KEY: openaiApiKey.trim(),
         OPENAI_BASE_URL: openaiBaseUrl.trim() || 'https://api.openai.com/v1'
       }
@@ -142,6 +145,18 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
                   placeholder={zaiConfigured ? "已配置，输入新值以覆盖" : "Cookie string"}
                   value={cookie}
                   onChange={(e) => setCookie(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  ZAI_USER_ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full border rounded-md p-2 text-sm"
+                  placeholder={zaiConfigured ? "已配置，输入新值以覆盖" : "用户ID (如: a8085b86-4e72-405c-9eaf-020ec25043ae)"}
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
                 />
               </div>
             </div>

@@ -8,6 +8,7 @@ from threading import Lock
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import urllib.parse
 
 class ResponseStore:
     _instance = None
@@ -35,40 +36,36 @@ class ResponseStore:
 
 
 class ZAIChatClient:
-    def __init__(self, base_url="https://chat.z.ai", bearer_token='token', cookie_str='cookie_str'):
+    def __init__(self, base_url="https://chat.z.ai", bearer_token='token', user_id='a8085b86-4e72-405c-9eaf-020ec25043ae'):
         self.base_url = base_url
         self.bearer_token = bearer_token
-        self.cookie_str = cookie_str
+        self.user_id = user_id
         self.response_store = ResponseStore()
         self._setup_headers_and_cookies()
         self._setup_session_with_retry()
 
     def _setup_headers_and_cookies(self):
-        self.headers = {
-            'Accept': '*/*',
-            'Accept-Language': 'en-US',
-            'Authorization': f'Bearer {self.bearer_token}',
-            'Connection': 'keep-alive',
-            'Content-Type': 'application/json',
-            'Origin': 'https://chat.z.ai',
-            'Referer': 'https://chat.z.ai/',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
-            'X-FE-Version': 'prod-fe-1.0.67',
-            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
-            'sec-ch-ua-mobile': '?0',
+        self.base_headers = {
+            'X-FE-Version': 'prod-fe-1.0.95',
             'sec-ch-ua-platform': '"macOS"',
+            'Authorization': f'Bearer {self.bearer_token}',
+            'Referer': 'https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5',
+            'Accept-Language': 'en-US',
+            'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+            'sec-ch-ua-mobile': '?0',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Content-Type': 'application/json',
         }
-
-        # Parse cookie string into dict for requests
-        self.cookies = {}
-        if self.cookie_str:
-            for cookie in self.cookie_str.split(';'):
-                if '=' in cookie:
-                    key, value = cookie.strip().split('=', 1)
-                    self.cookies[key] = value
+    
+    def _get_headers_with_signature(self, timestamp):
+        """Generate headers with signature for the given timestamp"""
+        # For now, use the exact signature from the working curl command
+        # This might need to be updated to generate dynamic signatures later
+        signature = '33e8ed07967b76a11cc6788b85d41fe2ad3a34671161f07929a659314994dc9f'
+        
+        headers = self.base_headers.copy()
+        headers['X-Signature'] = signature
+        return headers
 
     def _setup_session_with_retry(self):
         """Setup requests session with retry strategy for handling timeouts and server errors"""
@@ -94,7 +91,7 @@ class ZAIChatClient:
     def stream_chat_completion(
         self, 
         messages: list, 
-        model: str = "0727-360B-API",
+        model: str = "GLM-4-6-API-V1",
         response_id: Optional[str] = None
     ) -> Generator[str, None, str]:
         """
@@ -116,26 +113,64 @@ class ZAIChatClient:
             response_id = str(uuid.uuid4())
             
         full_response = ""
+        
+        # Prepare URL with query parameters
+        timestamp = str(int(time.time() * 1000))
+        request_id = str(uuid.uuid4())
+        
+        query_params = {
+            'timestamp': timestamp,
+            'requestId': request_id,
+            'user_id': self.user_id,
+            'version': '0.0.1',
+            'platform': 'web',
+            'token': self.bearer_token,
+            'user_agent': urllib.parse.quote('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'),
+            'language': 'zh-CN',
+            'languages': 'zh-CN,zh-TW,en-US,en,ja',
+            'timezone': 'Asia/Shanghai',
+            'cookie_enabled': 'true',
+            'screen_width': '1920',
+            'screen_height': '1080',
+            'screen_resolution': '1920x1080',
+            'viewport_height': '968',
+            'viewport_width': '1040',
+            'viewport_size': '1040x968',
+            'color_depth': '24',
+            'pixel_ratio': '2',
+            'current_url': urllib.parse.quote('https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5'),
+            'pathname': '/c/d272520f-17f8-4384-9801-2b7e2bead6f5',
+            'search': '',
+            'hash': '',
+            'host': 'chat.z.ai',
+            'hostname': 'chat.z.ai',
+            'protocol': 'https:',
+            'referrer': '',
+            'title': urllib.parse.quote('Z.ai Chat - Free AI powered by GLM-4.6 & GLM-4.5'),
+            'timezone_offset': '-480',
+            'local_time': datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+            'utc_time': datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT'),
+            'is_mobile': 'false',
+            'is_touch': 'false',
+            'max_touch_points': '0',
+            'browser_name': 'Chrome',
+            'os_name': 'Mac OS',
+            'signature_timestamp': timestamp
+        }
+        
         json_data = {
             'stream': True,
             'model': model,
             'messages': messages,
             'params': {},
-            'mcp_servers': [
-                'deep-web-search',
-            ],
+            'mcp_servers': ['deep-research'],
             'features': {
                 'image_generation': False,
                 'web_search': False,
                 'auto_web_search': False,
                 'preview_mode': True,
-                'flags': [],
+                'flags': ['deep_research'],
                 'features': [
-                    {
-                        'type': 'mcp',
-                        'server': 'deep-web-search',
-                        'status': 'selected',
-                    },
                     {
                         'type': 'mcp',
                         'server': 'vibe-coding',
@@ -151,11 +186,31 @@ class ZAIChatClient:
                         'server': 'image-search',
                         'status': 'hidden',
                     },
+                    {
+                        'type': 'mcp',
+                        'server': 'deep-research',
+                        'status': 'pinned',
+                    },
+                    {
+                        'type': 'web_search',
+                        'server': 'web_search_h',
+                        'status': 'hidden',
+                    },
+                    {
+                        'type': 'mcp',
+                        'server': 'deep-web-search',
+                        'status': 'hidden',
+                    },
+                    {
+                        'type': 'mcp',
+                        'server': 'advanced-search',
+                        'status': 'hidden',
+                    }
                 ],
                 'enable_thinking': True,
             },
             'variables': {
-                '{{USER_NAME}}': 'Guest-1747374205709',
+                '{{USER_NAME}}': 'ken196502@mailfence.com',
                 '{{USER_LOCATION}}': 'Unknown',
                 '{{CURRENT_DATETIME}}': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 '{{CURRENT_DATE}}': datetime.now().strftime('%Y-%m-%d'),
@@ -166,7 +221,7 @@ class ZAIChatClient:
             },
             'model_item': {
                 'id': model,
-                'name': 'GLM-4.5',
+                'name': 'GLM-4.6',
                 'owned_by': 'openai',
                 'openai': {
                     'id': model,
@@ -178,53 +233,17 @@ class ZAIChatClient:
                     'urlIdx': 1,
                 },
                 'urlIdx': 1,
-                'info': {
-                    'id': model,
-                    'user_id': '7080a6c5-5fcc-4ea4-a85f-3b3fac905cf2',
-                    'base_model_id': None,
-                    'name': 'GLM-4.5',
-                    'params': {
-                        'top_p': 0.95,
-                        'temperature': 0.6,
-                        'max_tokens': 80000,
-                    },
-                    'meta': {
-                        'profile_image_url': '/static/favicon.png',
-                        'description': 'Most advanced model, proficient in coding and tool use',
-                        'capabilities': {
-                            'vision': False,
-                            'citations': False,
-                            'preview_mode': False,
-                            'web_search': False,
-                            'language_detection': False,
-                            'restore_n_source': False,
-                            'mcp': True,
-                            'file_qa': True,
-                            'returnFc': True,
-                            'returnThink': True,
-                            'think': True,
-                        },
-                        'mcpServerIds': [
-                            'deep-web-search',
-                            'ppt-maker',
-                            'image-search',
-                            'vibe-coding',
-                        ],
-                        'tags': [],
-                    },
-                    'access_control': None,
-                    'is_active': True,
-                    'updated_at': 1753675170,
-                    'created_at': 1753624357,
-                },
-                'actions': [],
-                'tags': [],
             },
-            'chat_id': 'local',
+            'chat_id': str(uuid.uuid4()),
             'id': str(uuid.uuid4())
         }
 
-        logging.debug(f"[DEBUG] Sending POST request to: {self.base_url}/api/chat/completions")
+        # Build URL with query parameters
+        url = f'{self.base_url}/api/chat/completions'
+        query_string = urllib.parse.urlencode(query_params)
+        full_url = f'{url}?{query_string}'
+        
+        logging.debug(f"[DEBUG] Sending POST request to: {full_url}")
         # 创建一个集合来存储HTML标签
         html_tags = set()
 
@@ -237,10 +256,12 @@ class ZAIChatClient:
             try:
                 logging.info(f"[DEBUG] Attempt {attempt + 1}/{max_retries} for chat completion request")
                 
+                # Generate headers with signature for this specific request
+                headers = self._get_headers_with_signature(timestamp)
+                
                 with self.session.post(
-                    f'{self.base_url}/api/chat/completions',
-                    headers=self.headers,
-                    cookies=self.cookies,
+                    full_url,
+                    headers=headers,
                     json=json_data,
                     stream=True,
                     timeout=self.timeout
@@ -399,11 +420,11 @@ class ZAIChatClient:
 # Example usage
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    # Initialize with your token and cookie
+    # Initialize with your token and user_id
     bearer_token = 'your_bearer_token_here'
-    cookie_str = 'your_cookie_string_here'
+    user_id = 'your_user_id_here'
     
-    client = ZAIChatClient(bearer_token=bearer_token, cookie_str=cookie_str)
+    client = ZAIChatClient(bearer_token=bearer_token, user_id=user_id)
     
     # Example with response ID
     response_id = str(uuid.uuid4())
@@ -417,7 +438,7 @@ if __name__ == "__main__":
     # Stream the response
     logging.info("Streaming response:")
     response_chunks = []
-    for chunk in client.stream_chat_completion(messages, model="0727-360B-API", response_id=response_id):
+    for chunk in client.stream_chat_completion(messages, model="GLM-4-6-API-V1", response_id=response_id):
         response_chunks.append(chunk)
     logging.info("".join(response_chunks))
     
@@ -426,4 +447,29 @@ if __name__ == "__main__":
     # Later, retrieve the response by ID
     stored_response = client.response_store.get_response(response_id)
     logging.info("Retrieved stored response: %s", stored_response[:100] + "..." if stored_response else "No response found")
+
+
+def create_zai_client_from_config() -> Optional[ZAIChatClient]:
+    """Create ZAI client from configuration.
+    
+    Returns:
+        ZAIChatClient instance if configuration is available, None otherwise.
+    """
+    try:
+        # Import here to avoid circular imports
+        from .services import get_zai_client_config
+        
+        config = get_zai_client_config()
+        if not config or not config.get('bearer_token') or not config.get('user_id'):
+            logging.warning("ZAI client configuration not available")
+            return None
+            
+        return ZAIChatClient(
+            bearer_token=config['bearer_token'],
+            user_id=config['user_id']
+        )
+        
+    except Exception as e:
+        logging.error(f"Failed to create ZAI client from config: {e}")
+        return None
 

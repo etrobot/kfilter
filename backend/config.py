@@ -38,28 +38,32 @@ THS_COOKIE_V = os.getenv('THS_COOKIE_V', 'A5lFEWDLFZlL3MkNmn0O1b5bro52JoyfdxqxbL
 
 def is_zai_configured() -> bool:
     """Check if ZAI credentials are properly configured (always read latest)."""
-    bearer, cookie =get_zai_credentials()
-    return bool(bearer and cookie and 
+    bearer, cookie, user_id = get_zai_credentials()
+    return bool(bearer and user_id and 
                 bearer != 'your_bearer_token_here' and 
-                cookie != 'your_cookie_string_here')
+                user_id != 'your_user_id_here')
 
-def get_zai_credentials() -> Tuple[str, str]:
+def get_zai_credentials() -> Tuple[str, str, str]:
     """Get ZAI credentials (always read latest).
     
     Returns:
-        Tuple containing (bearer_token, cookie_str). Returns empty strings if not configured.
+        Tuple containing (bearer_token, cookie_str, user_id). Returns empty strings if not configured.
     """
     config = load_config_json()
     bearer = config.get('ZAI_BEARER_TOKEN', '')
     cookie = config.get('ZAI_COOKIE_STR', '')
+    user_id = config.get('ZAI_USER_ID', '')
     return (bearer.strip() if bearer else '', 
-            cookie.strip() if cookie else '')
+            cookie.strip() if cookie else '',
+            user_id.strip() if user_id else '')
 
-def set_zai_credentials(bearer_token: str, cookie_str: str) -> None:
+def set_zai_credentials(bearer_token: str, cookie_str: str, user_id: str = '') -> None:
     """Persist ZAI credentials to backend/config.json."""
     data = load_config_json()
     data['ZAI_BEARER_TOKEN'] = bearer_token
     data['ZAI_COOKIE_STR'] = cookie_str
+    if user_id:
+        data['ZAI_USER_ID'] = user_id
     save_config_json(data)
 
 def get_openai_config() -> Tuple[str, str]:
@@ -86,6 +90,9 @@ def set_system_config(config_data: dict) -> None:
     if 'ZAI_COOKIE_STR' in config_data:
         data['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
         os.environ['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
+    if 'ZAI_USER_ID' in config_data:
+        data['ZAI_USER_ID'] = config_data['ZAI_USER_ID']
+        os.environ['ZAI_USER_ID'] = config_data['ZAI_USER_ID']
     
     # Update OpenAI configuration if provided
     if 'OPENAI_API_KEY' in config_data:

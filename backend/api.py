@@ -528,12 +528,13 @@ def get_zai_config():
 def update_zai_config(config_data: dict) -> dict:
     """Update and persist system configuration (ZAI + OpenAI) into backend/config.json."""
     # Get current values to merge with
-    current_bearer, current_cookie = get_zai_credentials()
+    current_bearer, current_cookie, current_user_id = get_zai_credentials()
     current_api_key, current_base_url = get_openai_config()
 
     current_config = {
         "ZAI_BEARER_TOKEN": current_bearer,
         "ZAI_COOKIE_STR": current_cookie,
+        "ZAI_USER_ID": current_user_id,
         "OPENAI_API_KEY": current_api_key,
         "OPENAI_BASE_URL": current_base_url
     }
@@ -545,6 +546,8 @@ def update_zai_config(config_data: dict) -> dict:
         new_config['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
     if config_data.get('ZAI_COOKIE_STR'):
         new_config['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
+    if config_data.get('ZAI_USER_ID'):
+        new_config['ZAI_USER_ID'] = config_data['ZAI_USER_ID']
     if config_data.get('OPENAI_API_KEY'):
         new_config['OPENAI_API_KEY'] = config_data['OPENAI_API_KEY']
     
@@ -553,7 +556,7 @@ def update_zai_config(config_data: dict) -> dict:
         new_config['OPENAI_BASE_URL'] = config_data.get('OPENAI_BASE_URL', '')
 
     # Validate required fields are present in the final config
-    required_fields = ['ZAI_BEARER_TOKEN', 'ZAI_COOKIE_STR', 'OPENAI_API_KEY']
+    required_fields = ['ZAI_BEARER_TOKEN', 'ZAI_USER_ID', 'OPENAI_API_KEY']
     missing_fields = [field for field in required_fields if not new_config.get(field, '').strip()]
     
     if missing_fields:
@@ -564,6 +567,11 @@ def update_zai_config(config_data: dict) -> dict:
     
     try:
         set_system_config(new_config)
+        
+        # Refresh ZAI client configuration cache
+        from data_management.services import refresh_zai_client_config
+        refresh_zai_client_config()
+        
         return {"success": True, "message": "系统配置已保存"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存配置失败: {e}")
