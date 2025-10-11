@@ -29,16 +29,44 @@ except ImportError:
 except Exception as e:
     logging.warning(f"Failed to load .env file: {e}")
 
-try:
-    config_data = load_config_json()
-    if config_data:
-        set_system_config(config_data)
-        logging.info(f"Loaded configuration from config.json: {len(config_data)} settings")
-    else:
-        logging.info("No config.json found or empty, using environment variables only")
-except Exception as e:
-    logging.warning(f"Failed to load config.json: {e}")
-    logging.info("System will start with environment variables only")
+def load_startup_config():
+    """Load configuration from config.json and set environment variables at startup"""
+    try:
+        config_data = load_config_json()
+        if config_data:
+            # Load all configuration values into environment variables
+            set_system_config(config_data)
+            
+            # Count valid configurations
+            valid_configs = []
+            
+            # Check ZAI configuration
+            zai_keys = ['ZAI_BEARER_TOKEN', 'ZAI_COOKIE_STR', 'ZAI_USER_ID']
+            zai_values = [config_data.get(key, '').strip() for key in zai_keys]
+            if all(val and val not in ['your_bearer_token_here', 'your_user_id_here'] for val in zai_values[:2]) and zai_values[2]:
+                valid_configs.append("ZAI")
+            
+            # Check OpenAI configuration  
+            openai_key = config_data.get('OPENAI_API_KEY', '').strip()
+            if openai_key and openai_key != 'your_openai_api_key_here':
+                valid_configs.append("OpenAI")
+            
+            config_status = f"Loaded configuration from config.json: {len(config_data)} settings"
+            if valid_configs:
+                config_status += f" (Valid: {', '.join(valid_configs)})"
+            
+            logging.info(config_status)
+            return True
+        else:
+            logging.info("No config.json found or empty, using environment variables only")
+            return False
+    except Exception as e:
+        logging.warning(f"Failed to load config.json: {e}")
+        logging.info("System will start with environment variables only")
+        return False
+
+# Load configuration at startup
+load_startup_config()
 
 
 from models import RunRequest, RunResponse, TaskResult, Message, ConceptTaskResult, AuthRequest, AuthResponse, create_db_and_tables, User, get_session
@@ -72,25 +100,59 @@ logger.info("Database initialized successfully")
 # Admin user will be automatically created as the first user to register
 logger.info("Admin user will be automatically assigned to the first user who registers")
 
-# Check and log system configuration status
-try:
-    from config import is_zai_configured, is_openai_configured
-    zai_config = is_zai_configured()
-    openai_config = is_openai_configured()
-    system_ready = zai_config and openai_config
-    
-    logger.info(f"System configuration status:")
-    logger.info(f"  - ZAI configured: {zai_config}")
-    logger.info(f"  - OpenAI configured: {openai_config}")
-    logger.info(f"  - System ready: {system_ready}")
-    
-    if not system_ready:
-        logger.warning("System is not fully configured. Please configure via /config/zai endpoint")
-    else:
-        logger.info("System is fully configured and ready for operation")
+# Check and log final system configuration status after startup loading
+def check_system_configuration():
+    """Check and log the current system configuration status"""
+    try:
+        from config import is_zai_configured, is_openai_configured, get_zai_credentials, get_openai_config
         
-except Exception as e:
-    logger.error(f"Failed to check configuration status: {e}")
+        # Check configuration status
+        zai_config = is_zai_configured()
+        openai_config = is_openai_configured()
+        system_ready = zai_config and openai_config
+        
+        logger.info("=" * 50)
+        logger.info("SYSTEM CONFIGURATION STATUS")
+        logger.info("=" * 50)
+        
+        # ZAI Configuration details
+        bearer, cookie, user_id = get_zai_credentials()
+        logger.info(f"ZAI Configuration:")
+        logger.info(f"  - Bearer Token: {'✓ Set' if bearer and bearer != 'your_bearer_token_here' else '✗ Not configured'}")
+        logger.info(f"  - Cookie String: {'✓ Set' if cookie else '✗ Not set'}")
+        logger.info(f"  - User ID: {'✓ Set' if user_id and user_id != 'your_user_id_here' else '✗ Not configured'}")
+        logger.info(f"  - ZAI Status: {'✓ CONFIGURED' if zai_config else '✗ NOT CONFIGURED'}")
+        
+        # OpenAI Configuration details
+        api_key, base_url, model = get_openai_config()
+        logger.info(f"OpenAI Configuration:")
+        logger.info(f"  - API Key: {'✓ Set' if api_key and api_key != 'your_openai_api_key_here' else '✗ Not configured'}")
+        logger.info(f"  - Base URL: {base_url if base_url else 'Default (https://api.openai.com/v1)'}")
+        logger.info(f"  - Model: {model}")
+        logger.info(f"  - OpenAI Status: {'✓ CONFIGURED' if openai_config else '✗ NOT CONFIGURED'}")
+        
+        # Overall system status
+        logger.info(f"Overall System Status: {'✓ READY FOR OPERATION' if system_ready else '✗ REQUIRES CONFIGURATION'}")
+        
+        if not system_ready:
+            logger.warning("⚠ SYSTEM NOT FULLY CONFIGURED")
+            logger.warning("  Please configure missing components via the /config/zai endpoint")
+            if not zai_config:
+                logger.warning("  - ZAI credentials are required for market data access")
+            if not openai_config:
+                logger.warning("  - OpenAI API key is required for LLM analysis")
+        else:
+            logger.info("✅ SYSTEM FULLY CONFIGURED AND READY")
+            
+        logger.info("=" * 50)
+        return system_ready
+        
+    except Exception as e:
+        logger.error(f"Failed to check configuration status: {e}")
+        return False
+
+# Check system configuration after startup loading
+check_system_configuration()
 
 # Start daily scheduler for automated analysis
 start_daily_scheduler()

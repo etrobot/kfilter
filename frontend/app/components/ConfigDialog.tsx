@@ -21,10 +21,10 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
   const [userId, setUserId] = useState('')
   const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('')
+  const [openaiModel, setOpenaiModel] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [configured, setConfigured] = useState<boolean | null>(null)
   const [zaiConfigured, setZaiConfigured] = useState<boolean | null>(null)
   const [openaiConfigured, setOpenaiConfigured] = useState<boolean | null>(null)
 
@@ -47,7 +47,6 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
       try {
         const cfg = await api.getZaiConfig()
         if (!cancelled) {
-          setConfigured(cfg.configured)
           setZaiConfigured(cfg.zai_configured)
           setOpenaiConfigured(cfg.openai_configured)
           // Clear fields and only fill non-sensitive ones
@@ -57,6 +56,9 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
           setOpenaiApiKey('')
           if (cfg.OPENAI_BASE_URL) {
             setOpenaiBaseUrl(cfg.OPENAI_BASE_URL)
+          }
+          if (cfg.OPENAI_MODEL) {
+            setOpenaiModel(cfg.OPENAI_MODEL)
           }
         }
       } catch (e) {
@@ -86,11 +88,11 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
         ZAI_COOKIE_STR: cookie.trim(),
         ZAI_USER_ID: userId.trim(),
         OPENAI_API_KEY: openaiApiKey.trim(),
-        OPENAI_BASE_URL: openaiBaseUrl.trim() || 'https://api.openai.com/v1'
+        OPENAI_BASE_URL: openaiBaseUrl.trim() || 'https://api.openai.com/v1',
+        OPENAI_MODEL: openaiModel.trim() || 'gpt-oss-120b'
       }
       
       await api.updateZaiConfig(config)
-      setConfigured(true)
       if (onSaved) onSaved()
       onOpenChange(false)
     } catch (e) {
@@ -189,6 +191,19 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   留空将使用默认的 OpenAI API 端点
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">OPENAI_MODEL</label>
+                <input
+                  type="text"
+                  className="w-full border rounded-md p-2 text-sm"
+                  placeholder="gpt-oss-120b (默认)"
+                  value={openaiModel}
+                  onChange={(e) => setOpenaiModel(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  LLM评估使用的模型名称，留空将使用默认模型
                 </p>
               </div>
             </div>

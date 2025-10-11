@@ -66,17 +66,18 @@ def set_zai_credentials(bearer_token: str, cookie_str: str, user_id: str = '') -
         data['ZAI_USER_ID'] = user_id
     save_config_json(data)
 
-def get_openai_config() -> Tuple[str, str]:
-    """Get OpenAI API configuration (API key and base URL)."""
+def get_openai_config() -> Tuple[str, str, str]:
+    """Get OpenAI API configuration (API key, base URL, and model)."""
     cfg = load_config_json()
     api_key = (cfg.get('OPENAI_API_KEY') or '').strip()
     base_url = (cfg.get('OPENAI_BASE_URL') or '').strip()
+    model = (cfg.get('OPENAI_MODEL') or 'gpt-oss-120b').strip()
     
-    return api_key, base_url
+    return api_key, base_url, model
 
 def is_openai_configured() -> bool:
     """Check if OpenAI API is properly configured."""
-    api_key, _ = get_openai_config()
+    api_key, _, _ = get_openai_config()
     return bool(api_key and api_key != 'your_openai_api_key_here')
 
 def set_system_config(config_data: dict) -> None:
@@ -101,6 +102,9 @@ def set_system_config(config_data: dict) -> None:
     if 'OPENAI_BASE_URL' in config_data:
         data['OPENAI_BASE_URL'] = config_data['OPENAI_BASE_URL']
         os.environ['OPENAI_BASE_URL'] = config_data['OPENAI_BASE_URL']
+    if 'OPENAI_MODEL' in config_data:
+        data['OPENAI_MODEL'] = config_data['OPENAI_MODEL']
+        os.environ['OPENAI_MODEL'] = config_data['OPENAI_MODEL']
     
     save_config_json(data)
 

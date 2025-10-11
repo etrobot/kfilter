@@ -20,7 +20,7 @@ def get_llm_client(scheme='openai'):
     try:
         # 从配置文件获取API Key和Base URL
         from config import get_openai_config
-        api_key, base_url = get_openai_config()
+        api_key, base_url, _ = get_openai_config()
         
         if not api_key:
             raise ValueError("OpenAI API Key 未配置，请在配置对话框中设置")
@@ -95,7 +95,7 @@ def llm_gen_dict(client: openai.Client, model: str, query: str, format_example: 
         return {}
 
 
-def evaluate_content_with_llm(content: str,model='gpt-oss-120b') -> Dict:
+def evaluate_content_with_llm(content: str, model: str = None) -> Dict:
     """
     使用OpenAI API评估内容
 
@@ -169,6 +169,11 @@ def evaluate_content_with_llm(content: str,model='gpt-oss-120b') -> Dict:
   }
 }
 """+'并添加分类名称比如“激光设备(先进制造)”，必须来自以下分类：'+str(list(parse_category_hierarchy().keys()))
+    
+    # 如果没有指定模型，从配置中获取
+    if model is None:
+        from config import get_openai_config
+        _, _, model = get_openai_config()
     
     # 使用 llm_gen_dict 来强约束输出为 python 字典
     client = get_llm_client()

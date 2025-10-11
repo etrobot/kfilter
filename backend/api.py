@@ -77,7 +77,7 @@ def get_system_health():
         db_status = f"error: {str(e)}"
     
     # Get OpenAI config details (non-sensitive)
-    _, openai_base_url = get_openai_config()
+    _, openai_base_url, _ = get_openai_config()
     
     health_info = {
         "service": "quant-dashboard-backend",
@@ -514,11 +514,12 @@ def get_running_extended_analysis_status() -> dict:
 
 def get_zai_config():
     """Return current system configuration state (mask sensitive values)."""
-    _, base_url = get_openai_config()
+    _, base_url, model = get_openai_config()
     
     return {
         "configured": is_zai_configured() and is_openai_configured(),
         "OPENAI_BASE_URL": base_url,  # Base URL is not sensitive, show full value
+        "OPENAI_MODEL": model,  # Model name is not sensitive, show full value
         # Individual configuration status
         "zai_configured": is_zai_configured(),
         "openai_configured": is_openai_configured(),
@@ -529,14 +530,15 @@ def update_zai_config(config_data: dict) -> dict:
     """Update and persist system configuration (ZAI + OpenAI) into backend/config.json."""
     # Get current values to merge with
     current_bearer, current_cookie, current_user_id = get_zai_credentials()
-    current_api_key, current_base_url = get_openai_config()
+    current_api_key, current_base_url, current_model = get_openai_config()
 
     current_config = {
         "ZAI_BEARER_TOKEN": current_bearer,
         "ZAI_COOKIE_STR": current_cookie,
         "ZAI_USER_ID": current_user_id,
         "OPENAI_API_KEY": current_api_key,
-        "OPENAI_BASE_URL": current_base_url
+        "OPENAI_BASE_URL": current_base_url,
+        "OPENAI_MODEL": current_model
     }
 
     new_config = current_config.copy()
@@ -551,9 +553,11 @@ def update_zai_config(config_data: dict) -> dict:
     if config_data.get('OPENAI_API_KEY'):
         new_config['OPENAI_API_KEY'] = config_data['OPENAI_API_KEY']
     
-    # OPENAI_BASE_URL is not a secret and can be updated to an empty string.
+    # OPENAI_BASE_URL and OPENAI_MODEL are not secrets and can be updated to an empty string.
     if 'OPENAI_BASE_URL' in config_data:
         new_config['OPENAI_BASE_URL'] = config_data.get('OPENAI_BASE_URL', '')
+    if 'OPENAI_MODEL' in config_data:
+        new_config['OPENAI_MODEL'] = config_data.get('OPENAI_MODEL', '')
 
     # Validate required fields are present in the final config
     required_fields = ['ZAI_BEARER_TOKEN', 'ZAI_USER_ID', 'OPENAI_API_KEY']
