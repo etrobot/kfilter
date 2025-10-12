@@ -44,7 +44,7 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
     full_response = ""
     if on_progress:
         on_progress(f"开始深度搜索板块 {concept_name}")
-    for chunk in client.stream_chat_completion(messages, model="0727-360B-API"):
+    for chunk in client.stream_chat_completion(messages, model="GLM-4-6-API-V1"):
         # Check if cancellation was requested
         if stop_event and stop_event.is_set():
             if on_progress:

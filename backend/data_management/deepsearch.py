@@ -111,16 +111,8 @@ class ZAIChatClient:
         logging.info("[DEBUG] stream_chat_completion called")
         if not response_id:
             response_id = str(uuid.uuid4())
-            
-        full_response = ""
-        
-        # Prepare URL with query parameters
-        timestamp = str(int(time.time() * 1000))
-        request_id = str(uuid.uuid4())
-        
-        query_params = {
-            'timestamp': timestamp,
-            'requestId': request_id,
+
+        base_query_params = {
             'user_id': self.user_id,
             'version': '0.0.1',
             'platform': 'web',
@@ -148,14 +140,11 @@ class ZAIChatClient:
             'referrer': '',
             'title': urllib.parse.quote('Z.ai Chat - Free AI powered by GLM-4.6 & GLM-4.5'),
             'timezone_offset': '-480',
-            'local_time': datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-            'utc_time': datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT'),
             'is_mobile': 'false',
             'is_touch': 'false',
             'max_touch_points': '0',
             'browser_name': 'Chrome',
-            'os_name': 'Mac OS',
-            'signature_timestamp': timestamp
+            'os_name': 'Mac OS'
         }
         
         json_data = {
@@ -238,26 +227,37 @@ class ZAIChatClient:
             'id': str(uuid.uuid4())
         }
 
-        # Build URL with query parameters
+        # Base URL for the chat completion endpoint
         url = f'{self.base_url}/api/chat/completions'
-        query_string = urllib.parse.urlencode(query_params)
-        full_url = f'{url}?{query_string}'
-        
-        logging.debug(f"[DEBUG] Sending POST request to: {full_url}")
-        # 创建一个集合来存储HTML标签
-        html_tags = set()
 
         # Retry logic for the entire request
         max_retries = 3
-        retry_delay = 20  # Start with 20 seconds
+        retry_delay = 20
         last_exception = None
-        
+
         for attempt in range(max_retries):
+            full_response = ""
             try:
+                timestamp = str(int(time.time() * 1000))
+                request_id = str(uuid.uuid4())
+                dynamic_query_params = base_query_params.copy()
+                dynamic_query_params.update({
+                    'timestamp': timestamp,
+                    'requestId': request_id,
+                    'signature_timestamp': timestamp,
+                    'local_time': datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                    'utc_time': datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
+                })
+
+                query_string = urllib.parse.urlencode(dynamic_query_params)
+                full_url = f'{url}?{query_string}'
+
                 logging.info(f"[DEBUG] Attempt {attempt + 1}/{max_retries} for chat completion request")
                 
                 # Generate headers with signature for this specific request
                 headers = self._get_headers_with_signature(timestamp)
+                full_response = ""
+                html_tags = set()
                 
                 with self.session.post(
                     full_url,
@@ -383,17 +383,30 @@ class ZAIChatClient:
                             else:
                                 logging.debug(decoded_line)
                     
-                    # Save the complete response
                     self.response_store.save_response(response_id, full_response)
-                    
-                    # Log collected HTML tags if any
+
                     if html_tags:
                         logging.info("\n[INFO] 收集到的HTML标签:")
                         for tag in sorted(html_tags):
                             logging.info(f"  {tag}")
-                            
+
                     return full_response
-                    
+
+            except requests.exceptions.ChunkedEncodingError as e:
+                last_exception = e
+                logging.info(f"[STREAM] Chunked encoding ended early: {e}")
+                if full_response.strip():
+                    logging.info("[STREAM] Returning collected partial response")
+                    self.response_store.save_response(response_id, full_response)
+                    return full_response
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    logging.info(f"[RETRY] Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
+                    continue
+                logging.error(f"[RETRY] All {max_retries} attempts failed due to chunked encoding errors")
+                raise e
+
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, 
                     requests.exceptions.HTTPError) as e:
                 last_exception = e

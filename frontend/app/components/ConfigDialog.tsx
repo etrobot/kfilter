@@ -78,7 +78,6 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
       // URL格式验证
       if (openaiBaseUrl.trim() && !isValidUrl(openaiBaseUrl.trim())) {
         setError('请输入有效的 OpenAI Base URL')
-        setSaving(false)
         return
       }
       
@@ -93,6 +92,12 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
       }
       
       await api.updateZaiConfig(config)
+      api.getZaiConfig()
+        .then((updated) => {
+          setZaiConfigured(updated.zai_configured)
+          setOpenaiConfigured(updated.openai_configured)
+        })
+        .catch(() => {})
       if (onSaved) onSaved()
       onOpenChange(false)
     } catch (e) {
