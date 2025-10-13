@@ -78,6 +78,7 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
       // URL格式验证
       if (openaiBaseUrl.trim() && !isValidUrl(openaiBaseUrl.trim())) {
         setError('请输入有效的 OpenAI Base URL')
+        setSaving(false)
         return
       }
       
@@ -91,18 +92,16 @@ export function ConfigDialog({ open, onOpenChange, onSaved }: ConfigDialogProps)
         OPENAI_MODEL: openaiModel.trim() || 'gpt-oss-120b'
       }
       
+      console.log('Saving config...')
       await api.updateZaiConfig(config)
-      api.getZaiConfig()
-        .then((updated) => {
-          setZaiConfigured(updated.zai_configured)
-          setOpenaiConfigured(updated.openai_configured)
-        })
-        .catch(() => {})
+      console.log('Config saved, closing dialog')
+      setSaving(false)
       if (onSaved) onSaved()
       onOpenChange(false)
+      console.log('Dialog close requested')
     } catch (e) {
+      console.error('Save failed:', e)
       setError(e instanceof Error ? e.message : '保存失败')
-    } finally {
       setSaving(false)
     }
   }

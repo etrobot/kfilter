@@ -377,7 +377,16 @@ def get_config():
 @app.post("/config/zai")
 def post_config(payload: dict):
     """Save configuration (ZAI + OpenAI) to backend/config.json"""
-    return update_zai_config(payload)
+    print("\n" + "=" * 60)
+    print("POST /config/zai ENDPOINT HIT")
+    print(f"Payload received: {payload}")
+    print("=" * 60 + "\n")
+    logger.info(f"POST /config/zai received with payload keys: {list(payload.keys())}")
+    print("About to call update_zai_config...")
+    result = update_zai_config(payload)
+    print(f"update_zai_config returned: {result}")
+    logger.info(f"POST /config/zai returning: {result}")
+    return result
 
 
 # Serve frontend for production

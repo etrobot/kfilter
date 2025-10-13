@@ -11,6 +11,7 @@ export class ApiError extends Error {
 }
 
 async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  console.log(`API Call: ${options?.method || 'GET'} ${endpoint}`)
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -18,12 +19,22 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
     },
     ...options,
   })
+  console.log(`API Response: ${response.status} ${endpoint}`)
 
   if (!response.ok) {
-    throw new ApiError(response.status, `HTTP error! status: ${response.status}`)
+    let errorMessage = `HTTP error! status: ${response.status}`
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.detail || errorData.message || errorMessage
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new ApiError(response.status, errorMessage)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log(`API Data:`, data)
+  return data
 }
 
 export const api = {

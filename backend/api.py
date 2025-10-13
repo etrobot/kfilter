@@ -528,9 +528,16 @@ def get_zai_config():
 
 def update_zai_config(config_data: dict) -> dict:
     """Update and persist system configuration (ZAI + OpenAI) into backend/config.json."""
+    print("=" * 50)
+    print("UPDATE_ZAI_CONFIG CALLED")
+    print(f"Payload: {config_data}")
+    print("=" * 50)
+    logger.info(f"Received config update request: {list(config_data.keys())}")
     # Get current values to merge with
     current_bearer, current_cookie, current_user_id = get_zai_credentials()
+    logger.info("Got ZAI credentials")
     current_api_key, current_base_url, current_model = get_openai_config()
+    logger.info("Got OpenAI config")
 
     current_config = {
         "ZAI_BEARER_TOKEN": current_bearer,
@@ -559,23 +566,28 @@ def update_zai_config(config_data: dict) -> dict:
     if 'OPENAI_MODEL' in config_data:
         new_config['OPENAI_MODEL'] = config_data.get('OPENAI_MODEL', '')
 
+    logger.info("Config merged, validating...")
     # Validate required fields are present in the final config
     required_fields = ['ZAI_BEARER_TOKEN', 'ZAI_USER_ID', 'OPENAI_API_KEY']
     missing_fields = [field for field in required_fields if not new_config.get(field, '').strip()]
     
     if missing_fields:
+        logger.warning(f"Validation failed: missing {missing_fields}")
         raise HTTPException(
             status_code=400, 
             detail=f"缺少必填字段: {', '.join(missing_fields)}"
         )
     
+    logger.info("Validation passed, saving config...")
     try:
         set_system_config(new_config)
+        logger.info("Config saved, refreshing ZAI client...")
         
         # Refresh ZAI client configuration cache
         from data_management.services import refresh_zai_client_config
         refresh_zai_client_config()
         
+        logger.info("Config update completed successfully")
         return {"success": True, "message": "系统配置已保存"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存配置失败: {e}")

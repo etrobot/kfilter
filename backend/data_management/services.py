@@ -60,7 +60,22 @@ def refresh_zai_client_config() -> None:
     
     with _zai_config_lock:
         _zai_client_config = None
-        get_zai_client_config()  # This will reload the config
+        # Reload config directly without calling get_zai_client_config to avoid deadlock
+        try:
+            if is_zai_configured():
+                bearer_token, cookie_str, user_id = get_zai_credentials()
+                _zai_client_config = {
+                    'bearer_token': bearer_token,
+                    'cookie_str': cookie_str,
+                    'user_id': user_id
+                }
+                logger.info("ZAI client configuration refreshed from config")
+            else:
+                logger.warning("ZAI credentials not configured during refresh")
+                _zai_client_config = {}
+        except Exception as e:
+            logger.error(f"Failed to refresh ZAI configuration: {e}")
+            _zai_client_config = {}
 
 
 def get_cached_analysis_results(task_id: Optional[str] = None) -> Dict[str, Any]:
