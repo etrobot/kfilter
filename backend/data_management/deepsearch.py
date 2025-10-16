@@ -9,6 +9,9 @@ import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import urllib.parse
+import hmac
+import hashlib
+import base64
 
 class ResponseStore:
     _instance = None
@@ -36,48 +39,102 @@ class ResponseStore:
 
 
 class ZAIChatClient:
-    def __init__(self, base_url="https://chat.z.ai", bearer_token='token', user_id='a8085b86-4e72-405c-9eaf-020ec25043ae'):
-        self.base_url = base_url
-        self.bearer_token = bearer_token
-        self.user_id = user_id
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """Initialize ZAI Chat Client with configuration.
+        
+        Args:
+            config: Configuration dictionary. If None, will use default configuration.
+        """
+        # Use provided config or default values
+        self.config = config or {}
+        
+        # Core authentication settings
+        self.base_url = self.config.get('base_url', 'https://chat.z.ai')
+        self.bearer_token = self.config.get('bearer_token', 'token')
+        self.user_id = self.config.get('user_id', 'a8085b86-4e72-405c-9eaf-020ec25043ae')
+        
         self.response_store = ResponseStore()
         self._setup_headers_and_cookies()
         self._setup_session_with_retry()
 
     def _setup_headers_and_cookies(self):
+        """Setup base headers using configuration."""
         self.base_headers = {
-            'X-FE-Version': 'prod-fe-1.0.95',
-            'sec-ch-ua-platform': '"macOS"',
+            'X-FE-Version': self.config.get('fe_version', 'prod-fe-1.0.95'),
+            'sec-ch-ua-platform': f'"{self.config.get("platform", "macOS")}"',
             'Authorization': f'Bearer {self.bearer_token}',
-            'Referer': 'https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5',
-            'Accept-Language': 'en-US',
-            'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
-            'sec-ch-ua-mobile': '?0',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Referer': self.config.get('referer', 'https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5'),
+            'Accept-Language': self.config.get('accept_language', 'en-US'),
+            'sec-ch-ua': self.config.get('sec_ch_ua', '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"'),
+            'sec-ch-ua-mobile': self.config.get('sec_ch_ua_mobile', '?0'),
+            'User-Agent': self.config.get('user_agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'),
             'Content-Type': 'application/json',
         }
     
-    def _get_headers_with_signature(self, timestamp):
-        """Generate headers with signature for the given timestamp"""
-        # For now, use the exact signature from the working curl command
-        # This might need to be updated to generate dynamic signatures later
-        signature = '33e8ed07967b76a11cc6788b85d41fe2ad3a34671161f07929a659314994dc9f'
+    def _generate_signature(self, params: Dict[str, Any], content: str) -> Dict[str, str]:
+        """Generate signature using the algorithm pattern.
         
+        Args:
+            params: Request parameters including timestamp, requestId, user_id
+            content: The message content to sign
+            
+        Returns:
+            Dictionary containing signature and timestamp
+        """
+        def _hmac_sha256(key: bytes, msg: bytes) -> str:
+            return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+        # Validate required parameters
+        for param in ["timestamp", "requestId", "user_id"]:
+            if param not in params or not params.get(param):
+                raise ValueError(f"Missing required parameter: {param}")
+
+        request_time = int(params.get("timestamp", datetime.now().timestamp() * 1000))
+        signature_key = self.config.get('signature_key', 'junjie')
+        expire_minutes = self.config.get('signature_expire_minutes', 5)
+
+        # Level 1 signature: Time-based signature with configurable expiry
+        signature_expire = request_time // (expire_minutes * 60 * 1000)
+        signature_1_plaintext = str(signature_expire)
+        signature_1 = _hmac_sha256(signature_key.encode('utf-8'), signature_1_plaintext.encode('utf-8'))
+
+        # Level 2 signature: Content and parameters
+        content_encoded = base64.b64encode(content.encode('utf-8')).decode('ascii')
+        signature_params = str(','.join([f"{k},{params[k]}" for k in sorted(params.keys())]))
+        signature_2_plaintext = f"{signature_params}|{content_encoded}|{str(request_time)}"
+        signature_2 = _hmac_sha256(signature_1.encode('utf-8'), signature_2_plaintext.encode('utf-8'))
+
+        return {
+            "signature": signature_2,
+            "timestamp": str(request_time)
+        }
+
+    def _get_headers_with_signature(self, timestamp: str, request_params: Dict[str, Any], content: str = ""):
+        """Generate headers with dynamic signature for the given timestamp and content"""
         headers = self.base_headers.copy()
-        headers['X-Signature'] = signature
+        
+        try:
+            # Generate dynamic signature
+            signature_data = self._generate_signature(request_params, content)
+            headers['X-Signature'] = signature_data['signature']
+        except Exception as e:
+            logging.warning(f"Failed to generate signature: {e}. Using fallback.")
+            # Fallback to static signature if generation fails
+            headers['X-Signature'] = '33e8ed07967b76a11cc6788b85d41fe2ad3a34671161f07929a659314994dc9f'
+        
         return headers
 
     def _setup_session_with_retry(self):
         """Setup requests session with retry strategy for handling timeouts and server errors"""
         self.session = requests.Session()
         
-        # Configure retry strategy
+        # Configure retry strategy using configuration
         retry_strategy = Retry(
-            total=3,  # Total number of retries
-            status_forcelist=[429, 500, 502, 503, 504],  # HTTP status codes to retry on
-            allowed_methods=["HEAD", "GET", "POST"],  # HTTP methods to retry
-            backoff_factor=2,  # Exponential backoff factor (wait 2, 4, 8 seconds)
-            raise_on_status=False  # Don't raise exception on final failure
+            total=self.config.get('max_retries', 3),
+            status_forcelist=self.config.get('retry_status_codes', [429, 500, 502, 503, 504]),
+            allowed_methods=["HEAD", "GET", "POST"],
+            backoff_factor=self.config.get('backoff_factor', 2),
+            raise_on_status=False
         )
         
         # Mount the adapter to the session
@@ -85,13 +142,15 @@ class ZAIChatClient:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
         
-        # Set timeouts
-        self.timeout = (30, 180)  # (connect_timeout, read_timeout) in seconds
+        # Set timeouts from configuration
+        connect_timeout = self.config.get('connect_timeout', 30)
+        read_timeout = self.config.get('read_timeout', 180)
+        self.timeout = (connect_timeout, read_timeout)
 
     def stream_chat_completion(
         self, 
         messages: list, 
-        model: str = "GLM-4-6-API-V1",
+        model: Optional[str] = None,
         response_id: Optional[str] = None
     ) -> Generator[str, None, str]:
         """
@@ -111,26 +170,36 @@ class ZAIChatClient:
         logging.info("[DEBUG] stream_chat_completion called")
         if not response_id:
             response_id = str(uuid.uuid4())
+        
+        # Use default model from configuration if not provided
+        if not model:
+            model = self.config.get('default_model', 'GLM-4-6-API-V1')
 
+        # Build query parameters from configuration
+        screen_width = self.config.get('screen_width', '1920')
+        screen_height = self.config.get('screen_height', '1080')
+        viewport_width = self.config.get('viewport_width', '1040')
+        viewport_height = self.config.get('viewport_height', '968')
+        
         base_query_params = {
             'user_id': self.user_id,
-            'version': '0.0.1',
-            'platform': 'web',
+            'version': self.config.get('version', '0.0.1'),
+            'platform': self.config.get('platform_param', 'web'),
             'token': self.bearer_token,
-            'user_agent': urllib.parse.quote('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'),
-            'language': 'zh-CN',
-            'languages': 'zh-CN,zh-TW,en-US,en,ja',
-            'timezone': 'Asia/Shanghai',
+            'user_agent': urllib.parse.quote(self.config.get('user_agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36')),
+            'language': self.config.get('language', 'zh-CN'),
+            'languages': self.config.get('languages', 'zh-CN,zh-TW,en-US,en,ja'),
+            'timezone': self.config.get('timezone', 'Asia/Shanghai'),
             'cookie_enabled': 'true',
-            'screen_width': '1920',
-            'screen_height': '1080',
-            'screen_resolution': '1920x1080',
-            'viewport_height': '968',
-            'viewport_width': '1040',
-            'viewport_size': '1040x968',
-            'color_depth': '24',
-            'pixel_ratio': '2',
-            'current_url': urllib.parse.quote('https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5'),
+            'screen_width': screen_width,
+            'screen_height': screen_height,
+            'screen_resolution': f'{screen_width}x{screen_height}',
+            'viewport_height': viewport_height,
+            'viewport_width': viewport_width,
+            'viewport_size': f'{viewport_width}x{viewport_height}',
+            'color_depth': self.config.get('color_depth', '24'),
+            'pixel_ratio': self.config.get('pixel_ratio', '2'),
+            'current_url': urllib.parse.quote(self.config.get('referer', 'https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5')),
             'pathname': '/c/d272520f-17f8-4384-9801-2b7e2bead6f5',
             'search': '',
             'hash': '',
@@ -139,89 +208,62 @@ class ZAIChatClient:
             'protocol': 'https:',
             'referrer': '',
             'title': urllib.parse.quote('Z.ai Chat - Free AI powered by GLM-4.6 & GLM-4.5'),
-            'timezone_offset': '-480',
+            'timezone_offset': self.config.get('timezone_offset', '-480'),
             'is_mobile': 'false',
             'is_touch': 'false',
             'max_touch_points': '0',
-            'browser_name': 'Chrome',
-            'os_name': 'Mac OS'
+            'browser_name': self.config.get('browser_name', 'Chrome'),
+            'os_name': self.config.get('os_name', 'Mac OS')
         }
+        
+        # Build features configuration
+        features_list = [
+            {'type': 'mcp', 'server': 'vibe-coding', 'status': 'hidden'},
+            {'type': 'mcp', 'server': 'ppt-maker', 'status': 'hidden'},
+            {'type': 'mcp', 'server': 'image-search', 'status': 'hidden'},
+            {'type': 'mcp', 'server': 'deep-research', 'status': 'pinned'},
+            {'type': 'web_search', 'server': 'web_search_h', 'status': 'hidden'},
+            {'type': 'mcp', 'server': 'deep-web-search', 'status': 'hidden'},
+            {'type': 'mcp', 'server': 'advanced-search', 'status': 'hidden'}
+        ]
         
         json_data = {
             'stream': True,
             'model': model,
             'messages': messages,
             'params': {},
-            'mcp_servers': ['deep-research'],
+            'mcp_servers': self.config.get('mcp_servers', ['deep-research']),
             'features': {
-                'image_generation': False,
-                'web_search': False,
-                'auto_web_search': False,
-                'preview_mode': True,
-                'flags': ['deep_research'],
-                'features': [
-                    {
-                        'type': 'mcp',
-                        'server': 'vibe-coding',
-                        'status': 'hidden',
-                    },
-                    {
-                        'type': 'mcp',
-                        'server': 'ppt-maker',
-                        'status': 'hidden',
-                    },
-                    {
-                        'type': 'mcp',
-                        'server': 'image-search',
-                        'status': 'hidden',
-                    },
-                    {
-                        'type': 'mcp',
-                        'server': 'deep-research',
-                        'status': 'pinned',
-                    },
-                    {
-                        'type': 'web_search',
-                        'server': 'web_search_h',
-                        'status': 'hidden',
-                    },
-                    {
-                        'type': 'mcp',
-                        'server': 'deep-web-search',
-                        'status': 'hidden',
-                    },
-                    {
-                        'type': 'mcp',
-                        'server': 'advanced-search',
-                        'status': 'hidden',
-                    }
-                ],
-                'enable_thinking': True,
+                'image_generation': self.config.get('enable_image_generation', False),
+                'web_search': self.config.get('enable_web_search', False),
+                'auto_web_search': self.config.get('enable_auto_web_search', False),
+                'preview_mode': self.config.get('preview_mode', True),
+                'flags': self.config.get('flags', ['deep_research']),
+                'features': features_list,
+                'enable_thinking': self.config.get('enable_thinking', True),
             },
             'variables': {
-                '{{USER_NAME}}': 'ken196502@mailfence.com',
-                '{{USER_LOCATION}}': 'Unknown',
+                '{{USER_NAME}}': self.config.get('user_name', 'ken196502@mailfence.com'),
+                '{{USER_LOCATION}}': self.config.get('user_location', 'Unknown'),
                 '{{CURRENT_DATETIME}}': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 '{{CURRENT_DATE}}': datetime.now().strftime('%Y-%m-%d'),
                 '{{CURRENT_TIME}}': datetime.now().strftime('%H:%M:%S'),
                 '{{CURRENT_WEEKDAY}}': datetime.now().strftime('%A'),
-                '{{CURRENT_TIMEZONE}}': 'Asia/Shanghai',
-                '{{USER_LANGUAGE}}': 'en-US',
+                '{{CURRENT_TIMEZONE}}': self.config.get('timezone', 'Asia/Shanghai'),
+                '{{USER_LANGUAGE}}': self.config.get('user_language', 'en-US'),
             },
             'model_item': {
                 'id': model,
-                'name': 'GLM-4.6',
-                'owned_by': 'openai',
+                'name': self.config.get('model_name', 'GLM-4.6'),
+                'owned_by': self.config.get('model_owned_by', 'openai'),
                 'openai': {
                     'id': model,
                     'name': model,
-                    'owned_by': 'openai',
-                    'openai': {
-                        'id': model,
-                    },
-                    'urlIdx': 1,
+                    'owned_by': self.config.get('model_owned_by', 'openai'),
+                    'openai': {'id': model},
+                    'urlIdx': self.config.get('model_url_idx', 1),
                 },
-                'urlIdx': 1,
+                'urlIdx': self.config.get('model_url_idx', 1),
             },
             'chat_id': str(uuid.uuid4()),
             'id': str(uuid.uuid4())
@@ -230,9 +272,9 @@ class ZAIChatClient:
         # Base URL for the chat completion endpoint
         url = f'{self.base_url}/api/chat/completions'
 
-        # Retry logic for the entire request
-        max_retries = 3
-        retry_delay = 20
+        # Retry logic for the entire request using configuration
+        max_retries = self.config.get('max_retries', 3)
+        retry_delay = self.config.get('retry_delay', 20)
         last_exception = None
 
         for attempt in range(max_retries):
@@ -254,8 +296,30 @@ class ZAIChatClient:
 
                 logging.info(f"[DEBUG] Attempt {attempt + 1}/{max_retries} for chat completion request")
                 
+                # Extract the last user message content for signature generation
+                last_user_message = ""
+                for message in messages:
+                    if message.get("role") == "user" and message.get("content"):
+                        content = message.get("content")
+                        if isinstance(content, str):
+                            last_user_message = content
+                        elif isinstance(content, list):
+                            texts = []
+                            for item in content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    texts.append(item.get("text", ""))
+                                    break
+                            last_user_message = "".join(texts)
+                
+                # Prepare signature parameters
+                signature_params = {
+                    'timestamp': timestamp,
+                    'requestId': request_id,
+                    'user_id': self.user_id
+                }
+                
                 # Generate headers with signature for this specific request
-                headers = self._get_headers_with_signature(timestamp)
+                headers = self._get_headers_with_signature(timestamp, signature_params, last_user_message)
                 full_response = ""
                 html_tags = set()
                 
@@ -433,11 +497,13 @@ class ZAIChatClient:
 # Example usage
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    # Initialize with your token and user_id
-    bearer_token = 'your_bearer_token_here'
-    user_id = 'your_user_id_here'
+    # Initialize with configuration
+    config = {
+        'bearer_token': 'your_bearer_token_here',
+        'user_id': 'your_user_id_here'
+    }
     
-    client = ZAIChatClient(bearer_token=bearer_token, user_id=user_id)
+    client = ZAIChatClient(config=config)
     
     # Example with response ID
     response_id = str(uuid.uuid4())
@@ -451,7 +517,7 @@ if __name__ == "__main__":
     # Stream the response
     logging.info("Streaming response:")
     response_chunks = []
-    for chunk in client.stream_chat_completion(messages, model="GLM-4-6-API-V1", response_id=response_id):
+    for chunk in client.stream_chat_completion(messages, response_id=response_id):
         response_chunks.append(chunk)
     logging.info("".join(response_chunks))
     
@@ -477,10 +543,7 @@ def create_zai_client_from_config() -> Optional[ZAIChatClient]:
             logging.warning("ZAI client configuration not available")
             return None
             
-        return ZAIChatClient(
-            bearer_token=config['bearer_token'],
-            user_id=config['user_id']
-        )
+        return ZAIChatClient(config=config)
         
     except Exception as e:
         logging.error(f"Failed to create ZAI client from config: {e}")

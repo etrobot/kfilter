@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+import time
 from typing import Dict, Any
 import openai
 from config import parse_category_hierarchy
@@ -36,9 +37,9 @@ def get_llm_client(scheme='openai'):
         logger.error(f"初始化 {scheme} 客户端出错: {e}")
         raise
 
-def llm_gen_dict(client: openai.Client, model: str, query: str, format_example: Dict, stream: bool = False) -> Dict:
+def llm_gen_dict(client: openai.Client, model: str, query: str, format_example: Dict, stream: bool = False, max_retries: int = 3, retry_delay: int = 1) -> Dict:
     """
-    使用LLM生成符合指定格式的字典结果
+    使用LLM生成符合指定格式的字典结果，支持重试机制
     
     Args:
         client: OpenAI客户端实例
@@ -46,6 +47,8 @@ def llm_gen_dict(client: openai.Client, model: str, query: str, format_example: 
         query: 查询内容
         format_example: 输出格式示例
         stream: 是否使用流式输出
+        max_retries: 最大重试次数，默认3次
+        retry_delay: 重试间隔秒数，默认1秒
         
     Returns:
         Dict: 解析后的字典结果
@@ -62,37 +65,60 @@ def llm_gen_dict(client: openai.Client, model: str, query: str, format_example: 
 2. 不要包含任何解释或额外文字
 """
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ],
-            temperature=0.3,
-            stream=stream
-        )
-        
-        if stream:
-            # 处理流式响应
-            content = ""
-            for chunk in response:
-                if chunk.choices[0].delta.content:
-                    content += chunk.choices[0].delta.content
-        else:
-            content = response.choices[0].message.content
-        
-        # 简单的JSON解析，假设LLM返回有效JSON
-        result = json.loads(content)
-        return result
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON解析失败: {e}")
-        # 返回默认格式
-        return {}
-    except Exception as e:
-        logger.error(f"LLM调用失败: {e}")
-        return {}
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            logger.debug(f"llm_gen_dict 第 {attempt + 1}/{max_retries} 次尝试")
+            
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": query}
+                ],
+                temperature=0.3,
+                stream=stream
+            )
+            
+            if stream:
+                # 处理流式响应
+                content = ""
+                for chunk in response:
+                    if chunk.choices[0].delta.content:
+                        content += chunk.choices[0].delta.content
+            else:
+                content = response.choices[0].message.content
+            
+            # 尝试解析JSON
+            result = json.loads(content)
+            logger.debug(f"llm_gen_dict 第 {attempt + 1} 次尝试成功")
+            return result
+            
+        except json.JSONDecodeError as e:
+            last_exception = e
+            logger.warning(f"第 {attempt + 1} 次尝试JSON解析失败: {e}")
+            
+            if attempt == max_retries - 1:  # 最后一次尝试
+                logger.error(f"所有 {max_retries} 次重试的JSON解析均失败")
+                return {}
+            else:
+                time.sleep(retry_delay)
+                continue
+                
+        except Exception as e:
+            last_exception = e
+            logger.warning(f"第 {attempt + 1} 次LLM API调用失败: {e}")
+            
+            if attempt == max_retries - 1:  # 最后一次尝试
+                logger.error(f"所有 {max_retries} 次重试的LLM调用均失败，最后错误: {last_exception}")
+                return {}
+            else:
+                time.sleep(retry_delay)
+                continue
+    
+    # 不应该到达这里，但为了安全返回空字典
+    return {}
 
 
 def evaluate_content_with_llm(content: str, model: str = None) -> Dict:
@@ -175,9 +201,42 @@ def evaluate_content_with_llm(content: str, model: str = None) -> Dict:
         from config import get_openai_config
         _, _, model = get_openai_config()
     
-    # 使用 llm_gen_dict 来强约束输出为 python 字典
+    # 使用 llm_gen_dict 来强约束输出为 python 字典，支持重试3次
     client = get_llm_client()
-    result = llm_gen_dict(client, model, query, format_example, stream=False)
+    
+    # 重试配置
+    max_retries = 3
+    retry_delay = 2  # 重试间隔（秒）
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"LLM评估内容，第 {attempt + 1}/{max_retries} 次尝试")
+            result = llm_gen_dict(client, model, query, format_example, stream=False)
+            
+            # 如果成功获得有效结果，直接返回
+            if result and isinstance(result, dict):
+                logger.info(f"LLM评估成功，第 {attempt + 1} 次尝试")
+                break
+            else:
+                logger.warning(f"第 {attempt + 1} 次尝试返回空结果或无效格式")
+                if attempt == max_retries - 1:  # 最后一次尝试
+                    result = {}
+                else:
+                    time.sleep(retry_delay)
+                    continue
+                    
+        except Exception as e:
+            last_exception = e
+            logger.error(f"第 {attempt + 1} 次LLM调用失败: {e}")
+            
+            if attempt == max_retries - 1:  # 最后一次尝试失败
+                logger.error(f"所有 {max_retries} 次重试均失败，最后一次错误: {last_exception}")
+                result = {}
+            else:
+                logger.info(f"等待 {retry_delay} 秒后进行第 {attempt + 2} 次重试...")
+                time.sleep(retry_delay)
+                continue
 
     # 检查结果是否为空或无效
     if not result or not isinstance(result, dict):

@@ -108,6 +108,75 @@ def set_system_config(config_data: dict) -> None:
     
     save_config_json(data)
 
+def get_zai_client_config() -> Dict[str, Any]:
+    """Get comprehensive ZAI client configuration with defaults."""
+    config = load_config_json()
+    
+    return {
+        # Authentication
+        'base_url': config.get('ZAI_BASE_URL', 'https://chat.z.ai'),
+        'bearer_token': config.get('ZAI_BEARER_TOKEN', 'token'),
+        'user_id': config.get('ZAI_USER_ID', 'a8085b86-4e72-405c-9eaf-020ec25043ae'),
+        'cookie_str': config.get('ZAI_COOKIE_STR', ''),
+        
+        # Headers configuration
+        'fe_version': config.get('ZAI_FE_VERSION', 'prod-fe-1.0.95'),
+        'platform': config.get('ZAI_PLATFORM', 'macOS'),
+        'user_agent': config.get('ZAI_USER_AGENT', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'),
+        'referer': config.get('ZAI_REFERER', 'https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5'),
+        'accept_language': config.get('ZAI_ACCEPT_LANGUAGE', 'en-US'),
+        'sec_ch_ua': config.get('ZAI_SEC_CH_UA', '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"'),
+        'sec_ch_ua_mobile': config.get('ZAI_SEC_CH_UA_MOBILE', '?0'),
+        
+        # Request parameters
+        'version': config.get('ZAI_VERSION', '0.0.1'),
+        'platform_param': config.get('ZAI_PLATFORM_PARAM', 'web'),
+        'language': config.get('ZAI_LANGUAGE', 'zh-CN'),
+        'languages': config.get('ZAI_LANGUAGES', 'zh-CN,zh-TW,en-US,en,ja'),
+        'timezone': config.get('ZAI_TIMEZONE', 'Asia/Shanghai'),
+        'timezone_offset': config.get('ZAI_TIMEZONE_OFFSET', '-480'),
+        'screen_width': config.get('ZAI_SCREEN_WIDTH', '1920'),
+        'screen_height': config.get('ZAI_SCREEN_HEIGHT', '1080'),
+        'viewport_width': config.get('ZAI_VIEWPORT_WIDTH', '1040'),
+        'viewport_height': config.get('ZAI_VIEWPORT_HEIGHT', '968'),
+        'color_depth': config.get('ZAI_COLOR_DEPTH', '24'),
+        'pixel_ratio': config.get('ZAI_PIXEL_RATIO', '2'),
+        'browser_name': config.get('ZAI_BROWSER_NAME', 'Chrome'),
+        'os_name': config.get('ZAI_OS_NAME', 'Mac OS'),
+        
+        # Model and features
+        'default_model': config.get('ZAI_DEFAULT_MODEL', 'GLM-4-6-API-V1'),
+        'model_name': config.get('ZAI_MODEL_NAME', 'GLM-4.6'),
+        'model_owned_by': config.get('ZAI_MODEL_OWNED_BY', 'openai'),
+        'model_url_idx': config.get('ZAI_MODEL_URL_IDX', 1),
+        
+        # MCP servers and features
+        'mcp_servers': config.get('ZAI_MCP_SERVERS', ['deep-research']),
+        'enable_image_generation': config.get('ZAI_ENABLE_IMAGE_GENERATION', False),
+        'enable_web_search': config.get('ZAI_ENABLE_WEB_SEARCH', False),
+        'enable_auto_web_search': config.get('ZAI_ENABLE_AUTO_WEB_SEARCH', False),
+        'preview_mode': config.get('ZAI_PREVIEW_MODE', True),
+        'enable_thinking': config.get('ZAI_ENABLE_THINKING', True),
+        'flags': config.get('ZAI_FLAGS', ['deep_research']),
+        
+        # User variables
+        'user_name': config.get('ZAI_USER_NAME', 'ken196502@mailfence.com'),
+        'user_location': config.get('ZAI_USER_LOCATION', 'Unknown'),
+        'user_language': config.get('ZAI_USER_LANGUAGE', 'en-US'),
+        
+        # Signature configuration
+        'signature_key': config.get('ZAI_SIGNATURE_KEY', 'junjie'),
+        'signature_expire_minutes': config.get('ZAI_SIGNATURE_EXPIRE_MINUTES', 5),
+        
+        # Retry and timeout configuration
+        'max_retries': config.get('ZAI_MAX_RETRIES', 3),
+        'retry_delay': config.get('ZAI_RETRY_DELAY', 20),
+        'connect_timeout': config.get('ZAI_CONNECT_TIMEOUT', 30),
+        'read_timeout': config.get('ZAI_READ_TIMEOUT', 180),
+        'retry_status_codes': config.get('ZAI_RETRY_STATUS_CODES', [429, 500, 502, 503, 504]),
+        'backoff_factor': config.get('ZAI_BACKOFF_FACTOR', 2),
+    }
+
 
 CATEGORY='''
 # 二级市场投资研究七大方向

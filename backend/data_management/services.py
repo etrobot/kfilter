@@ -17,7 +17,7 @@ from utils import (
     TASK_THREADS
 )
 from .analysis_task_runner import run_analysis_task
-from config import get_zai_credentials, is_zai_configured
+from config import get_zai_credentials, is_zai_configured, get_zai_client_config as get_config_zai_client_config
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ CACHE_LOCK = threading.Lock()
 _zai_client_config = None
 _zai_config_lock = threading.Lock()
 
-def get_zai_client_config() -> Optional[Dict[str, str]]:
+def get_zai_client_config() -> Optional[Dict[str, Any]]:
     """Get cached ZAI client configuration or load from config."""
     global _zai_client_config
     
@@ -38,12 +38,8 @@ def get_zai_client_config() -> Optional[Dict[str, str]]:
         if _zai_client_config is None:
             try:
                 if is_zai_configured():
-                    bearer_token, cookie_str, user_id = get_zai_credentials()
-                    _zai_client_config = {
-                        'bearer_token': bearer_token,
-                        'cookie_str': cookie_str,
-                        'user_id': user_id
-                    }
+                    # Get comprehensive configuration
+                    _zai_client_config = get_config_zai_client_config()
                     logger.info("ZAI client configuration loaded from config")
                 else:
                     logger.warning("ZAI credentials not configured")
@@ -63,12 +59,8 @@ def refresh_zai_client_config() -> None:
         # Reload config directly without calling get_zai_client_config to avoid deadlock
         try:
             if is_zai_configured():
-                bearer_token, cookie_str, user_id = get_zai_credentials()
-                _zai_client_config = {
-                    'bearer_token': bearer_token,
-                    'cookie_str': cookie_str,
-                    'user_id': user_id
-                }
+                # Get comprehensive configuration
+                _zai_client_config = get_config_zai_client_config()
                 logger.info("ZAI client configuration refreshed from config")
             else:
                 logger.warning("ZAI credentials not configured during refresh")
