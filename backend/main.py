@@ -41,7 +41,7 @@ def load_startup_config():
             valid_configs = []
             
             # Check ZAI configuration
-            zai_keys = ['ZAI_BEARER_TOKEN', 'ZAI_COOKIE_STR', 'ZAI_USER_ID']
+            zai_keys = ['ZAI_BEARER_TOKEN', 'ZAI_USER_ID']
             zai_values = [config_data.get(key, '').strip() for key in zai_keys]
             if all(val and val not in ['your_bearer_token_here', 'your_user_id_here'] for val in zai_values[:2]) and zai_values[2]:
                 valid_configs.append("ZAI")

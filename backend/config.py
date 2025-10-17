@@ -51,17 +51,16 @@ def get_zai_credentials() -> Tuple[str, str, str]:
     """
     config = load_config_json()
     bearer = config.get('ZAI_BEARER_TOKEN', '')
-    cookie = config.get('ZAI_COOKIE_STR', '')
+    cookie = config.get('ZAI_COOKIE_STR', '')  # Add cookie support
     user_id = config.get('ZAI_USER_ID', '')
     return (bearer.strip() if bearer else '', 
             cookie.strip() if cookie else '',
             user_id.strip() if user_id else '')
 
-def set_zai_credentials(bearer_token: str, cookie_str: str, user_id: str = '') -> None:
+def set_zai_credentials(bearer_token: str, user_id: str = '') -> None:
     """Persist ZAI credentials to backend/config.json."""
     data = load_config_json()
     data['ZAI_BEARER_TOKEN'] = bearer_token
-    data['ZAI_COOKIE_STR'] = cookie_str
     if user_id:
         data['ZAI_USER_ID'] = user_id
     save_config_json(data)
@@ -88,9 +87,6 @@ def set_system_config(config_data: dict) -> None:
     if 'ZAI_BEARER_TOKEN' in config_data:
         data['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
         os.environ['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
-    if 'ZAI_COOKIE_STR' in config_data:
-        data['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
-        os.environ['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
     if 'ZAI_USER_ID' in config_data:
         data['ZAI_USER_ID'] = config_data['ZAI_USER_ID']
         os.environ['ZAI_USER_ID'] = config_data['ZAI_USER_ID']
@@ -117,7 +113,6 @@ def get_zai_client_config() -> Dict[str, Any]:
         'base_url': config.get('ZAI_BASE_URL', 'https://chat.z.ai'),
         'bearer_token': config.get('ZAI_BEARER_TOKEN', 'token'),
         'user_id': config.get('ZAI_USER_ID', 'a8085b86-4e72-405c-9eaf-020ec25043ae'),
-        'cookie_str': config.get('ZAI_COOKIE_STR', ''),
         
         # Headers configuration
         'fe_version': config.get('ZAI_FE_VERSION', 'prod-fe-1.0.95'),

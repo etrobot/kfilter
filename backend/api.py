@@ -541,7 +541,6 @@ def update_zai_config(config_data: dict) -> dict:
 
     current_config = {
         "ZAI_BEARER_TOKEN": current_bearer,
-        "ZAI_COOKIE_STR": current_cookie,
         "ZAI_USER_ID": current_user_id,
         "OPENAI_API_KEY": current_api_key,
         "OPENAI_BASE_URL": current_base_url,
@@ -553,8 +552,6 @@ def update_zai_config(config_data: dict) -> dict:
     # Update values from payload, but only if they are not empty strings for secrets.
     if config_data.get('ZAI_BEARER_TOKEN'):
         new_config['ZAI_BEARER_TOKEN'] = config_data['ZAI_BEARER_TOKEN']
-    if config_data.get('ZAI_COOKIE_STR'):
-        new_config['ZAI_COOKIE_STR'] = config_data['ZAI_COOKIE_STR']
     if config_data.get('ZAI_USER_ID'):
         new_config['ZAI_USER_ID'] = config_data['ZAI_USER_ID']
     if config_data.get('OPENAI_API_KEY'):

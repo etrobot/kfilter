@@ -235,12 +235,13 @@ class ZAIChatClient:
             'mcp_servers': self.config.get('mcp_servers', ['deep-research']),
             'features': {
                 'image_generation': self.config.get('enable_image_generation', False),
-                'web_search': self.config.get('enable_web_search', False),
+                'web_search': self.config.get('enable_web_search', True),
                 'auto_web_search': self.config.get('enable_auto_web_search', False),
                 'preview_mode': self.config.get('preview_mode', True),
-                'flags': self.config.get('flags', ['deep_research']),
+                # 'flags': self.config.get('flags', ['deep_research']),
+                'flags': [],
                 'features': features_list,
-                'enable_thinking': self.config.get('enable_thinking', True),
+                'enable_thinking': self.config.get('enable_thinking', False),
             },
             'variables': {
                 '{{USER_NAME}}': self.config.get('user_name', 'ken196502@mailfence.com'),

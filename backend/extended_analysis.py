@@ -28,7 +28,12 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
     # Get credentials from config
     bearer_token, cookie_str, user_id = get_zai_credentials()
         
-    client = ZAIChatClient(bearer_token=bearer_token, user_id=user_id)
+    # Create config dictionary for ZAIChatClient
+    config = {
+        'bearer_token': bearer_token,
+        'user_id': user_id
+    }
+    client = ZAIChatClient(config=config)
     
     # Create search query for the concept
     search_query = f"{datetime.now().year}A股{concept_name}概念投资机会分析，搜集的材料要涵盖{concept_name}概念的起源到最新消息"

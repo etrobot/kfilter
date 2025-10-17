@@ -65,7 +65,11 @@ def main(argv: list[str]) -> int:
         return 1
 
     logging.info("Creating ZAI client for %s (%s)", args.sector_name, args.sector_code or "no-code")
-    client = ZAIChatClient(bearer_token=bearer, user_id=user_id)
+    config = {
+        'bearer_token': bearer,
+        'user_id': user_id
+    }
+    client = ZAIChatClient(config=config)
     messages = build_messages(args.sector_name)
 
     try:
