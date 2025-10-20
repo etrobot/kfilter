@@ -60,19 +60,25 @@ class ZAIChatClient:
     def _setup_headers_and_cookies(self):
         """Setup base headers using configuration."""
         self.base_headers = {
-            'X-FE-Version': self.config.get('fe_version', 'prod-fe-1.0.95'),
-            'sec-ch-ua-platform': f'"{self.config.get("platform", "macOS")}"',
-            'Authorization': f'Bearer {self.bearer_token}',
-            'Referer': self.config.get('referer', 'https://chat.z.ai/c/d272520f-17f8-4384-9801-2b7e2bead6f5'),
+            'Accept': '*/*',
             'Accept-Language': self.config.get('accept_language', 'en-US'),
-            'sec-ch-ua': self.config.get('sec_ch_ua', '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"'),
-            'sec-ch-ua-mobile': self.config.get('sec_ch_ua_mobile', '?0'),
-            'User-Agent': self.config.get('user_agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'),
+            'Authorization': f'Bearer {self.bearer_token}',
+            'Connection': 'keep-alive',
             'Content-Type': 'application/json',
+            'Origin': 'https://chat.z.ai',
+            'Referer': self.config.get('referer', 'https://chat.z.ai/c/c429e8f3-7787-42a8-b5c0-1e88de1735e0'),
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'User-Agent': self.config.get('user_agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'),
+            'X-FE-Version': self.config.get('fe_version', 'prod-fe-1.0.103'),
+            'sec-ch-ua': self.config.get('sec_ch_ua', '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"'),
+            'sec-ch-ua-mobile': self.config.get('sec_ch_ua_mobile', '?0'),
+            'sec-ch-ua-platform': f'"{self.config.get("platform", "macOS")}"',
         }
     
     def _generate_signature(self, params: Dict[str, Any], content: str) -> Dict[str, str]:
-        """Generate signature using the algorithm pattern.
+        """Generate signature using ZAI's correct double-layer HMAC-SHA256 algorithm.
         
         Args:
             params: Request parameters including timestamp, requestId, user_id
@@ -81,46 +87,61 @@ class ZAIChatClient:
         Returns:
             Dictionary containing signature and timestamp
         """
-        def _hmac_sha256(key: bytes, msg: bytes) -> str:
-            return hmac.new(key, msg, hashlib.sha256).hexdigest()
-
+        import base64
+        
+        # Extract required parameters
+        request_id = params.get("requestId")
+        timestamp_ms = int(params.get("timestamp"))
+        user_id = params.get("user_id")
+        
         # Validate required parameters
-        for param in ["timestamp", "requestId", "user_id"]:
-            if param not in params or not params.get(param):
-                raise ValueError(f"Missing required parameter: {param}")
-
-        request_time = int(params.get("timestamp", datetime.now().timestamp() * 1000))
-        signature_key = self.config.get('signature_key', 'junjie')
-        expire_minutes = self.config.get('signature_expire_minutes', 5)
-
-        # Level 1 signature: Time-based signature with configurable expiry
-        signature_expire = request_time // (expire_minutes * 60 * 1000)
-        signature_1_plaintext = str(signature_expire)
-        signature_1 = _hmac_sha256(signature_key.encode('utf-8'), signature_1_plaintext.encode('utf-8'))
-
-        # Level 2 signature: Content and parameters
-        content_encoded = base64.b64encode(content.encode('utf-8')).decode('ascii')
-        signature_params = str(','.join([f"{k},{params[k]}" for k in sorted(params.keys())]))
-        signature_2_plaintext = f"{signature_params}|{content_encoded}|{str(request_time)}"
-        signature_2 = _hmac_sha256(signature_1.encode('utf-8'), signature_2_plaintext.encode('utf-8'))
-
+        if not all([request_id, timestamp_ms, user_id]):
+            raise ValueError("Missing required parameters: requestId, timestamp, user_id")
+        
+        # 1. Base64 encode the message
+        message = content or ""
+        message_bytes = message.encode("utf-8")
+        message_base64 = base64.b64encode(message_bytes).decode("utf-8")
+        
+        # 2. Build canonical string (exact format from reference)
+        canonical_params = f"requestId,{request_id},timestamp,{timestamp_ms},user_id,{user_id}"
+        canonical_string = f"{canonical_params}|{message_base64}|{timestamp_ms}"
+        
+        # 3. Calculate time window (5 minutes)
+        window_index = timestamp_ms // (5 * 60 * 1000)
+        
+        # 4. Get root key (using the correct hex key from reference)
+        secret_key = self.config.get('signing_secret')
+        if not secret_key or secret_key == 'junjie':
+            # Use the correct hex key from the reference code
+            root_key = bytes.fromhex("6b65792d40404040292929282928283929292d787878782626262525252525")
+        else:
+            # Handle custom secret key
+            if isinstance(secret_key, bytes):
+                root_key = secret_key
+            elif len(secret_key) % 2 == 0 and all(c in '0123456789abcdefABCDEF' for c in secret_key):
+                root_key = bytes.fromhex(secret_key)
+            else:
+                root_key = secret_key.encode("utf-8")
+        
+        # 5. First layer HMAC: generate derived key
+        derived_hex = hmac.new(root_key, str(window_index).encode("utf-8"), hashlib.sha256).hexdigest()
+        
+        # 6. Second layer HMAC: generate final signature
+        signature = hmac.new(derived_hex.encode("utf-8"), canonical_string.encode("utf-8"), hashlib.sha256).hexdigest()
+        
         return {
-            "signature": signature_2,
-            "timestamp": str(request_time)
+            "signature": signature,
+            "timestamp": str(timestamp_ms)
         }
 
     def _get_headers_with_signature(self, timestamp: str, request_params: Dict[str, Any], content: str = ""):
         """Generate headers with dynamic signature for the given timestamp and content"""
         headers = self.base_headers.copy()
         
-        try:
-            # Generate dynamic signature
-            signature_data = self._generate_signature(request_params, content)
-            headers['X-Signature'] = signature_data['signature']
-        except Exception as e:
-            logging.warning(f"Failed to generate signature: {e}. Using fallback.")
-            # Fallback to static signature if generation fails
-            headers['X-Signature'] = '33e8ed07967b76a11cc6788b85d41fe2ad3a34671161f07929a659314994dc9f'
+        # Generate dynamic signature
+        signature_data = self._generate_signature(request_params, content)
+        headers['X-Signature'] = signature_data['signature']
         
         return headers
 
@@ -216,35 +237,40 @@ class ZAIChatClient:
             'os_name': self.config.get('os_name', 'Mac OS')
         }
         
-        # Build features configuration
+        # Build features configuration - use only stable MCP servers
         features_list = [
             {'type': 'mcp', 'server': 'vibe-coding', 'status': 'hidden'},
             {'type': 'mcp', 'server': 'ppt-maker', 'status': 'hidden'},
             {'type': 'mcp', 'server': 'image-search', 'status': 'hidden'},
-            {'type': 'mcp', 'server': 'deep-research', 'status': 'pinned'},
-            {'type': 'web_search', 'server': 'web_search_h', 'status': 'hidden'},
-            {'type': 'mcp', 'server': 'deep-web-search', 'status': 'hidden'},
+            {'type': 'mcp', 'server': 'deep-research', 'status': 'hidden'},
+            {'type': 'tool_selector', 'server': 'tool_selector', 'status': 'hidden'},
             {'type': 'mcp', 'server': 'advanced-search', 'status': 'hidden'}
         ]
+        
+        # Extract signature_prompt from messages
+        signature_prompt = ""
+        for message in messages:
+            if message.get("role") == "user" and message.get("content"):
+                signature_prompt = message.get("content")
+                break
         
         json_data = {
             'stream': True,
             'model': model,
             'messages': messages,
+            'signature_prompt': signature_prompt,
             'params': {},
-            'mcp_servers': self.config.get('mcp_servers', ['deep-research']),
             'features': {
                 'image_generation': self.config.get('enable_image_generation', False),
-                'web_search': self.config.get('enable_web_search', True),
+                'web_search': self.config.get('enable_web_search', False),
                 'auto_web_search': self.config.get('enable_auto_web_search', False),
-                'preview_mode': self.config.get('preview_mode', True),
-                # 'flags': self.config.get('flags', ['deep_research']),
+                'preview_mode': self.config.get('preview_mode', False),
                 'flags': [],
-                'features': features_list,
+                'features': [],
                 'enable_thinking': self.config.get('enable_thinking', False),
             },
             'variables': {
-                '{{USER_NAME}}': self.config.get('user_name', 'ken196502@mailfence.com'),
+                '{{USER_NAME}}': self.config.get('user_name', 'Jade Potter'),
                 '{{USER_LOCATION}}': self.config.get('user_location', 'Unknown'),
                 '{{CURRENT_DATETIME}}': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 '{{CURRENT_DATE}}': datetime.now().strftime('%Y-%m-%d'),
@@ -265,9 +291,52 @@ class ZAIChatClient:
                     'urlIdx': self.config.get('model_url_idx', 1),
                 },
                 'urlIdx': self.config.get('model_url_idx', 1),
+                'info': {
+                    'id': model,
+                    'user_id': self.config.get('info_user_id', 'a3856153-cf5b-49ea-a336-e26669288071'),
+                    'base_model_id': None,
+                    'name': self.config.get('model_name', 'GLM-4.6'),
+                    'params': {'max_tokens': 195000},
+                    'meta': {
+                        'profile_image_url': '/static/favicon.png',
+                        'description': 'Most advanced model, excelling in all-round tasks',
+                        'capabilities': {
+                            'vision': False,
+                            'citations': False,
+                            'preview_mode': False,
+                            'web_search': True,
+                            'language_detection': False,
+                            'restore_n_source': False,
+                            'mcp': True,
+                            'file_qa': True,
+                            'returnFc': True,
+                            'returnThink': True,
+                            'think': True
+                        },
+                        'mcpServerIds': ['deep-web-search', 'ppt-maker', 'vibe-coding', 'image-search', 'deep-research', 'advanced-search'],
+                        'flags': [],
+                        'features': features_list,
+                        'display_name': 'default-4.6',
+                        'tag': '',
+                        'tag_en': '',
+                        'media': False,
+                        'gallery': False,
+                        'hidden': True
+                    },
+                    'access_control': None,
+                    'is_active': True,
+                    'updated_at': int(time.time()),
+                    'created_at': int(time.time() - 86400)
+                },
+                'actions': [],
+                'tags': [{'name': 'NEW'}]
             },
             'chat_id': str(uuid.uuid4()),
-            'id': str(uuid.uuid4())
+            'id': str(uuid.uuid4()),
+            'background_tasks': {
+                'title_generation': True,
+                'tags_generation': True
+            }
         }
 
         # Base URL for the chat completion endpoint
@@ -319,8 +388,8 @@ class ZAIChatClient:
                     'user_id': self.user_id
                 }
                 
-                # Generate headers with signature for this specific request
-                headers = self._get_headers_with_signature(timestamp, signature_params, last_user_message)
+                # Generate headers with signature for this specific request  
+                headers = self._get_headers_with_signature(timestamp, signature_params, signature_prompt)
                 full_response = ""
                 html_tags = set()
                 
