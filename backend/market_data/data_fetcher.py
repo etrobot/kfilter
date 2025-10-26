@@ -6,6 +6,9 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 from utils import update_task_progress
+import requests
+import json
+import datetime as dt
 
 # Try to import akshare, handle gracefully if not available
 try:
@@ -152,9 +155,6 @@ def fetch_hot_spot() -> pd.DataFrame:
 
 def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
     """Fetch historical data for multiple stocks"""
-    if not HAS_AKSHARE:
-        raise RuntimeError("akshare is not available. Please install akshare to use this feature.")
-    
     history: Dict[str, pd.DataFrame] = {}
     start_date = (datetime.strptime(end_date, "%Y%m%d") - timedelta(days=days)).strftime("%Y%m%d")
     
@@ -166,31 +166,69 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
             progress = 0.2 + (0.5 * i / len(codes))  # 20%-70% of total progress
             update_task_progress(task_id, progress, f"获取历史数据 {i+1}/{len(codes)}: {code}")
         
-        # Clean code - remove market prefix if it exists (e.g., sz301550 -> 301550)
-        clean_code = code[2:] if len(code) > 6 and code[:2] in ['sz', 'sh', 'bj'] else code
-        
-        # Use the more reliable historical data interface
-        df = ak.stock_zh_a_hist(symbol=clean_code, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
+        # Prefer akshare, fallback to Tencent if akshare fails or returns empty
+        def to_symbol(c: str) -> str:
+            c = c.strip()
+            if len(c) == 6 and c.isdigit():
+                if c.startswith("6"):
+                    return f"sh{c}"
+                if c.startswith(("0", "3")):
+                    return f"sz{c}"
+                if c.startswith("8"):
+                    return f"bj{c}"
+            return c
+
+        def to_clean_code(c: str) -> str:
+            c = c.strip()
+            if len(c) > 6 and c[:2] in ["sh", "sz", "bj"]:
+                return c[2:]
+            return c
+
+        df = pd.DataFrame()
+        # 1) Try akshare's Tencent API first
+        if HAS_AKSHARE:
+            try:
+                api_symbol = to_symbol(code)
+                df = ak.stock_zh_a_hist_tx(symbol=api_symbol, start_date=start_date, end_date=end_date, adjust="qfq")
+            except Exception as e:
+                logger.warning(f"akshare腾讯接口获取异常，尝试akshare通用接口: {code}, 错误: {e}")
+                df = pd.DataFrame()
+
+        # 2) Fallback to akshare general interface
+        if (df is None or df.empty) and HAS_AKSHARE:
+            try:
+                ak_code = to_clean_code(code)
+                df = ak.stock_zh_a_hist(symbol=ak_code, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
+            except Exception as e:
+                logger.warning(f"akshare通用接口也获取异常，将尝试本地腾讯实现: {code}, 错误: {e}")
+                df = pd.DataFrame()
+
+        # 3) Final fallback to local Tencent implementation
+        if df is None or df.empty:
+            try:
+                api_symbol = to_symbol(code)
+                df = stock_zh_a_hist_tx(symbol=api_symbol, start_date=start_date, end_date=end_date, adjust="qfq")
+            except Exception as e:
+                logger.warning(f"本地腾讯实现也失败: {code}, 错误: {e}")
+                df = pd.DataFrame()
+
+        if df is None or df.empty:
+            logger.warning(f"三种方式均未获取到数据: {code}")
+            continue
         
         if not df.empty:
             # Standardize column names
-            df = df.reset_index()
-            column_mapping = {
-                "日期": "日期",
-                "开盘": "开盘",
-                "收盘": "收盘", 
-                "最高": "最高",
-                "最低": "最低",
-                "成交量": "成交量",
-                "成交额": "成交额",
-                "振幅": "振幅",
-                "涨跌幅": "涨跌幅",
-                "涨跌额": "涨跌额",
-                "换手率": "换手率"
+            df = df.reset_index(drop=True)
+            # Tencent API returns: date, open, close, high, low, amount
+            rename_map = {
+                "date": "日期",
+                "open": "开盘",
+                "close": "收盘",
+                "high": "最高",
+                "low": "最低",
+                "amount": "成交量",
             }
-            
-            # Rename existing columns
-            existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
+            existing_columns = {k: v for k, v in rename_map.items() if k in df.columns}
             df = df.rename(columns=existing_columns)
             
             # Ensure date column is datetime
@@ -202,6 +240,10 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            # Compute missing percentage change if not provided
+            if "涨跌幅" not in df.columns and "收盘" in df.columns:
+                df["涨跌幅"] = df["收盘"].pct_change() * 100
             
             df["代码"] = code
             history[code] = df
@@ -468,3 +510,96 @@ def fetch_dragon_tiger_data(page_number: int = 1, page_size: int = 50, statistic
                 temp_df[col] = temp_df[col].round(2)
     
     return temp_df
+
+
+def stock_zh_a_hist_tx(
+    symbol: str = "sz000001",
+    start_date: str = "19000101",
+    end_date: str = "20500101",
+    adjust: str = "",
+    timeout: Optional[float] = None,
+) -> pd.DataFrame:
+    """
+    腾讯证券-日频-股票历史数据
+    https://gu.qq.com/sh000919/zs
+    :param symbol: 带市场标识的股票或者指数代码
+    :param start_date: 开始日期 YYYYMMDD 或 YYYY-MM-DD
+    :param end_date: 结束日期 YYYYMMDD 或 YYYY-MM-DD
+    :param adjust: {"qfq": 前复权, "hfq": 后复权, "": 不复权}
+    :param timeout: 请求超时秒数
+    :return: DataFrame: [date, open, close, high, low, amount]
+    """
+    # Normalize dates to YYYYMMDD
+    def norm_date(s: str) -> str:
+        return s.replace("-", "") if s else s
+
+    start_date_n = norm_date(start_date)
+    end_date_n = norm_date(end_date)
+
+    # Determine year range
+    try:
+        range_start = int(start_date_n[:4])
+    except Exception:
+        range_start = 1900
+    try:
+        end_year = int(end_date_n[:4])
+    except Exception:
+        end_year = dt.date.today().year
+
+    current_year = dt.date.today().year
+    range_end = min(end_year, current_year) + 1
+
+    url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get"
+    big_df = pd.DataFrame()
+
+    for year in range(range_start, range_end):
+        params = {
+            "_var": f"kline_day{adjust}{year}",
+            "param": f"{symbol},day,{year}-01-01,{year + 1}-12-31,640,{adjust}",
+            "r": "0.8205512681390605",
+        }
+        r = requests.get(url, params=params, timeout=timeout)
+        r.raise_for_status()
+        data_text = r.text
+        idx = data_text.find("={")
+        json_str = data_text[idx + 1 :] if idx != -1 else data_text
+        json_str = json_str.strip().rstrip(";")
+        data_json = json.loads(json_str).get("data", {}).get(symbol, {})
+
+        if not data_json:
+            continue
+
+        if adjust == "hfq" and "hfqday" in data_json:
+            tmp = pd.DataFrame(data_json["hfqday"])
+        elif adjust == "qfq" and "qfqday" in data_json:
+            tmp = pd.DataFrame(data_json["qfqday"])
+        elif "day" in data_json:
+            tmp = pd.DataFrame(data_json["day"])
+        else:
+            key = next((k for k in ["qfqday", "hfqday", "day"] if k in data_json), None)
+            tmp = pd.DataFrame(data_json[key]) if key else pd.DataFrame()
+
+        if not tmp.empty:
+            big_df = pd.concat([big_df, tmp], ignore_index=True)
+
+    if big_df.empty:
+        return pd.DataFrame()
+
+    big_df = big_df.iloc[:, :6]
+    big_df.columns = ["date", "open", "close", "high", "low", "amount"]
+
+    big_df["date"] = pd.to_datetime(big_df["date"], errors="coerce").dt.date
+    big_df["open"] = pd.to_numeric(big_df["open"], errors="coerce")
+    big_df["close"] = pd.to_numeric(big_df["close"], errors="coerce")
+    big_df["high"] = pd.to_numeric(big_df["high"], errors="coerce")
+    big_df["low"] = pd.to_numeric(big_df["low"], errors="coerce")
+    big_df["amount"] = pd.to_numeric(big_df["amount"], errors="coerce")
+    big_df.drop_duplicates(inplace=True, ignore_index=True)
+
+    big_df.index = pd.to_datetime(big_df["date"])  # index for slicing
+    sd = pd.to_datetime(start_date_n)
+    ed = pd.to_datetime(end_date_n)
+    big_df = big_df.loc[sd:ed]
+    big_df.reset_index(inplace=True, drop=True)
+
+    return big_df
