@@ -64,8 +64,8 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
 
     logger.info("Starting concept data collection from 10jqka...")
 
-    concepts_data = []
-    concept_stocks_data = []
+    total_concepts = 0
+    total_stocks = 0
 
     try:
         # Only collect concept boards from 10jqka (gn = 概念)
@@ -74,17 +74,17 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
         update_concept_task_progress(task_id, 0.1, "正在采集概念板块")
         logger.info(f"Collecting concepts from {url}...")
 
-        # Run async collection
+        # Run async collection - now with real-time database saves
         concepts_data, concept_stocks_data = asyncio.run(collect_concept_data(url))
         logger.info(
             f"采集到 {len(concepts_data)} 个概念，{len(concept_stocks_data)} 只成分股"
         )
 
-        # Step 2: Upsert to database
+        # Step 2: Save to database immediately (real-time)
         update_concept_task_progress(task_id, 0.9, "保存数据到数据库")
 
         with Session(engine) as session:
-            # Upsert concept info
+            # Upsert concept info and their stocks
             for concept_data in concepts_data:
                 existing = session.exec(
                     select(ConceptInfo).where(ConceptInfo.code == concept_data["code"])
@@ -100,13 +100,18 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
                     concept = ConceptInfo(**concept_data)
                     session.add(concept)
 
-            # Delete old stocks for updated concepts, then insert new
-            concept_codes = [c["code"] for c in concepts_data]
-            old_stocks = session.exec(
-                select(ConceptStock).where(ConceptStock.concept_code.in_(concept_codes))
-            ).all()
-            for old_stock in old_stocks:
-                session.delete(old_stock)
+            session.flush()  # Ensure concepts are saved before adding stocks
+
+            # Delete old stocks for this concept, then insert new ones
+            for concept_data in concepts_data:
+                concept_code = concept_data["code"]
+                old_stocks = session.exec(
+                    select(ConceptStock).where(
+                        ConceptStock.concept_code == concept_code
+                    )
+                ).all()
+                for old_stock in old_stocks:
+                    session.delete(old_stock)
 
             # Insert concept stocks
             for stock_data in concept_stocks_data:
@@ -115,19 +120,24 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
 
             session.commit()
 
+        total_concepts = len(concepts_data)
+        total_stocks = len(concept_stocks_data)
+
         # Complete task
         task.status = TaskStatus.COMPLETED
         task.progress = 1.0
-        task.message = f"采集完成，共采集 {len(concepts_data)} 个概念，{len(concept_stocks_data)} 个成分股"
+        task.message = (
+            f"采集完成，共采集 {total_concepts} 个概念，{total_stocks} 个成分股"
+        )
         task.completed_at = datetime.now().isoformat()
         task.result = {
-            "concepts_count": len(concepts_data),
-            "stocks_count": len(concept_stocks_data),
+            "concepts_count": total_concepts,
+            "stocks_count": total_stocks,
         }
 
         set_last_completed_concept_task(task)
         logger.info(
-            f"Concept data collection completed. Found {len(concepts_data)} concepts, {len(concept_stocks_data)} stocks"
+            f"Concept data collection completed. Found {total_concepts} concepts, {total_stocks} stocks"
         )
 
     except Exception as e:
