@@ -9,7 +9,14 @@ from typing import Dict, List
 from sqlmodel import Session, select, delete
 
 
-from models import ConceptTask, TaskStatus, ConceptInfo, ConceptStock, engine
+from models import (
+    ConceptTask,
+    TaskStatus,
+    ConceptInfo,
+    ConceptStock,
+    StockBasicInfo,
+    engine,
+)
 from utils import (
     get_concept_task,
     add_concept_task,
@@ -113,10 +120,30 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
                 for old_stock in old_stocks:
                     session.delete(old_stock)
 
-            # Insert concept stocks
+            # Insert concept stocks and update stock basic info with market cap and PE ratio
             for stock_data in concept_stocks_data:
+                # Extract market cap and PE ratio for stock basic info
+                stock_code = stock_data["stock_code"]
+                market_cap = stock_data.pop("circulating_market_cap", None)
+                pe_ratio = stock_data.pop("pe_ratio", None)
+
+                # Insert concept stock relationship (without market cap and PE ratio)
                 concept_stock = ConceptStock(**stock_data)
                 session.add(concept_stock)
+
+                # Update stock basic info with market cap and PE ratio
+                if market_cap is not None or pe_ratio is not None:
+                    stock_basic_info = session.exec(
+                        select(StockBasicInfo).where(StockBasicInfo.code == stock_code)
+                    ).first()
+
+                    if stock_basic_info:
+                        # Update existing stock with new market cap and PE ratio
+                        if market_cap is not None:
+                            stock_basic_info.circulating_market_cap = market_cap
+                        if pe_ratio is not None:
+                            stock_basic_info.pe_ratio = pe_ratio
+                        stock_basic_info.updated_at = datetime.now()
 
             session.commit()
 
