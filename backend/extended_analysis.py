@@ -49,6 +49,8 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
     full_response = ""
     if on_progress:
         on_progress(f"开始深度搜索板块 {concept_name}")
+    
+    chunk_count = 0
     for chunk in client.stream_chat_completion(messages, model="GLM-4-6-API-V1"):
         # Check if cancellation was requested
         if stop_event and stop_event.is_set():
@@ -56,9 +58,17 @@ def get_concept_analysis_with_deepsearch(concept_code: str, concept_name: str, o
                 on_progress(f"深度搜索已被取消：{concept_name}")
             return None
             
-        if on_progress and chunk:
-            on_progress(f"深度搜索输出：{chunk}")
         full_response += chunk
+        chunk_count += 1
+        
+        # Send progress updates periodically (every 50 chunks) to avoid overwhelming
+        # the progress callback while still providing feedback
+        if on_progress and chunk_count % 50 == 0:
+            on_progress(f"深度搜索进行中：{concept_name} (已接收 {len(full_response)} 字符)")
+    
+    # Send final update with complete content length
+    if on_progress:
+        on_progress(f"深度搜索完成：{concept_name} (共 {len(full_response)} 字符)")
         
     concept_analysis = full_response.strip() if full_response else None
     
