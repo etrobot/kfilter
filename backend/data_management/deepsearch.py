@@ -339,8 +339,8 @@ class ZAIChatClient:
             }
         }
 
-        # Base URL for the chat completion endpoint
-        url = f'{self.base_url}/api/chat/completions'
+        # Base URL for the chat completion endpoint (use v2 API)
+        url = f'{self.base_url}/api/v2/chat/completions'
 
         # Retry logic for the entire request using configuration
         max_retries = self.config.get('max_retries', 3)
@@ -405,33 +405,41 @@ class ZAIChatClient:
                     # Use a more sophisticated approach to track output
                     last_output = ""
                     output_buffer = ""
+                    line_count = 0
                     for line in response.iter_lines():
                         if line:
+                            line_count += 1
                             decoded_line = line.decode('utf-8')
                             if decoded_line.startswith('data: '):
                                 data = json.loads(decoded_line[6:])
+                                # Log first few data packets for debugging
+                                if line_count <= 5:
+                                    logging.debug(f"[Line {line_count}] Data type: {data.get('type')}, keys: {list(data.get('data', {}).keys())}")
                                 try:
                                     # Handle different response types
+                                    content = ""
+                                    is_delta = False  # Track if this is a delta update
+                                    
                                     if data.get('type') == 'chat:completion':
-                                        # Check for delta_content (incremental updates)
-                                        if 'delta_content' in data['data']:
-                                            content = data['data']['delta_content']
-                                        # Check for edit_content (full content updates)
-                                        # elif 'edit_content' in data['data']:
-                                        #     content = data['data']['edit_content']
-                                        # Check for content (direct content)
-                                        elif 'content' in data['data']:
-                                            content = data['data']['content']
-                                        else:
-                                            content = ""
-
-                                        # Handle different phases
+                                        # Handle different phases first
                                         phase = data['data'].get('phase', '')
                                         if phase == 'thinking':
                                             # Skip thinking phase content or handle it differently
                                             continue
-                                    else:
-                                        content = ""
+                                        
+                                        # Check for delta_content (incremental updates - just new text)
+                                        if 'delta_content' in data['data']:
+                                            content = data['data']['delta_content']
+                                            is_delta = True  # This is already incremental
+                                        # Check for edit_content (full content updates)
+                                        elif 'edit_content' in data['data']:
+                                            content = data['data']['edit_content']
+                                            is_delta = False  # Need to calculate diff
+                                        # Check for content (direct content)
+                                        elif 'content' in data['data']:
+                                            content = data['data']['content']
+                                            is_delta = False  # Need to calculate diff
+                                    
                                     # Ensure we only keep plain text
                                     if isinstance(content, dict):
                                         # Drop JSON objects to avoid non-plain text
@@ -487,22 +495,33 @@ class ZAIChatClient:
                                     for tag in other_tags:
                                         html_tags.add(tag)
 
-                                    i = 0
-                                    while i < min(len(last_output), len(content)) and last_output[i] == content[i]:
-                                        i += 1
-
-                                    # If text is completely different or shorter than last_output
-                                    # (model might have restarted or modified content)
-                                    if i < len(last_output) * 0.8:  # Less than 80% match
-                                        # Consider it a restart
-                                        logging.debug("\n[DEBUG] Content restart detected")
+                                    # Determine what text to output
+                                    new_text = ""
+                                    
+                                    if is_delta:
+                                        # delta_content is already incremental - use it directly
                                         new_text = content
-                                        output_buffer = ""
+                                        last_output += content  # Append to cumulative output
                                     else:
-                                        # Normal incremental update
-                                        new_text = content[i:]
+                                        # edit_content or content - need to calculate diff
+                                        # Calculate how much of the content is new
+                                        # Compare with last_output to find the common prefix
+                                        i = 0
+                                        while i < min(len(last_output), len(content)) and last_output[i] == content[i]:
+                                            i += 1
 
-                                    last_output = content
+                                        # Determine if this is a restart or incremental update
+                                        # If the new content is shorter or significantly different, treat as restart
+                                        if len(content) < len(last_output) or (len(last_output) > 0 and i < len(last_output) * 0.5):
+                                            # Content was edited/restarted - use full content and reset
+                                            logging.debug("\n[DEBUG] Content restart detected (matched: %d/%d chars)", i, len(last_output))
+                                            new_text = content
+                                            output_buffer = ""
+                                            last_output = content
+                                        else:
+                                            # Normal incremental update - only send the new part
+                                            new_text = content[i:]
+                                            last_output = content
 
                                     # Detect and handle duplicates in the stream
                                     if new_text and not output_buffer.endswith(new_text):

@@ -474,6 +474,8 @@ def post_config(payload: dict):
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
     """Serve frontend files for production"""
+    from fastapi import Response
+    
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
     # If static directory doesn't exist, return API info
@@ -500,4 +502,4 @@ async def serve_frontend(full_path: str):
             return FileResponse(index_path)
 
     # Return 404 for API routes or missing files
-    return {"detail": "Not found"}
+    raise HTTPException(status_code=404, detail="Not found")
