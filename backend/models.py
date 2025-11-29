@@ -38,6 +38,7 @@ class RunRequest(BaseModel):
     selected_factors: Optional[List[str]] = None
     collect_latest_data: bool = True
 
+
 class RunResponse(BaseModel):
     task_id: str
     status: TaskStatus
@@ -76,33 +77,51 @@ class AuthResponse(BaseModel):
 
 # 数据库模型
 
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
-    
-    id: str = Field(default_factory=lambda: ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8)), primary_key=True)
+
+    id: str = Field(
+        default_factory=lambda: "".join(
+            secrets.choice(string.ascii_letters + string.digits) for _ in range(8)
+        ),
+        primary_key=True,
+    )
     name: Optional[str] = None
     email: str
     image: Optional[str] = None
     is_admin: bool = Field(default=False, description="是否为管理员")
-    created_at: dt_datetime = Field(default_factory=lambda: dt_datetime.now(timezone.utc))
+    created_at: dt_datetime = Field(
+        default_factory=lambda: dt_datetime.now(timezone.utc)
+    )
 
 
 class StockBasicInfo(SQLModel, table=True):
     """股票基本信息表"""
+
     __tablename__ = "stock_basic_info"
-    
+
     code: str = Field(primary_key=True, description="股票代码")
     name: str = Field(description="股票名称")
     description: Optional[str] = Field(default=None, description="股票简介")
     tags: Optional[str] = Field(default=None, description="标签，用逗号分隔")
-    created_at: dt_datetime = Field(default_factory=dt_datetime.now, description="创建时间")
-    updated_at: dt_datetime = Field(default_factory=dt_datetime.now, description="更新时间")
+    circulating_market_cap: Optional[float] = Field(
+        default=None, description="流通市值(亿)"
+    )
+    pe_ratio: Optional[float] = Field(default=None, description="市盈率")
+    created_at: dt_datetime = Field(
+        default_factory=dt_datetime.now, description="创建时间"
+    )
+    updated_at: dt_datetime = Field(
+        default_factory=dt_datetime.now, description="更新时间"
+    )
 
 
 class DailyMarketData(SQLModel, table=True):
     """日行情表"""
+
     __tablename__ = "daily_market_data"
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(foreign_key="stock_basic_info.code", description="股票代码")
     date: dt_date = Field(description="日期")
@@ -114,13 +133,16 @@ class DailyMarketData(SQLModel, table=True):
     amount: Optional[float] = Field(description="成交额")
     change_pct: float = Field(description="涨跌百分比")
     limit_status: int = Field(default=0, description="涨跌停状态: -1跌停, 0正常, 1涨停")
-    limit_up_text: Optional[str] = Field(default=None, description="涨停类型文本，换手板/T字板/一字板")
+    limit_up_text: Optional[str] = Field(
+        default=None, description="涨停类型文本，换手板/T字板/一字板"
+    )
 
 
 class WeeklyMarketData(SQLModel, table=True):
     """周行情表"""
+
     __tablename__ = "weekly_market_data"
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(foreign_key="stock_basic_info.code", description="股票代码")
     date: dt_date = Field(description="周结束日期")
@@ -135,8 +157,9 @@ class WeeklyMarketData(SQLModel, table=True):
 
 class MonthlyMarketData(SQLModel, table=True):
     """月行情表"""
+
     __tablename__ = "monthly_market_data"
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(foreign_key="stock_basic_info.code", description="股票代码")
     date: dt_date = Field(description="月结束日期")
@@ -151,24 +174,32 @@ class MonthlyMarketData(SQLModel, table=True):
 
 class ConceptInfo(SQLModel, table=True):
     """概念信息表"""
+
     __tablename__ = "concept_info"
-    
+
     code: str = Field(primary_key=True, description="板块代码")
     name: str = Field(description="板块名称")
     market_cap: Optional[float] = Field(default=None, description="总市值")
     stock_count: int = Field(default=0, description="成分股数量")
-    created_at: dt_datetime = Field(default_factory=dt_datetime.now, description="创建时间")
-    updated_at: dt_datetime = Field(default_factory=dt_datetime.now, description="更新时间")
+    created_at: dt_datetime = Field(
+        default_factory=dt_datetime.now, description="创建时间"
+    )
+    updated_at: dt_datetime = Field(
+        default_factory=dt_datetime.now, description="更新时间"
+    )
 
 
 class ConceptStock(SQLModel, table=True):
     """概念成分股表"""
+
     __tablename__ = "concept_stock"
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     concept_code: str = Field(foreign_key="concept_info.code", description="板块代码")
     stock_code: str = Field(foreign_key="stock_basic_info.code", description="股票代码")
-    created_at: dt_datetime = Field(default_factory=dt_datetime.now, description="创建时间")
+    created_at: dt_datetime = Field(
+        default_factory=dt_datetime.now, description="创建时间"
+    )
 
 
 class ConceptTask(BaseModel):
@@ -196,9 +227,10 @@ class ConceptTaskResult(BaseModel):
 
 # 数据库连接配置
 # 使用环境变量配置数据库路径，支持Docker挂载
-import os
 BASE_DIR = Path(__file__).parent
-DATABASE_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "data_management" / "stock_data.db"))
+DATABASE_PATH = os.getenv(
+    "DATABASE_PATH", str(BASE_DIR / "data_management" / "stock_data.db")
+)
 # 确保数据库目录存在
 Path(DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
@@ -216,15 +248,104 @@ def create_db_and_tables():
             # 仅 SQLite 使用 PRAGMA; 若未来更换数据库需改为方言检测
             res = conn.exec_driver_sql("PRAGMA table_info(daily_market_data)")
             cols = [row[1] for row in res.fetchall()]  # 第二列是列名
-            if 'limit_up_text' not in cols:
-                conn.exec_driver_sql("ALTER TABLE daily_market_data ADD COLUMN limit_up_text VARCHAR NULL")
+            if "limit_up_text" not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE daily_market_data ADD COLUMN limit_up_text VARCHAR NULL"
+                )
+                conn.commit()
     except Exception as e:
         # 迁移失败不应阻断服务启动，打印警告即可
         import logging
+
         logging.getLogger(__name__).warning(f"Schema migration check failed: {e}")
+
+    # 轻量迁移：为 stock_basic_info 增加 circulating_market_cap 和 pe_ratio 列，并迁移数据
+    try:
+        with engine.connect() as conn:
+            res = conn.exec_driver_sql("PRAGMA table_info(stock_basic_info)")
+            stock_cols = [row[1] for row in res.fetchall()]
+
+            # 添加新列（如不存在）
+            if "circulating_market_cap" not in stock_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE stock_basic_info ADD COLUMN circulating_market_cap FLOAT NULL"
+                )
+            if "pe_ratio" not in stock_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE stock_basic_info ADD COLUMN pe_ratio FLOAT NULL"
+                )
+
+            # 检查 concept_stock 表是否有旧列
+            res = conn.exec_driver_sql("PRAGMA table_info(concept_stock)")
+            concept_stock_cols = [row[1] for row in res.fetchall()]
+
+            # 如果 concept_stock 表有旧列，迁移数据
+            if (
+                "circulating_market_cap" in concept_stock_cols
+                or "pe_ratio" in concept_stock_cols
+            ):
+                import logging
+
+                logging.getLogger(__name__).info(
+                    "Migrating market cap and PE ratio data from concept_stock to stock_basic_info"
+                )
+
+                # 迁移数据：对于每个股票，选择最新的数据
+                if "circulating_market_cap" in concept_stock_cols:
+                    conn.exec_driver_sql(
+                        """
+                        UPDATE stock_basic_info
+                        SET circulating_market_cap = (
+                            SELECT circulating_market_cap
+                            FROM concept_stock
+                            WHERE concept_stock.stock_code = stock_basic_info.code
+                            AND concept_stock.circulating_market_cap IS NOT NULL
+                            ORDER BY concept_stock.created_at DESC
+                            LIMIT 1
+                        )
+                        WHERE EXISTS (
+                            SELECT 1 FROM concept_stock
+                            WHERE concept_stock.stock_code = stock_basic_info.code
+                            AND concept_stock.circulating_market_cap IS NOT NULL
+                        )
+                    """
+                    )
+
+                if "pe_ratio" in concept_stock_cols:
+                    conn.exec_driver_sql(
+                        """
+                        UPDATE stock_basic_info
+                        SET pe_ratio = (
+                            SELECT pe_ratio
+                            FROM concept_stock
+                            WHERE concept_stock.stock_code = stock_basic_info.code
+                            AND concept_stock.pe_ratio IS NOT NULL
+                            ORDER BY concept_stock.created_at DESC
+                            LIMIT 1
+                        )
+                        WHERE EXISTS (
+                            SELECT 1 FROM concept_stock
+                            WHERE concept_stock.stock_code = stock_basic_info.code
+                            AND concept_stock.pe_ratio IS NOT NULL
+                        )
+                    """
+                    )
+
+                conn.commit()
+                logging.getLogger(__name__).info(
+                    "Data migration completed successfully"
+                )
+    except Exception as e:
+        # 迁移失败不应阻断服务启动，打印警告即可
+        import logging
+
+        logging.getLogger(__name__).warning(
+            f"Schema migration for stock_basic_info failed: {e}"
+        )
 
 
 # ---- Factor plugin types ----
+
 
 class Factor(BaseModel):
     id: str

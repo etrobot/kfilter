@@ -12,12 +12,15 @@ dependencies = [
     "numpy",
     "sqlmodel",
     "requests",
+    "requests-html",
+    "lxml_html_clean",
     "python-dotenv",
     "openai",
     "apscheduler",
     # Optional: use AkShare if available for real market data
     # "akshare",
     "akshare>=1.17.44",
+    "playwright>=1.40.0",
 ]
 [tool.uv]
 dev-dependencies = [
