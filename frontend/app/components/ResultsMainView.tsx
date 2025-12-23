@@ -17,7 +17,7 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [minPrice, setMinPrice] = useState<number>(0)
   const [maxPrice, setMaxPrice] = useState<number>(56)
-  const [requireSector, setRequireSector] = useState<boolean>(false)
+  const [requireSector, setRequireSector] = useState<boolean>(true)
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

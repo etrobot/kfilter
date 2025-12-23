@@ -67,14 +67,36 @@ async def crawl(p_url):
         excludecpt = []
 
     async with async_playwright() as p:
-        # 使用 chromium headless shell（最轻量）
-        browser = await p.chromium.launch(headless=True, channel="chromium-headless-shell")
-        page = await browser.new_page()
+        # 使用 chromium headless shell（最轻量）+ 反反爬策略
+        browser = await p.chromium.launch(
+            headless=True, 
+            channel="chromium-headless-shell",
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+            ]
+        )
+        
+        # 创建上下文，设置真实的浏览器特征
+        context = await browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080},
+            locale='zh-CN',
+        )
+        
+        page = await context.new_page()
+        
+        # 隐藏 webdriver 特征
+        await page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        """)
 
         # 获取主页面
         try:
-            await page.goto(p_url, wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(2000)
+            await page.goto(p_url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
         except Exception as e:
             print(f"获取主页面失败: {e}")
             await browser.close()
@@ -217,14 +239,35 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
     stocks_list = []
 
     async with async_playwright() as p:
-        # 使用 chromium headless shell（最轻量）
-        browser = await p.chromium.launch(headless=True, channel="chromium-headless-shell")
-        context = await browser.new_context()
+        # 使用 chromium headless shell（最轻量）+ 反反爬策略
+        browser = await p.chromium.launch(
+            headless=True, 
+            channel="chromium-headless-shell",
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+            ]
+        )
+        
+        # 创建上下文，设置真实的浏览器特征
+        context = await browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080},
+            locale='zh-CN',
+        )
+        
         page = await context.new_page()
+        
+        # 隐藏 webdriver 特征
+        await page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        """)
 
         try:
-            await page.goto(p_url, wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(2000)
+            await page.goto(p_url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
         except Exception as e:
             print(f"获取主页面失败: {e}")
             await browser.close()

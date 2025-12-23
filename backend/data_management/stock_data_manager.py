@@ -225,16 +225,21 @@ def save_daily_data(history_data: Dict[str, pd.DataFrame]):
                 ).first()
 
                 if existing is None:
+                    # Handle NaN values properly - pandas NaN should be replaced with 0
+                    def safe_float(value, default=0.0):
+                        """Convert value to float, replacing NaN with default"""
+                        return default if pd.isna(value) else float(value)
+                    
                     daily_data = DailyMarketData(
                         code=code,
                         date=record_date,
-                        open_price=float(row.get("开盘", 0)),
-                        high_price=float(row.get("最高", 0)),
-                        low_price=float(row.get("最低", 0)),
-                        close_price=float(row.get("收盘", 0)),
-                        volume=float(row.get("成交量", 0)),
-                        amount=float(row.get("成交额", 0)),
-                        change_pct=float(row.get("涨跌幅", 0)),
+                        open_price=safe_float(row.get("开盘", 0)),
+                        high_price=safe_float(row.get("最高", 0)),
+                        low_price=safe_float(row.get("最低", 0)),
+                        close_price=safe_float(row.get("收盘", 0)),
+                        volume=safe_float(row.get("成交量", 0)),
+                        amount=safe_float(row.get("成交额", 0)) if pd.notna(row.get("成交额", None)) else None,
+                        change_pct=safe_float(row.get("涨跌幅", 0)),
                         limit_status=0,  # 默认非涨停，后续通过专门函数回填
                         limit_up_text=None,
                     )

@@ -196,22 +196,22 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
             return c
 
         df = pd.DataFrame()
-        # 1) Try akshare's Tencent API first
+        # 1) Try akshare's general interface first (has more complete data including 成交额)
         if HAS_AKSHARE:
-            try:
-                api_symbol = to_symbol(code)
-                df = ak.stock_zh_a_hist_tx(symbol=api_symbol, start_date=start_date, end_date=end_date, adjust="qfq")
-            except Exception as e:
-                logger.warning(f"akshare腾讯接口获取异常，尝试akshare通用接口: {code}, 错误: {e}")
-                df = pd.DataFrame()
-
-        # 2) Fallback to akshare general interface
-        if (df is None or df.empty) and HAS_AKSHARE:
             try:
                 ak_code = to_clean_code(code)
                 df = ak.stock_zh_a_hist(symbol=ak_code, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
             except Exception as e:
-                logger.warning(f"akshare通用接口也获取异常，将尝试本地腾讯实现: {code}, 错误: {e}")
+                logger.warning(f"akshare通用接口获取异常，尝试akshare腾讯接口: {code}, 错误: {e}")
+                df = pd.DataFrame()
+
+        # 2) Fallback to akshare's Tencent API (less data but more stable)
+        if (df is None or df.empty) and HAS_AKSHARE:
+            try:
+                api_symbol = to_symbol(code)
+                df = ak.stock_zh_a_hist_tx(symbol=api_symbol, start_date=start_date, end_date=end_date, adjust="qfq")
+            except Exception as e:
+                logger.warning(f"akshare腾讯接口也获取异常，将尝试本地腾讯实现: {code}, 错误: {e}")
                 df = pd.DataFrame()
 
         # 3) Final fallback to local Tencent implementation
@@ -230,14 +230,18 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
         if not df.empty:
             # Standardize column names
             df = df.reset_index(drop=True)
-            # Tencent API returns: date, open, close, high, low, amount
+            
+            # Handle different API formats
+            # Tencent API returns: date, open, close, high, low, amount (成交量 only)
+            # General API returns: 日期, 股票代码, 开盘, 收盘, 最高, 最低, 成交量, 成交额, etc.
             rename_map = {
                 "date": "日期",
                 "open": "开盘",
                 "close": "收盘",
                 "high": "最高",
                 "low": "最低",
-                "amount": "成交量",
+                "amount": "成交量",  # Tencent API's amount is volume, not turnover
+                "股票代码": "代码",
             }
             existing_columns = {k: v for k, v in rename_map.items() if k in df.columns}
             df = df.rename(columns=existing_columns)
@@ -256,7 +260,10 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
             if "涨跌幅" not in df.columns and "收盘" in df.columns:
                 df["涨跌幅"] = df["收盘"].pct_change() * 100
             
-            df["代码"] = code
+            # Set stock code
+            if "代码" not in df.columns:
+                df["代码"] = code
+            
             history[code] = df
             
             if (i + 1) % 50 == 0:
