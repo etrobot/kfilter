@@ -1,10 +1,10 @@
 {
-  "task_id": "2abf9188-fd01-47d5-a3c4-9960b9f80548",
+  "task_id": "d0e6f708-7051-4225-a976-1b90282a245e",
   "status": "completed",
   "progress": 1.0,
   "message": "分析完成，数据已保存到数据库，共 275 条结果",
-  "completed_at": "2025-12-23T16:02:46.147300",
-  "created_at": "2025-12-23T15:59:04.121220",
+  "completed_at": "2025-12-23T16:52:44.386583",
+  "created_at": "2025-12-23T16:47:30.832702",
   "top_n": 200,
   "selected_factors": [
     "momentum",

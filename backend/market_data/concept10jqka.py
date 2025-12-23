@@ -5,7 +5,145 @@ import pandas as pd
 import time
 import json
 import traceback
+import random
 from playwright.async_api import async_playwright
+
+
+# 请求频率控制
+_last_request_time = 0
+_last_page_time = 0
+_request_lock = asyncio.Lock() if hasattr(asyncio, 'Lock') else None
+MIN_REQUEST_INTERVAL = 3.0  # 最小请求间隔（秒）
+MAX_REQUEST_INTERVAL = 8.0  # 最大请求间隔（秒）
+PAGE_REQUEST_DELAY = 5.0  # 页面请求间隔（秒）
+MAX_CONCURRENT_REQUESTS = 3  # 最大并发请求数
+_request_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS) if hasattr(asyncio, 'Semaphore') else None
+_forbidden_count = 0  # 403/429错误计数器
+_RATE_LIMIT_THRESHOLD = 3  # 触发更严格限制的阈值
+
+
+def safe_request(url, headers=None, timeout=30, max_retries=5, base_delay=3):
+    """
+    带有重试和延迟机制的HTTP请求函数
+
+    Args:
+        url: 请求URL
+        headers: 请求头
+        timeout: 超时时间（秒）
+        max_retries: 最大重试次数
+        base_delay: 基础延迟时间（秒），实际延迟会在此基础上随机波动
+
+    Returns:
+        Response对象，如果失败返回None
+    """
+    global _last_request_time
+
+    for attempt in range(max_retries):
+        try:
+            # 频率控制：确保请求间隔
+            current_time = time.time()
+            time_since_last = current_time - _last_request_time
+            if time_since_last < MIN_REQUEST_INTERVAL:
+                sleep_time = MIN_REQUEST_INTERVAL - time_since_last + random.uniform(0, 2)
+                print(f"频率控制：等待 {sleep_time:.1f} 秒")
+                time.sleep(sleep_time)
+
+            # 发送请求
+            response = requests.get(url, headers=headers, timeout=timeout)
+            _last_request_time = time.time()
+
+            # 检查是否被限流
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', base_delay * (2 ** attempt)))
+                retry_after = max(retry_after, 30)  # 最小等待30秒
+                print(f"请求过于频繁(429)，等待 {retry_after} 秒后重试 (尝试 {attempt + 1}/{max_retries})...")
+                time.sleep(retry_after)
+                _forbidden_count += 1
+                continue
+
+            # 检查是否被封禁
+            if response.status_code == 403:
+                delay = base_delay * (2 ** attempt) + random.uniform(5, 10)
+                delay = max(delay, 60)  # 最小等待60秒
+                print(f"请求被拒绝(403)，可能触发反爬，等待 {delay:.1f} 秒后重试 (尝试 {attempt + 1}/{max_retries})...")
+                time.sleep(delay)
+                _forbidden_count += 1
+                continue
+
+            # 检查响应
+            response.raise_for_status()
+            return response
+
+        except requests.exceptions.Timeout:
+            delay = base_delay * (2 ** attempt) + random.uniform(5, 15)
+            print(f"请求超时，等待 {delay:.1f} 秒后重试 (尝试 {attempt + 1}/{max_retries})...")
+            time.sleep(delay)
+
+        except requests.exceptions.ConnectionError:
+            delay = base_delay * (2 ** attempt) + random.uniform(10, 20)
+            print(f"连接错误，等待 {delay:.1f} 秒后重试 (尝试 {attempt + 1}/{max_retries})...")
+            time.sleep(delay)
+
+        except requests.exceptions.RequestException as e:
+            delay = base_delay * (2 ** attempt) + random.uniform(5, 10)
+            print(f"请求异常: {e}，等待 {delay:.1f} 秒后重试 (尝试 {attempt + 1}/{max_retries})...")
+            time.sleep(delay)
+
+    print(f"请求失败，已达到最大重试次数 ({max_retries}): {url}")
+    return None
+
+
+def get_rate_limit_delay():
+    """
+    根据当前错误计数获取适当的延迟时间
+    """
+    global _forbidden_count
+    if _forbidden_count >= _RATE_LIMIT_THRESHOLD:
+        # 如果多次触发限制，使用更长的延迟
+        base_delay = 10.0 + (_forbidden_count - _RATE_LIMIT_THRESHOLD) * 5.0
+        return max(base_delay, 30.0)  # 最小30秒，最大逐渐增加
+    return PAGE_REQUEST_DELAY
+
+
+async def safe_page_navigation(page, url, timeout=30000, max_retries=3):
+    """
+    安全的页面导航函数，带有重试和延迟机制
+
+    Args:
+        page: Playwright页面对象
+        url: 目标URL
+        timeout: 超时时间（毫秒）
+        max_retries: 最大重试次数
+
+    Returns:
+        是否成功
+    """
+    for attempt in range(max_retries):
+        try:
+            # 添加适应性页面导航延迟
+            rate_limit_delay = get_rate_limit_delay()
+            await asyncio.sleep(rate_limit_delay + random.uniform(1, 3))
+
+            await page.goto(url, wait_until="networkidle", timeout=timeout)
+
+            # 检查是否被封禁
+            page_content = await page.content()
+            if "forbidden." in page_content.lower():
+                delay = 60 * (2 ** attempt)
+                print(f"检测到访问限制（第 {_forbidden_count + 1} 次），等待 {delay} 秒...")
+                await asyncio.sleep(delay)
+                _forbidden_count += 1
+                continue
+
+            return True
+
+        except Exception as e:
+            delay = 5 * (2 ** attempt) + random.uniform(3, 8)
+            print(f"页面导航失败 (尝试 {attempt + 1}/{max_retries}): {e}，等待 {delay:.1f} 秒...")
+            await asyncio.sleep(delay)
+
+    print(f"页面导航失败，已达到最大重试次数 ({max_retries}): {url}")
+    return False
 
 
 def parse_market_cap(text):
@@ -53,15 +191,21 @@ async def crawl(p_url):
     }
 
     try:
-        excludecpt = (
-            json.loads(
-                requests.get(
-                    "https://api2.bmob.cn/1/classes/text/mI76888D", headers=headers2
-                ).text
-            )["text"]
-            .replace("，", ",")
-            .split(",")
+        response = safe_request(
+            "https://api2.bmob.cn/1/classes/text/mI76888D", 
+            headers=headers2,
+            max_retries=3,
+            base_delay=2
         )
+        if response:
+            excludecpt = (
+                json.loads(response.text)["text"]
+                .replace("，", ",")
+                .split(",")
+            )
+        else:
+            print("获取排除列表失败: 请求返回None")
+            excludecpt = []
     except Exception as e:
         print(f"获取排除列表失败: {e}")
         excludecpt = []
@@ -94,13 +238,11 @@ async def crawl(p_url):
         """)
 
         # 获取主页面
-        try:
-            await page.goto(p_url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
-        except Exception as e:
-            print(f"获取主页面失败: {e}")
+        if not await safe_page_navigation(page, p_url, timeout=30000):
+            print(f"获取主页面失败，关闭浏览器")
             await browser.close()
             return
+        await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
 
         # 提取板块名称和代码
         try:
@@ -143,12 +285,10 @@ async def crawl(p_url):
                 print(f"\n处理板块: {name} ({bk_code})")
 
                 # 获取板块详情页
-                try:
-                    await page.goto(url, wait_until="networkidle", timeout=30000)
-                    await page.wait_for_timeout(2000)
-                except Exception as e:
-                    print(f"获取板块详情页失败 {name}: {e}")
+                if not await safe_page_navigation(page, url, timeout=30000):
+                    print(f"获取板块详情页失败 {name}")
                     continue
+                await page.wait_for_timeout(2000)
 
                 # 得出板块成分股有多少页
                 try:
@@ -165,25 +305,19 @@ async def crawl(p_url):
                 # 遍历所有页面
                 count = 1
                 while count <= page:
-                    curl = (
-                        p_url
-                        + "/detail/field/199112/order/desc/page/"
-                        + str(count)
-                        + "/ajax/1/code/"
-                        + bk_code
-                    )
-                    print(f"获取第 {count}/{page} 页: {curl}")
-
                     try:
-                        await page.goto(curl, wait_until="networkidle", timeout=30000)
-                        await page.wait_for_timeout(1000)
+                        curl = (
+                            p_url
+                            + "/detail/field/199112/order/desc/page/"
+                            + str(count)
+                            + "/ajax/1/code/"
+                            + bk_code
+                        )
+                        print(f"获取第 {count}/{page} 页: {curl}")
 
-                        # 检查是否被限制
-                        page_content = await page.content()
-                        if "forbidden." in page_content.lower():
-                            print("检测到访问限制，等待60秒...")
-                            await asyncio.sleep(60)
+                        if not await safe_page_navigation(page, curl, timeout=30000):
                             continue
+                        await page.wait_for_timeout(1000)
 
                         # 成分股代码 - 从表格中提取
                         stock_rows = await page.query_selector_all("table tbody tr")
@@ -265,13 +399,11 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
             });
         """)
 
-        try:
-            await page.goto(p_url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
-        except Exception as e:
-            print(f"获取主页面失败: {e}")
+        if not await safe_page_navigation(page, p_url, timeout=30000):
+            print(f"获取主页面失败")
             await browser.close()
             return concepts_list, stocks_list
+        await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
 
         try:
             gnbk_elements = await page.query_selector_all("a")
@@ -299,12 +431,14 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
                 url = p_url + "/detail/code/" + bk_code + "/"
                 print(f"处理板块: {name} ({bk_code})")
 
-                try:
-                    # 访问详情页
-                    await page.goto(url, wait_until="networkidle", timeout=30000)
-                    print("  等待页面加载...")
-                    await page.wait_for_timeout(5000)
+                # 访问详情页
+                if not await safe_page_navigation(page, url, timeout=30000):
+                    print(f"  页面导航失败，跳过此板块")
+                    continue
+                print("  等待页面加载...")
+                await page.wait_for_timeout(5000)
 
+                try:
                     # 等待表格加载
                     await page.wait_for_selector(
                         "table.m-table tbody tr", timeout=10000
@@ -312,7 +446,7 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
                     print("  表格已加载")
 
                 except Exception as e:
-                    print(f"  加载失败: {e}，跳过此板块")
+                    print(f"  表格加载失败: {e}，跳过此板块")
                     continue
 
                 # 直接从当前页面提取成分股
