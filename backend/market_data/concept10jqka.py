@@ -11,7 +11,6 @@ from playwright.async_api import async_playwright
 
 # 请求频率控制
 _last_request_time = 0
-_last_page_time = 0
 _request_lock = asyncio.Lock() if hasattr(asyncio, 'Lock') else None
 MIN_REQUEST_INTERVAL = 3.0  # 最小请求间隔（秒）
 MAX_REQUEST_INTERVAL = 8.0  # 最大请求间隔（秒）
@@ -20,6 +19,8 @@ MAX_CONCURRENT_REQUESTS = 3  # 最大并发请求数
 _request_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS) if hasattr(asyncio, 'Semaphore') else None
 _forbidden_count = 0  # 403/429错误计数器
 _RATE_LIMIT_THRESHOLD = 3  # 触发更严格限制的阈值
+_FORBIDDEN_RESET_THRESHOLD = 10  # 成功请求数达到此值时重置forbidden_count
+_success_count = 0  # 连续成功请求计数器
 
 
 def safe_request(url, headers=None, timeout=30, max_retries=5, base_delay=3):
@@ -36,7 +37,7 @@ def safe_request(url, headers=None, timeout=30, max_retries=5, base_delay=3):
     Returns:
         Response对象，如果失败返回None
     """
-    global _last_request_time
+    global _last_request_time, _forbidden_count
 
     for attempt in range(max_retries):
         try:
@@ -72,6 +73,7 @@ def safe_request(url, headers=None, timeout=30, max_retries=5, base_delay=3):
 
             # 检查响应
             response.raise_for_status()
+            reset_forbidden_count_on_success()
             return response
 
         except requests.exceptions.Timeout:
@@ -101,8 +103,34 @@ def get_rate_limit_delay():
     if _forbidden_count >= _RATE_LIMIT_THRESHOLD:
         # 如果多次触发限制，使用更长的延迟
         base_delay = 10.0 + (_forbidden_count - _RATE_LIMIT_THRESHOLD) * 5.0
-        return max(base_delay, 30.0)  # 最小30秒，最大逐渐增加
+        # 使用指数退避，最小30秒，最大300秒（5分钟）
+        delay = min(max(base_delay, 30.0), 300.0)
+        print(f"⚠️ 频繁限制警告: 已触发 {_forbidden_count} 次限制，延迟 {delay:.1f} 秒")
+        return delay
     return PAGE_REQUEST_DELAY
+
+
+def reset_forbidden_count_on_success():
+    """
+    成功请求后，逐步重置forbidden计数器
+    """
+    global _forbidden_count, _success_count
+    _success_count += 1
+    
+    if _success_count >= _FORBIDDEN_RESET_THRESHOLD and _forbidden_count > 0:
+        _forbidden_count = max(0, _forbidden_count - 1)
+        _success_count = 0
+        print(f"✓ 连续成功 {_FORBIDDEN_RESET_THRESHOLD} 次，降低限制等级 (当前: {_forbidden_count})")
+
+
+def report_rate_limit_status():
+    """
+    报告当前的速率限制状态
+    """
+    global _forbidden_count, _success_count
+    if _forbidden_count > 0:
+        print(f"📊 速率限制状态: 限制次数={_forbidden_count}, 成功次数={_success_count}/{_FORBIDDEN_RESET_THRESHOLD}")
+    return {"forbidden_count": _forbidden_count, "success_count": _success_count}
 
 
 async def safe_page_navigation(page, url, timeout=30000, max_retries=3):
@@ -118,6 +146,8 @@ async def safe_page_navigation(page, url, timeout=30000, max_retries=3):
     Returns:
         是否成功
     """
+    global _forbidden_count
+    
     for attempt in range(max_retries):
         try:
             # 添加适应性页面导航延迟
@@ -135,6 +165,7 @@ async def safe_page_navigation(page, url, timeout=30000, max_retries=3):
                 _forbidden_count += 1
                 continue
 
+            reset_forbidden_count_on_success()
             return True
 
         except Exception as e:
@@ -283,6 +314,7 @@ async def crawl(p_url):
                 name = row["Name"]
                 url = p_url + "/detail/code/" + bk_code + "/"
                 print(f"\n处理板块: {name} ({bk_code})")
+                report_rate_limit_status()
 
                 # 获取板块详情页
                 if not await safe_page_navigation(page, url, timeout=30000):
@@ -430,6 +462,7 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
 
                 url = p_url + "/detail/code/" + bk_code + "/"
                 print(f"处理板块: {name} ({bk_code})")
+                report_rate_limit_status()
 
                 # 访问详情页
                 if not await safe_page_navigation(page, url, timeout=30000):
