@@ -29,8 +29,8 @@ def fetch_hot_spot() -> pd.DataFrame:
     import re
 
     """
-    东方财富网-沪深京 A 股-实时行情（单页100条）
-    基于新的API接口获取第一页数据
+    东方财富网-沪深京 A 股-实时行情（每页100条）
+    基于新的API接口获取前两页数据
     :return: 实时行情数据
     :rtype: pandas.DataFrame
     """
@@ -50,14 +50,13 @@ def fetch_hot_spot() -> pd.DataFrame:
         'sec-ch-ua-platform': '"macOS"'
     }
     
-    params = {
+    base_params = {
         'np': '1',
         'fltt': '1', 
         'invt': '2',
         'fs': 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048',
         'fields': 'f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23',
         'fid': 'f6',
-        'pn': '1',  # 第一页
         'pz': '100',  # 每页100条
         'po': '1',
         'dect': '1',
@@ -65,35 +64,47 @@ def fetch_hot_spot() -> pd.DataFrame:
         'wbp2u': '|0|0|0|web',
     }
     
-    response = requests.get(url, params=params, headers=headers, timeout=15)
-    response.raise_for_status()
+    all_data = []
     
-    # 获取响应文本
-    response_text = response.text
-    
-    # 如果响应是JSONP格式，需要提取JSON部分
-    if response_text.startswith('jQuery'):
-        # 提取JSON数据（去掉JSONP回调函数包装）
-        json_match = re.search(r'jQuery\w+\((.*)\)', response_text)
-        if json_match:
-            json_str = json_match.group(1)
-            data_json = json.loads(json_str)
+    # 获取前两页数据
+    for page in [1, 2]:
+        params = base_params.copy()
+        params['pn'] = str(page)
+        
+        response = requests.get(url, params=params, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # 获取响应文本
+        response_text = response.text
+        
+        # 如果响应是JSONP格式，需要提取JSON部分
+        if response_text.startswith('jQuery'):
+            # 提取JSON数据（去掉JSONP回调函数包装）
+            json_match = re.search(r'jQuery\w+\((.*)\)', response_text)
+            if json_match:
+                json_str = json_match.group(1)
+                data_json = json.loads(json_str)
+            else:
+                raise ValueError("无法解析JSONP响应")
         else:
-            raise ValueError("无法解析JSONP响应")
-    else:
-        # 直接解析JSON
-        data_json = response.json()
-    
-    # 检查数据结构
-    if 'data' not in data_json or 'diff' not in data_json['data']:
-        raise ValueError("API返回数据结构不正确")
+            # 直接解析JSON
+            data_json = response.json()
+        
+        # 检查数据结构
+        if 'data' not in data_json or 'diff' not in data_json['data']:
+            raise ValueError("API返回数据结构不正确")
+        
+        # 收集数据
+        page_data = data_json['data']['diff']
+        if page_data:
+            all_data.extend(page_data)
     
     # 创建DataFrame
-    temp_df = pd.DataFrame(data_json['data']['diff'])
-    
-    if temp_df.empty:
+    if not all_data:
         print("警告：获取到的数据为空")
         return pd.DataFrame()
+    
+    temp_df = pd.DataFrame(all_data)
     
     # 根据fields字段顺序设置列名
     # fields: f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23
@@ -123,7 +134,7 @@ def fetch_hot_spot() -> pd.DataFrame:
     temp_df.rename(columns=column_mapping, inplace=True)
     
     # 添加序号列
-    temp_df.reset_index(inplace=True)
+    temp_df.reset_index(drop=True, inplace=True)
     temp_df['序号'] = temp_df.index + 1
     
     # 选择需要的列并重新排序

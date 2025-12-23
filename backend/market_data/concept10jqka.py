@@ -67,8 +67,8 @@ async def crawl(p_url):
         excludecpt = []
 
     async with async_playwright() as p:
-        # 使用 firefox 内核
-        browser = await p.firefox.launch(headless=True)
+        # 使用 chromium headless shell（最轻量）
+        browser = await p.chromium.launch(headless=True, channel="chromium-headless-shell")
         page = await browser.new_page()
 
         # 获取主页面
@@ -217,7 +217,8 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
     stocks_list = []
 
     async with async_playwright() as p:
-        browser = await p.firefox.launch(headless=True)
+        # 使用 chromium headless shell（最轻量）
+        browser = await p.chromium.launch(headless=True, channel="chromium-headless-shell")
         context = await browser.new_context()
         page = await context.new_page()
 

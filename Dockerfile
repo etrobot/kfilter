@@ -30,6 +30,20 @@ RUN find . -name "*.py" -exec dirname {} \; | xargs -I {} touch {}/__init__.py
 # Install dependencies using uv
 RUN uv sync --frozen
 
+# Install system dependencies for Playwright
+RUN apt-get update && apt-get install -y \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Activate virtual environment for playwright install
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Install Playwright chromium-headless-shell (most lightweight option)
+RUN playwright install chromium-headless-shell
+RUN playwright install-deps chromium-headless-shell
+
 # Activate virtual environment
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"

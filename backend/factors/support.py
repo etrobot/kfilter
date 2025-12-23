@@ -7,35 +7,50 @@ import numpy as np
 from models import Factor
 
 
-def calculate_days_from_longest_candle(df_window):
-    """计算最长K线实体到最新价格的天数（向量化版本）"""
-    if len(df_window) < 2:
-        return 0
+def calculate_macd(close_prices: pd.Series, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> pd.Series:
+    """计算MACD指标
     
-    # 计算相对昨收的实体幅度
-    first_close = df_window.iloc[0]['收盘']
-    body_lengths = (df_window.iloc[1:]['收盘'] - df_window.iloc[1:]['开盘']).abs() * 100 / first_close
+    Args:
+        close_prices: 收盘价序列
+        fast_period: 快线周期 (默认12)
+        slow_period: 慢线周期 (默认26)
+        signal_period: 信号线周期 (默认9)
     
-    # 找到最大实体的索引（从后往前，所以相同长度时选择最近的）
-    max_idx_rev = body_lengths.iloc[::-1].idxmax()
+    Returns:
+        MACD柱状图值 (DIF - DEA)
+    """
+    # 计算EMA
+    ema_fast = close_prices.ewm(span=fast_period, adjust=False).mean()
+    ema_slow = close_prices.ewm(span=slow_period, adjust=False).mean()
     
-    # 返回天数差（从最后一天往前数）
-    return len(df_window) - 1 - max_idx_rev + 1
+    # 计算DIF (快线 - 慢线)
+    dif = ema_fast - ema_slow
+    
+    # 计算DEA (DIF的EMA)
+    dea = dif.ewm(span=signal_period, adjust=False).mean()
+    
+    # 返回MACD柱状图 (DIF - DEA)
+    macd = dif - dea
+    
+    return macd
 
 
-def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None, window_size: int = 60) -> pd.DataFrame:
-    """Calculate support factor using days from longest candle
+def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None, macd_window: int = 10) -> pd.DataFrame:
+    """Calculate support factor using MACD absolute value sum
+    
+    近10个MACD绝对值总和越小越好，表示价格波动趋于平稳，可能形成支撑
     
     Args:
         history: Historical price data
         top_spot: Optional spot data (unused)
-        window_size: Number of days to look back for analysis (default: 60)
+        macd_window: Number of recent MACD values to sum (default: 10)
     """
     rows: List[dict] = []
     
     for code, df in history.items():
-        # Require at least window_size + 1 days for meaningful analysis (extra day for previous close)
-        if df is None or df.empty or len(df) < window_size + 1:
+        # 需要至少26+9+macd_window天的数据来计算MACD
+        min_required_days = 26 + 9 + macd_window
+        if df is None or df.empty or len(df) < min_required_days:
             continue
             
         # Convert date column to datetime for proper sorting if needed
@@ -45,87 +60,55 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
         
         df_sorted = df_copy.sort_values("日期", ascending=True)
         
-        # Convert DataFrame to list of candle dictionaries
-        candles = []
-        for _, row in df_sorted.iterrows():
-            candles.append({
-                'open': row['开盘'],
-                'close': row['收盘'],
-                'high': row['最高'],
-                'low': row['最低']
-            })
+        # 计算MACD
+        close_prices = df_sorted['收盘']
+        macd_values = calculate_macd(close_prices)
         
-        # Calculate days from longest candle with specified window
-        # We need window_size + 1 days for proper previous close reference
-        actual_window = min(window_size, len(df_sorted) - 1)
+        # 获取最近macd_window个MACD值
+        recent_macd = macd_values.iloc[-macd_window:]
         
-        # Get the extended window data (window_size + 1 days)
-        df_extended_window = df_sorted.iloc[-(actual_window + 1):]
+        # 计算MACD绝对值总和
+        macd_abs_sum = recent_macd.abs().sum()
         
-        days_from_longest = calculate_days_from_longest_candle(df_extended_window)
+        # 支撑因子：MACD绝对值总和的倒数（值越小越好，所以取倒数让值越大越好）
+        # 为了避免除以0，添加一个小常数
+        support_factor = 1.0 / (macd_abs_sum + 0.0001)
         
-        # Support factor: days from longest candle (more distant longest candle = better support)
-        # Normalize to 0-1 range, where farther from recent = higher score
-        support_factor_base = (days_from_longest / (actual_window - 1)) if actual_window > 1 else 0
-        
-        # Get the window for price ratio calculation
-        window = candles[-actual_window:]
-        
-        # Use window first price / window last price as described
-        # For support factor, we want higher values when price has declined from window start
-
-        # Calculate price ratio: (昨开-昨收)/(昨低-今低)-1
-        if len(window) >= 2:
-            yesterday = window[-2]
-            today = window[-1]
-            yesterday_open = yesterday['open']
-            yesterday_close = yesterday['close']
-            yesterday_low = yesterday['low']
-            today_low = today['low']
-            
-            denominator = yesterday_low - today_low
-            if denominator != 0:
-                price_ratio = (yesterday_open - yesterday_close) * 2 / denominator
-            else:
-                price_ratio = 1.0
-        else:
-            price_ratio = 1.0
-        
-        # Final support factor: combine time factor with price movement
-        # Higher values indicate stronger support (recent longest candle + price decline)
-        support_factor = support_factor_base * price_ratio
+        # 获取最新的MACD值
+        latest_macd = macd_values.iloc[-1]
         
         rows.append({
             "代码": code, 
             "支撑因子": support_factor,
-            f"最长K线天数_{window_size}日": days_from_longest,
+            f"MACD绝对值和_{macd_window}日": macd_abs_sum,
+            "最新MACD": latest_macd,
         })
     
     return pd.DataFrame(rows)
 
 
 # Configuration
-DEFAULT_WINDOW_SIZE = 30
+DEFAULT_MACD_WINDOW = 10
 
 def compute_support_with_default_window(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    """Wrapper function that uses the default window size"""
-    result = compute_support(history, top_spot, DEFAULT_WINDOW_SIZE)
+    """Wrapper function that uses the default MACD window size"""
+    result = compute_support(history, top_spot, DEFAULT_MACD_WINDOW)
     
     # Rename the dynamic column to a fixed name for the factor definition
-    dynamic_col = f"最长K线天数_{DEFAULT_WINDOW_SIZE}日"
+    dynamic_col = f"MACD绝对值和_{DEFAULT_MACD_WINDOW}日"
     if dynamic_col in result.columns:
-        result = result.rename(columns={dynamic_col: "最长K线天数"})
+        result = result.rename(columns={dynamic_col: "MACD绝对值和"})
     
     return result
 
 SUPPORT_FACTOR = Factor(
     id="support",
     name="支撑因子",
-    description=f"基于最长K线实体距离的支撑强度：计算{DEFAULT_WINDOW_SIZE}日窗口内最长K线实体（相对昨收幅度）到当前的天数，天数越多支撑越强，值越大越好",
+    description=f"基于MACD绝对值总和的支撑强度：计算近{DEFAULT_MACD_WINDOW}个交易日MACD绝对值总和，总和越小表示价格波动趋于平稳，支撑越强，值越大越好",
     columns=[
         {"key": "支撑因子", "label": "支撑因子", "type": "number", "sortable": True},
-        # {"key": "支撑评分", "label": "支撑评分", "type": "score", "sortable": True},
-        {"key": "最长K线天数", "label": f"{DEFAULT_WINDOW_SIZE}日最长K线距今", "type": "number", "sortable": True},
+        {"key": "MACD绝对值和", "label": f"{DEFAULT_MACD_WINDOW}日MACD绝对值和", "type": "number", "sortable": True},
+        {"key": "最新MACD", "label": "最新MACD", "type": "number", "sortable": True},
     ],
     compute=lambda history, top_spot=None: compute_support_with_default_window(history, top_spot),
 )

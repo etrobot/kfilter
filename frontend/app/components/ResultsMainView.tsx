@@ -15,6 +15,9 @@ interface ResultsMainViewProps {
 export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [minPrice, setMinPrice] = useState<number>(0)
+  const [maxPrice, setMaxPrice] = useState<number>(56)
+  const [requireSector, setRequireSector] = useState<boolean>(false)
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -42,10 +45,32 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
     }
   }
 
-  const getSortedData = () => {
-    if (!sortField) return data
+  const getFilteredData = () => {
+    return data.filter(record => {
+      const price = record.当前价格 || record.收盘 || 0
+      
+      // Price range filter
+      if (price < minPrice || price > maxPrice) {
+        return false
+      }
+      
+      // Sector requirement filter
+      if (requireSector) {
+        const sector = record.所属板块 || ''
+        if (!sector || sector.trim() === '') {
+          return false
+        }
+      }
+      
+      return true
+    })
+  }
 
-    return [...data].sort((a, b) => {
+  const getSortedData = () => {
+    const filtered = getFilteredData()
+    if (!sortField) return filtered
+
+    return [...filtered].sort((a, b) => {
       const aValue: any = getValue(a, sortField)
       const bValue: any = getValue(b, sortField)
 
@@ -160,8 +185,45 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
   }
 
   return (
-    <div className="overflow-auto border rounded max-h-[70vh]" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
-      <table className="min-w-full text-sm">
+    <div>
+      {/* Filter controls */}
+      <div className="mb-4 p-4 border rounded bg-gray-50 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">股价范围:</label>
+          <input
+            type="number"
+            value={minPrice}
+            onChange={(e) => setMinPrice(Number(e.target.value))}
+            className="w-20 px-2 py-1 border rounded text-sm"
+            placeholder="最低价"
+          />
+          <span className="text-sm">-</span>
+          <input
+            type="number"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(Number(e.target.value))}
+            className="w-20 px-2 py-1 border rounded text-sm"
+            placeholder="最高价"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={requireSector}
+              onChange={(e) => setRequireSector(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <span>含板块信息</span>
+          </label>
+        </div>
+        <div className="text-sm text-gray-600">
+          共 {getSortedData().length} / {data.length} 条
+        </div>
+      </div>
+      
+      <div className="overflow-auto border rounded max-h-[70vh]" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' }}>
+        <table className="min-w-full text-sm">
         <thead className="sticky top-0 z-30">
           <tr className="bg-muted">
             <th className="text-center p-2 bg-muted sticky left-0 z-30 border-r whitespace-nowrap">序号</th>
@@ -249,6 +311,7 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
