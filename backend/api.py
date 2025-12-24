@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Dict
 from fastapi import HTTPException
 from models import (
     RunRequest,
@@ -28,10 +28,9 @@ from utils import (
     get_extended_analysis_task,
     get_running_extended_analysis_task,
     complete_extended_analysis_task,
-    get_all_extended_analysis_tasks,
+    TASK_STOP_EVENTS,
 )
 from data_management.services import create_analysis_task
-from utils import TASK_STOP_EVENTS, get_task
 
 from data_management.concept_service import (
     create_concept_collection_task,
@@ -44,8 +43,6 @@ from config import (
     is_openai_configured,
     set_system_config,
 )
-from datetime import datetime
-import json
 import threading
 import logging
 
@@ -80,7 +77,6 @@ def read_root():
 def get_system_health():
     """Comprehensive system health check endpoint"""
     from datetime import datetime
-    import os
     from pathlib import Path
 
     # Get configuration status
@@ -202,6 +198,13 @@ def get_latest_results() -> TaskResult | Message:
 
     last_task = get_last_completed_task()
     if last_task:
+        # Refresh sector information from extended_analysis_results.json
+        data = last_task.result["data"] if last_task.result else None
+        if data:
+            data = _refresh_sector_info(data)
+            # Replace factor values with price changes
+            data = _replace_factors_with_price_changes(data)
+        
         return TaskResult(
             task_id=last_task.task_id,
             status=last_task.status,
@@ -211,7 +214,7 @@ def get_latest_results() -> TaskResult | Message:
             completed_at=last_task.completed_at,
             top_n=last_task.top_n,
             selected_factors=last_task.selected_factors,
-            data=last_task.result["data"] if last_task.result else None,
+            data=data,
             count=last_task.result["count"] if last_task.result else None,
             extended=last_task.result.get("extended") if last_task.result else None,
             error=last_task.error,
@@ -226,6 +229,13 @@ def get_latest_results() -> TaskResult | Message:
 
             # Mark as from cache
             cached_result["from_cache"] = True
+            
+            # Refresh sector information from extended_analysis_results.json
+            data = cached_result.get("data", [])
+            if data:
+                data = _refresh_sector_info(data)
+                # Replace factor values with price changes
+                data = _replace_factors_with_price_changes(data)
 
             return TaskResult(
                 task_id=cached_result.get("task_id", "cached"),
@@ -236,7 +246,7 @@ def get_latest_results() -> TaskResult | Message:
                 completed_at=cached_result.get("completed_at", ""),
                 top_n=cached_result.get("top_n", 0),
                 selected_factors=cached_result.get("selected_factors", []),
-                data=cached_result.get("data", []),
+                data=data,
                 count=cached_result.get("count", 0),
                 extended=cached_result.get("extended"),
                 error=None,
@@ -245,6 +255,134 @@ def get_latest_results() -> TaskResult | Message:
             logger.warning(f"Failed to load ranking results from {json_file}: {e}")
 
     return Message(message="No results yet. POST /run to start a calculation.")
+
+
+def _refresh_sector_info(data: List[Dict]) -> List[Dict]:
+    """Refresh sector information for stock data from latest extended_analysis_results.json
+    
+    Args:
+        data: List of stock records with potential outdated sector info
+        
+    Returns:
+        Updated list with refreshed sector information
+    """
+    if not data:
+        return data
+    
+    from data_management.concept_service import get_stocks_sectors_from_extended_analysis
+    
+    # Extract stock codes from data
+    stock_codes = [record.get('代码') for record in data if '代码' in record]
+    
+    # Get fresh sector mapping from extended_analysis_results.json
+    sectors_map = get_stocks_sectors_from_extended_analysis(stock_codes)
+    
+    # Update sector info for each record
+    for record in data:
+        stock_code = record.get('代码')
+        if stock_code and stock_code in sectors_map:
+            sector_name, rank = sectors_map[stock_code]
+            # Update with ranking prefix (e.g., #01-中国AI 50)
+            record['所属板块'] = f"{rank:02d}-{sector_name}"
+    
+    return data
+
+
+def _calculate_price_changes(stock_code: str) -> Dict[str, float]:
+    """Calculate price changes for different time periods
+    
+    Args:
+        stock_code: Stock code to calculate price changes for
+        
+    Returns:
+        Dictionary with price change percentages for different periods
+    """
+    from models import DailyMarketData, get_session
+    from sqlmodel import select
+    
+    result = {
+        "近12个月涨跌幅": None,
+        "近1个月涨跌幅": None,
+        "近1周涨跌幅": None,
+    }
+    
+    try:
+        with get_session() as session:
+            # Get the most recent trading day
+            stmt = select(DailyMarketData).where(
+                DailyMarketData.code == stock_code
+            ).order_by(DailyMarketData.date.desc()).limit(1)
+            
+            latest_record = session.exec(stmt).first()
+            if not latest_record:
+                return result
+            
+            latest_date = latest_record.date
+            latest_price = latest_record.close_price
+            
+            # Calculate 12-month change (approximately 252 trading days)
+            stmt_12m = select(DailyMarketData).where(
+                DailyMarketData.code == stock_code,
+                DailyMarketData.date <= latest_date
+            ).order_by(DailyMarketData.date.desc()).limit(252)
+            
+            records_12m = list(session.exec(stmt_12m).all())
+            if len(records_12m) >= 250:  # Need at least ~250 days for 12 months
+                price_12m_ago = records_12m[-1].close_price
+                if price_12m_ago > 0:
+                    result["近12个月涨跌幅"] = round(((latest_price - price_12m_ago) / price_12m_ago) * 100, 2)
+            
+            # Calculate 1-month change (approximately 21 trading days)
+            if len(records_12m) >= 21:
+                price_1m_ago = records_12m[min(20, len(records_12m) - 1)].close_price
+                if price_1m_ago > 0:
+                    result["近1个月涨跌幅"] = round(((latest_price - price_1m_ago) / price_1m_ago) * 100, 2)
+            
+            # Calculate 1-week change (approximately 5 trading days)
+            if len(records_12m) >= 5:
+                price_1w_ago = records_12m[min(4, len(records_12m) - 1)].close_price
+                if price_1w_ago > 0:
+                    result["近1周涨跌幅"] = round(((latest_price - price_1w_ago) / price_1w_ago) * 100, 2)
+                    
+    except Exception as e:
+        logger.warning(f"Failed to calculate price changes for {stock_code}: {e}")
+    
+    return result
+
+
+def _replace_factors_with_price_changes(data: List[Dict]) -> List[Dict]:
+    """Add price change percentages and remove raw factor values (keep scores)
+    
+    Args:
+        data: List of stock records with factor values
+        
+    Returns:
+        Updated list with price changes added and raw factor values removed
+    """
+    if not data:
+        return data
+    
+    # Define RAW factor value fields to remove (keep 评分 fields!)
+    raw_factor_fields = [
+        "动量因子", "支撑因子", "MACD绝对值和", "最新MACD"
+    ]
+    
+    for record in data:
+        stock_code = record.get('代码')
+        if not stock_code:
+            continue
+        
+        # Calculate price changes
+        price_changes = _calculate_price_changes(stock_code)
+        
+        # Remove ONLY raw factor value fields, NOT the scores
+        for field in raw_factor_fields:
+            record.pop(field, None)
+        
+        # Add price change fields
+        record.update(price_changes)
+    
+    return data
 
 
 def list_all_tasks() -> List[TaskResult]:
@@ -364,6 +502,20 @@ def get_random_stocks_dashboard(n_days: int = 30):
     from data_management.dashboard_service import get_random_stocks_analysis
 
     return get_random_stocks_analysis(n_days)
+
+
+def get_market_analysis_dashboard():
+    """Get market cycle analysis for dashboard"""
+    from data_management.dashboard_service import get_market_analysis
+
+    return get_market_analysis()
+
+
+def generate_market_analysis_dashboard():
+    """Manually trigger market cycle analysis generation"""
+    from data_management.dashboard_service import generate_market_cycle_analysis
+
+    return generate_market_cycle_analysis()
 
 
 def run_extended_analysis():

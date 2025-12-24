@@ -311,3 +311,4 @@ cython_debug/
 /backend/static/
 /backend/config.json
 
+backend/analysis.md

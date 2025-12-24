@@ -91,7 +91,7 @@ export function BarChart({ stocks, nDays }: BarChartProps) {
   }
 
   return (
-    <div className="bg-white p-2 rounded-lg shadow-md">
+    <div className="bg-white p-2 rounded-lg">
       <h3 className="mb-4">K线实体排行 (过去{nDays}天,越短越安全)</h3>
       <div className="h-64 w-full relative">
         

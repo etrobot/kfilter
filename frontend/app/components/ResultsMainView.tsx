@@ -40,6 +40,12 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
         return record.当前价格 || record.收盘 || 0
       case '涨跌幅':
         return record.涨跌幅 || 0
+      case '近12个月涨跌幅':
+        return record.近12个月涨跌幅 !== null && record.近12个月涨跌幅 !== undefined ? record.近12个月涨跌幅 : null
+      case '近1个月涨跌幅':
+        return record.近1个月涨跌幅 !== null && record.近1个月涨跌幅 !== undefined ? record.近1个月涨跌幅 : null
+      case '近1周涨跌幅':
+        return record.近1周涨跌幅 !== null && record.近1周涨跌幅 !== undefined ? record.近1周涨跌幅 : null
       default:
         return value
     }
@@ -133,7 +139,9 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
 
   // Derive any missing factor columns from the actual data as a fallback
   const knownBaseKeys = new Set<string>([
-    '代码', '名称', '当前价格', '收盘', '涨跌幅', '涨跌幅', '换手板', '综合评分', '所属板块'
+    '代码', '名称', '当前价格', '收盘', '涨跌幅', '所属板块', 
+    '近12个月涨跌幅', '近1个月涨跌幅', '近1周涨跌幅',
+    '换手板', '支撑位评分', '动量评分', '支撑评分', '综合评分'
   ])
   if (data && data.length > 0) {
     const existingKeys = new Set(factorColumns.map(c => c.key))
@@ -239,6 +247,15 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
             <th className={getColumnClassName('涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('涨跌幅')}>
               涨跌幅{renderSortIcon('涨跌幅')}
             </th>
+            <th className={getColumnClassName('近12个月涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('近12个月涨跌幅')}>
+              近12个月涨跌幅{renderSortIcon('近12个月涨跌幅')}
+            </th>
+            <th className={getColumnClassName('近1个月涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('近1个月涨跌幅')}>
+              近1个月涨跌幅{renderSortIcon('近1个月涨跌幅')}
+            </th>
+            <th className={getColumnClassName('近1周涨跌幅', "text-right p-2 cursor-pointer hover:bg-gray-100 select-none bg-muted whitespace-nowrap")} onClick={() => handleSort('近1周涨跌幅')}>
+              近1周涨跌幅{renderSortIcon('近1周涨跌幅')}
+            </th>
             {/* Dynamic factor value columns */}
             {factorValueColumns.map((col) => (
               <th
@@ -271,6 +288,9 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
           {getSortedData().map((record, index) => {
             const currentPrice = record.当前价格 || record.收盘 || 0
             const changePct = record.涨跌幅 || 0
+            const change12m = record.近12个月涨跌幅
+            const change1m = record.近1个月涨跌幅
+            const change1w = record.近1周涨跌幅
             const compositeScore = record.综合评分 || 0
             const hsCount = record.换手板 || 0
 
@@ -286,6 +306,15 @@ export function ResultsMainView({ data, factorMeta = [] }: ResultsMainViewProps)
                 <td className={getColumnClassName('当前价格', "p-2 text-right")}>{currentPrice.toFixed(2)}</td>
                 <td className={getColumnClassName('涨跌幅', `p-2 text-right ${changePct >= 0 ? 'text-red-500' : 'text-green-500'}`)}>
                   {changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%
+                </td>
+                <td className={getColumnClassName('近12个月涨跌幅', `p-2 text-right ${change12m !== null && change12m !== undefined ? (change12m >= 0 ? 'text-red-500' : 'text-green-500') : ''}`)}>
+                  {change12m !== null && change12m !== undefined ? `${change12m >= 0 ? '+' : ''}${change12m.toFixed(2)}%` : '-'}
+                </td>
+                <td className={getColumnClassName('近1个月涨跌幅', `p-2 text-right ${change1m !== null && change1m !== undefined ? (change1m >= 0 ? 'text-red-500' : 'text-green-500') : ''}`)}>
+                  {change1m !== null && change1m !== undefined ? `${change1m >= 0 ? '+' : ''}${change1m.toFixed(2)}%` : '-'}
+                </td>
+                <td className={getColumnClassName('近1周涨跌幅', `p-2 text-right ${change1w !== null && change1w !== undefined ? (change1w >= 0 ? 'text-red-500' : 'text-green-500') : ''}`)}>
+                  {change1w !== null && change1w !== undefined ? `${change1w >= 0 ? '+' : ''}${change1w.toFixed(2)}%` : '-'}
                 </td>
                 {/* Dynamic factor value columns */}
                 {factorValueColumns.map((col) => (

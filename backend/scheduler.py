@@ -85,6 +85,21 @@ def daily_scheduled_analysis():
         logger.info("Starting scheduled extended analysis...")
         run_extended_analysis()
         
+        # Wait a bit before generating market cycle analysis
+        time.sleep(5)
+        
+        # Generate market cycle analysis
+        logger.info("Starting scheduled market cycle analysis generation...")
+        try:
+            from data_management.dashboard_service import generate_market_cycle_analysis
+            result = generate_market_cycle_analysis()
+            if result.get("success"):
+                logger.info(f"Market cycle analysis generated successfully: {result.get('file_path')}")
+            else:
+                logger.error(f"Market cycle analysis generation failed: {result.get('error')}")
+        except Exception as e:
+            logger.error(f"Failed to generate market cycle analysis: {e}")
+        
         logger.info("Scheduled daily analysis completed successfully")
         
     except Exception as e:

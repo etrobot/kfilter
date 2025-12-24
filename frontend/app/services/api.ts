@@ -101,6 +101,16 @@ export const api = {
     return apiCall<any>(`/dashboard/random-stocks?n_days=${nDays}`)
   },
 
+  async getMarketAnalysis(): Promise<any> {
+    return apiCall<any>('/dashboard/market-analysis')
+  },
+
+  async generateMarketAnalysis(): Promise<any> {
+    return apiCall<any>('/dashboard/market-analysis/generate', {
+      method: 'POST',
+    })
+  },
+
   async runExtendedAnalysis(): Promise<any> {
     return apiCall<any>('/extended-analysis/run', {
       method: 'POST',

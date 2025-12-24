@@ -3,16 +3,16 @@ export type FactorRecord = {
   名称?: string
   当前价格?: number
   收盘?: number
-  支撑位?: number
-  支撑因子?: number
-  动量?: number
-  动量因子?: number
+  涨跌幅?: number
+  所属板块?: string
+  近12个月涨跌幅?: number | null
+  近1个月涨跌幅?: number | null
+  近1周涨跌幅?: number | null
+  换手板?: number
   支撑位评分?: number
   动量评分?: number
   支撑评分?: number
   综合评分?: number
-  涨跌幅?: number
-  换手板?: number
   [key: string]: any
 }
 

@@ -1,11 +1,10 @@
 from __future__ import annotations
 import logging
 import warnings
-from typing import List
-from fastapi import FastAPI
+from typing import List, Dict
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from typing import Dict, List
 from fastapi.middleware.cors import CORSMiddleware
 
 # Suppress verbose SQLAlchemy logging IMMEDIATELY
@@ -93,12 +92,8 @@ from models import (
     AuthRequest,
     AuthResponse,
     create_db_and_tables,
-    User,
-    get_session,
 )
-from sqlmodel import select
 from api import (
-    read_root,
     run_analysis,
     get_task_status,
     get_latest_results,
@@ -119,6 +114,8 @@ from api import (
     get_running_extended_analysis_status,
     get_system_health,
     get_random_stocks_dashboard,
+    get_market_analysis_dashboard,
+    generate_market_analysis_dashboard,
 )
 from factors import list_factors
 
@@ -164,7 +161,7 @@ def check_system_configuration():
 
         # ZAI Configuration details
         bearer, cookie, user_id = get_zai_credentials()
-        logger.info(f"ZAI Configuration:")
+        logger.info("ZAI Configuration:")
         logger.info(
             f"  - Bearer Token: {'✓ Set' if bearer and bearer != 'your_bearer_token_here' else '✗ Not configured'}"
         )
@@ -178,7 +175,7 @@ def check_system_configuration():
 
         # OpenAI Configuration details
         api_key, base_url, model = get_openai_config()
-        logger.info(f"OpenAI Configuration:")
+        logger.info("OpenAI Configuration:")
         logger.info(
             f"  - API Key: {'✓ Set' if api_key and api_key != 'your_openai_api_key_here' else '✗ Not configured'}"
         )
@@ -385,6 +382,18 @@ def get_dashboard_random_stocks(n_days: int = 30):
     return get_random_stocks_dashboard(n_days)
 
 
+@app.get("/dashboard/market-analysis")
+def get_dashboard_market_analysis():
+    """Get market cycle analysis for dashboard"""
+    return get_market_analysis_dashboard()
+
+
+@app.post("/dashboard/market-analysis/generate")
+def generate_dashboard_market_analysis():
+    """Manually trigger market cycle analysis generation"""
+    return generate_market_analysis_dashboard()
+
+
 # Extended Analysis route
 
 
@@ -474,7 +483,6 @@ def post_config(payload: dict):
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
     """Serve frontend files for production"""
-    from fastapi import Response
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
