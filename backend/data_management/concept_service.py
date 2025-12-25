@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections import defaultdict
 from datetime import datetime
 from uuid import uuid4
 from typing import Dict, List
@@ -81,74 +82,98 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
         update_concept_task_progress(task_id, 0.1, "正在采集概念板块")
         logger.info(f"Collecting concepts from {url}...")
 
-        # Run async collection - now with real-time database saves
-        concepts_data, concept_stocks_data = asyncio.run(collect_concept_data(url))
+        total_concepts = 0
+        total_stocks = 0
+        concept_total_estimate = 1
+
+        def save_single_concept(
+            concept_entry: Dict,
+            concept_stock_entries: List[Dict],
+            processed_count: int,
+            total_count: int,
+        ):
+            nonlocal total_concepts, total_stocks, concept_total_estimate
+            concept_total_estimate = max(total_count, 1)
+            concept_code = concept_entry["code"]
+
+            with Session(engine) as session:
+                try:
+                    existing = session.exec(
+                        select(ConceptInfo).where(ConceptInfo.code == concept_code)
+                    ).first()
+
+                    if existing:
+                        existing.name = concept_entry["name"]
+                        existing.stock_count = concept_entry["stock_count"]
+                        existing.updated_at = datetime.now()
+                    else:
+                        concept = ConceptInfo(**concept_entry)
+                        session.add(concept)
+
+                    session.flush()
+
+                    session.exec(
+                        delete(ConceptStock).where(
+                            ConceptStock.concept_code == concept_code
+                        )
+                    )
+
+                    for stock_data in concept_stock_entries:
+                        stock_entry = stock_data.copy()
+                        stock_code = stock_entry["stock_code"]
+                        market_cap = stock_entry.pop("circulating_market_cap", None)
+                        pe_ratio = stock_entry.pop("pe_ratio", None)
+
+                        concept_stock = ConceptStock(**stock_entry)
+                        session.add(concept_stock)
+
+                        stock_basic_info = session.exec(
+                            select(StockBasicInfo).where(
+                                StockBasicInfo.code == stock_code
+                            )
+                        ).first()
+
+                        if not stock_basic_info:
+                            stock_basic_info = StockBasicInfo(
+                                code=stock_code,
+                                name=stock_code,
+                                circulating_market_cap=market_cap,
+                                pe_ratio=pe_ratio,
+                                created_at=datetime.now(),
+                                updated_at=datetime.now(),
+                            )
+                            session.add(stock_basic_info)
+                        else:
+                            if market_cap is not None:
+                                stock_basic_info.circulating_market_cap = market_cap
+                            if pe_ratio is not None:
+                                stock_basic_info.pe_ratio = pe_ratio
+                            stock_basic_info.updated_at = datetime.now()
+
+                    session.commit()
+                except Exception as concept_error:
+                    session.rollback()
+                    logger.error(
+                        f"保存板块 {concept_code} 时出错: {concept_error}", exc_info=True
+                    )
+                    return
+
+            total_concepts += 1
+            total_stocks += len(concept_stock_entries)
+            progress = 0.1 + (0.8 * processed_count / concept_total_estimate)
+            update_concept_task_progress(
+                task_id,
+                min(progress, 0.95),
+                f"已保存 {total_concepts}/{concept_total_estimate} 个概念板块",
+            )
+
+        # Run async collection with real-time saves
+        concepts_data, concept_stocks_data = asyncio.run(
+            collect_concept_data(url, on_concept_collected=save_single_concept)
+        )
         logger.info(
             f"采集到 {len(concepts_data)} 个概念，{len(concept_stocks_data)} 只成分股"
         )
-
-        # Step 2: Save to database immediately (real-time)
-        update_concept_task_progress(task_id, 0.9, "保存数据到数据库")
-
-        with Session(engine) as session:
-            # Upsert concept info and their stocks
-            for concept_data in concepts_data:
-                existing = session.exec(
-                    select(ConceptInfo).where(ConceptInfo.code == concept_data["code"])
-                ).first()
-
-                if existing:
-                    # Update existing
-                    existing.name = concept_data["name"]
-                    existing.stock_count = concept_data["stock_count"]
-                    existing.updated_at = datetime.now()
-                else:
-                    # Insert new
-                    concept = ConceptInfo(**concept_data)
-                    session.add(concept)
-
-            session.flush()  # Ensure concepts are saved before adding stocks
-
-            # Delete old stocks for this concept, then insert new ones
-            for concept_data in concepts_data:
-                concept_code = concept_data["code"]
-                old_stocks = session.exec(
-                    select(ConceptStock).where(
-                        ConceptStock.concept_code == concept_code
-                    )
-                ).all()
-                for old_stock in old_stocks:
-                    session.delete(old_stock)
-
-            # Insert concept stocks and update stock basic info with market cap and PE ratio
-            for stock_data in concept_stocks_data:
-                # Extract market cap and PE ratio for stock basic info
-                stock_code = stock_data["stock_code"]
-                market_cap = stock_data.pop("circulating_market_cap", None)
-                pe_ratio = stock_data.pop("pe_ratio", None)
-
-                # Insert concept stock relationship (without market cap and PE ratio)
-                concept_stock = ConceptStock(**stock_data)
-                session.add(concept_stock)
-
-                # Update stock basic info with market cap and PE ratio
-                if market_cap is not None or pe_ratio is not None:
-                    stock_basic_info = session.exec(
-                        select(StockBasicInfo).where(StockBasicInfo.code == stock_code)
-                    ).first()
-
-                    if stock_basic_info:
-                        # Update existing stock with new market cap and PE ratio
-                        if market_cap is not None:
-                            stock_basic_info.circulating_market_cap = market_cap
-                        if pe_ratio is not None:
-                            stock_basic_info.pe_ratio = pe_ratio
-                        stock_basic_info.updated_at = datetime.now()
-
-            session.commit()
-
-        total_concepts = len(concepts_data)
-        total_stocks = len(concept_stocks_data)
 
         # Complete task
         task.status = TaskStatus.COMPLETED

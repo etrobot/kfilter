@@ -396,7 +396,10 @@ async def crawl(p_url):
             await browser.close()
 
 
-async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
+async def collect_concept_data(
+    p_url: str,
+    on_concept_collected=None,
+) -> tuple[list[dict], list[dict]]:
     """
     采集概念板块和成分股数据，返回结构化数据
     返回: (concepts_list, stocks_list)
@@ -453,7 +456,10 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
             data = {"Name": thsgnbk}
             gnbk = pd.DataFrame(data, index=bkcode)
 
-            print(f"找到 {len(gnbk)} 个板块")
+            total_concepts_count = len(gnbk)
+            print(f"找到 {total_concepts_count} 个板块")
+
+            processed_concepts = 0
 
             for index, row in gnbk.iterrows():
                 bk_code = index
@@ -588,19 +594,38 @@ async def collect_concept_data(p_url: str) -> tuple[list[dict], list[dict]]:
 
                 # 保存所有板块
                 if len(stocks_data) > 0:
-                    concepts_list.append(
-                        {"code": bk_code, "name": name, "stock_count": len(stocks_data)}
-                    )
+                    concept_entry = {
+                        "code": bk_code,
+                        "name": name,
+                        "stock_count": len(stocks_data),
+                    }
+                    concept_stock_entries = [
+                        {
+                            "concept_code": bk_code,
+                            "stock_code": stock["code"],
+                            "circulating_market_cap": stock["market_cap"],
+                            "pe_ratio": stock["pe_ratio"],
+                        }
+                        for stock in stocks_data
+                    ]
 
-                    for stock in stocks_data:
-                        stocks_list.append(
-                            {
-                                "concept_code": bk_code,
-                                "stock_code": stock["code"],
-                                "circulating_market_cap": stock["market_cap"],
-                                "pe_ratio": stock["pe_ratio"],
-                            }
-                        )
+                    concepts_list.append(concept_entry)
+                    stocks_list.extend(concept_stock_entries)
+
+                    processed_concepts += 1
+
+                    if on_concept_collected:
+                        try:
+                            on_concept_collected(
+                                concept_entry,
+                                concept_stock_entries,
+                                processed_concepts,
+                                total_concepts_count,
+                            )
+                        except Exception as callback_error:
+                            print(
+                                f"实时保存板块 {name} 失败: {callback_error}"
+                            )
 
                     print(f"板块 {name} 完成，共 {len(stocks_data)} 只成分股")
                 else:

@@ -54,7 +54,6 @@ interface MarketAnalysisData {
 
 export function DashboardPage({ currentTask }: DashboardPageProps) {
   const [data, setData] = useState<DashboardData | null>(null)
-  const isMobile = useIsMobile()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nDays, setNDays] = useState<number>(30)
