@@ -594,10 +594,17 @@ async def collect_concept_data(
 
                 # 保存所有板块
                 if len(stocks_data) > 0:
+                    # 计算板块总市值（亿元）
+                    total_market_cap = sum(
+                        stock["market_cap"] for stock in stocks_data 
+                        if stock["market_cap"] is not None
+                    )
+                    
                     concept_entry = {
                         "code": bk_code,
                         "name": name,
                         "stock_count": len(stocks_data),
+                        "total_market_cap": total_market_cap,
                     }
                     concept_stock_entries = [
                         {

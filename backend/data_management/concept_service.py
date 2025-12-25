@@ -105,9 +105,14 @@ def collect_concepts_task(task_id: str, clear_db: bool = False):
                     if existing:
                         existing.name = concept_entry["name"]
                         existing.stock_count = concept_entry["stock_count"]
+                        existing.market_cap = concept_entry.get("total_market_cap")
                         existing.updated_at = datetime.now()
                     else:
-                        concept = ConceptInfo(**concept_entry)
+                        # 映射字段名：total_market_cap -> market_cap
+                        concept_data = concept_entry.copy()
+                        if "total_market_cap" in concept_data:
+                            concept_data["market_cap"] = concept_data.pop("total_market_cap")
+                        concept = ConceptInfo(**concept_data)
                         session.add(concept)
 
                     session.flush()
