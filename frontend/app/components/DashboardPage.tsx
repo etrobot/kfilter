@@ -31,6 +31,7 @@ import { useIsMobile } from '../hooks/use-mobile'
 import { BarChart } from './BarChart'
 import { Button } from './ui/button'
 import { StockLink } from './StockLink'
+import { AuthDialog } from './AuthDialog'
 
 interface DashboardData {
   stocks: KLineData[]
@@ -63,6 +64,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false)
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null)
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
 
   const isTaskRunning = currentTask?.status === 'running' || currentTask?.status === 'pending'
 
@@ -101,6 +103,11 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
     } finally {
       setIsLoadingAnalysis(false)
     }
+  }
+
+  const handleGenerateAnalysisClick = () => {
+    // Open auth dialog when button is clicked
+    setShowAuthDialog(true)
   }
 
   const handleGenerateAnalysis = async () => {
@@ -345,8 +352,16 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
   }
 
   return (
-    <div className="p-4 space-y-6 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)] xl:gap-4">
-      <div className="space-y-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-2 no-scrollbar">
+    <>
+      <AuthDialog
+        open={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        onSuccess={handleGenerateAnalysis}
+        title="生成分析权限验证"
+        description="生成市场分析需要验证身份，请输入用户名和邮箱"
+      />
+      <div className="p-4 space-y-6 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)] xl:gap-4">
+        <div className="space-y-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-2 no-scrollbar">
         <div className="w-full bg-white rounded-lg p-4 space-y-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
@@ -366,7 +381,7 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
               </Button>
               <Button
                 size="sm"
-                onClick={handleGenerateAnalysis}
+                onClick={handleGenerateAnalysisClick}
                 disabled={isGenerating || isTaskRunning}
               >
                 {isGenerating ? '生成中...' : '生成分析'}
@@ -469,5 +484,6 @@ export function DashboardPage({ currentTask }: DashboardPageProps) {
         )}
       </div>
     </div>
+    </>
   )
 }
