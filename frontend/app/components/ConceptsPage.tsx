@@ -134,12 +134,13 @@ export function ConceptsPage() {
 
   const formatMarketCap = (marketCap?: number) => {
     if (!marketCap) return '-'
-    if (marketCap >= 1e12) {
-      return `${(marketCap / 1e12).toFixed(2)}万亿`
-    } else if (marketCap >= 1e8) {
-      return `${(marketCap / 1e8).toFixed(0)}亿`
+    // 后端存储的市值单位是"亿"
+    if (marketCap >= 10000) {
+      return `${(marketCap / 10000).toFixed(2)}万亿`
+    } else if (marketCap >= 1) {
+      return `${marketCap.toFixed(2)}亿`
     } else {
-      return `${(marketCap / 1e4).toFixed(0)}万`
+      return `${(marketCap * 10000).toFixed(0)}万`
     }
   }
 
