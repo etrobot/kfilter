@@ -1,6 +1,7 @@
 import { useIsMobile } from '../hooks/use-mobile'
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 // LLM Evaluation JSON formatter component
 function LLMEvaluationDisplay({ evaluation }: { evaluation: any }) {
@@ -15,9 +16,9 @@ function LLMEvaluationDisplay({ evaluation }: { evaluation: any }) {
       {/* Overall Score */}
       <div className="flex items-center justify-between bg-purple-100 p-3 rounded-lg">
         <h5 className="font-medium text-purple-900 mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-            LLM智能评估
-          </h5>
+          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+          LLM智能评估
+        </h5>
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold text-purple-700">{overall_score}</span>
           <span className="text-sm text-purple-600">/100</span>
@@ -51,10 +52,10 @@ function LLMEvaluationDisplay({ evaluation }: { evaluation: any }) {
         <h6 className="font-medium text-purple-900 text-sm">详细评分</h6>
         {Object.entries(criteria_result || {}).map(([key, value]: [string, any]) => {
           if (key === 'category' || typeof value !== 'object') return null
-          
+
           const score = parseInt(value.score || '0')
           const explanation = value.explanation || ''
-          
+
           return (
             <div key={key} className="border border-purple-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
@@ -64,9 +65,8 @@ function LLMEvaluationDisplay({ evaluation }: { evaluation: any }) {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <span
                         key={star}
-                        className={`text-sm ${
-                          star <= score ? 'text-yellow-400' : 'text-gray-300'
-                        }`}
+                        className={`text-sm ${star <= score ? 'text-yellow-400' : 'text-gray-300'
+                          }`}
                       >
                         ★
                       </span>
@@ -128,31 +128,51 @@ function SectorItem({ sector, index }: { sector: SectorData; index: number }) {
               {sector.hotspot_ratio}%
             </div>
             <div className="text-sm text-gray-600">
-            {sector.hotspot_count}/{sector.total_stocks} 热点
+              {sector.hotspot_count}/{sector.total_stocks} 热点
             </div>
           </div>
         </div>
       </div>
       <div className='md:grid md:grid-cols-3'>
-            {/* LLM评估结果 */}
-            {sector.llm_evaluation && (
-        <div className="p-4 bg-purple-50 border-t">
-          <LLMEvaluationDisplay evaluation={sector.llm_evaluation} />
-        </div>
-      )}
-      
-      {/* 概念分析内容 */}
-      {sector.concept_analysis && (
-        <div className="p-4 bg-blue-50 border-t md:col-span-2">
-          <h5 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-            概念深度分析
-          </h5>
-          <div className="text-sm text-blue-800 leading-relaxed prose prose-sm prose-headings:text-blue-900 prose-strong:text-blue-900 prose-code:bg-blue-100 prose-code:text-blue-900 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs break-words">
-            <ReactMarkdown>{sector.concept_analysis}</ReactMarkdown>
+        {/* LLM评估结果 */}
+        {sector.llm_evaluation && (
+          <div className="p-4 bg-purple-50 border-t">
+            <LLMEvaluationDisplay evaluation={sector.llm_evaluation} />
           </div>
-        </div>
-      )}
+        )}
+
+        {/* 概念分析内容 */}
+        {sector.concept_analysis && (
+          <div className="p-4 bg-blue-50 border-t md:col-span-2">
+            <h5 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+              概念深度分析
+            </h5>
+            <div className="text-sm text-blue-800 leading-relaxed prose prose-sm prose-headings:text-blue-900 prose-strong:text-blue-900 prose-code:bg-blue-100 prose-code:text-blue-900 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs break-words">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ node, ...props }) => (
+                    <div className="overflow-x-auto my-4">
+                      <table className="min-w-full divide-y divide-blue-200 border border-blue-200" {...props} />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => (
+                    <thead className="bg-blue-100" {...props} />
+                  ),
+                  th: ({ node, ...props }) => (
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-blue-700 uppercase tracking-wider border border-blue-200" {...props} />
+                  ),
+                  td: ({ node, ...props }) => (
+                    <td className="px-3 py-2 text-sm text-blue-900 border border-blue-200" {...props} />
+                  ),
+                }}
+              >
+                {sector.concept_analysis}
+              </ReactMarkdown>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
