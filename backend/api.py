@@ -277,13 +277,17 @@ def _refresh_sector_info(data: List[Dict]) -> List[Dict]:
     # Get fresh sector mapping from extended_analysis_results.json
     sectors_map = get_stocks_sectors_from_extended_analysis(stock_codes)
     
-    # Update sector info for each record
+    # Clear old sector info and update with fresh data
     for record in data:
         stock_code = record.get('代码')
-        if stock_code and stock_code in sectors_map:
-            sector_name, rank = sectors_map[stock_code]
-            # Update with ranking prefix (e.g., #01-中国AI 50)
-            record['所属板块'] = f"{rank:02d}-{sector_name}"
+        if stock_code:
+            if stock_code in sectors_map:
+                sector_name, rank = sectors_map[stock_code]
+                # Update with ranking prefix (e.g., #01-中国AI 50)
+                record['所属板块'] = f"{rank:02d}-{sector_name}"
+            else:
+                # Clear old sector info if stock is not in new mapping
+                record['所属板块'] = ""
     
     return data
 
