@@ -9,7 +9,7 @@ import pandas as pd
 from sqlmodel import Session, select, func
 
 from models import Task, TaskStatus, engine, DailyMarketData
-from utils import (
+from task_utils import (
     get_task, 
     update_task_progress,
 )
@@ -379,7 +379,7 @@ def complete_analysis_task(task_id: str, result: Dict[str, Any]) -> None:
     """完成分析任务"""
     import json
     import os
-    from utils import set_last_completed_task
+    from task_utils import set_last_completed_task
     from .services import ANALYSIS_RESULTS_CACHE, CACHE_LOCK
     
     task = get_task(task_id)

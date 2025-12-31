@@ -14,7 +14,7 @@ from models import (
     get_session,
 )
 from sqlmodel import select, func
-from utils import (
+from task_utils import (
     get_task,
     get_all_tasks,
     get_last_completed_task,

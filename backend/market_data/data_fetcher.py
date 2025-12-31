@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from utils import update_task_progress
+from task_utils import update_task_progress
 import datetime as dt
 from utils.quotation import stock_zh_a_hist_tx_period
 
