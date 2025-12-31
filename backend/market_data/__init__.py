@@ -3,7 +3,7 @@
 def __getattr__(name):
     """Lazy import to avoid loading unavailable dependencies"""
     if name == 'fetch_hot_spot':
-        from .data_fetcher import fetch_hot_spot
+        from utils.quotation import fetch_hot_spot
         return fetch_hot_spot
     elif name == 'fetch_history':
         from .data_fetcher import fetch_history

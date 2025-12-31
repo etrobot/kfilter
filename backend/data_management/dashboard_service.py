@@ -492,7 +492,7 @@ def generate_market_cycle_analysis() -> Dict[str, Any]:
         prompt = f"""当前时间：{current_time}
 {CATEGORY}
 {stock_summary}
-你是一位善于分析热钱炒作路径的A股研究员。请基于以上股票数据，结合你印象中A股过去各板块的炒作周期和持续性，分析当前市场的炒作周期走向和短线热点趋势，得出明确的周策略最优解: 下周有可能持续强势或呼之欲出或反转的板块及板块内的潜力个股（注意获利盘风险）。不要编造资讯，不要输出表格，不要罗列股票数据，纯文字分析。
+你是一位善于分析热钱炒作路径的A股研究员。请基于以上股票数据，结合你印象中A股过去各板块的炒作周期和持续性，分析当前市场的炒作周期走向和短线热点趋势，得出明确的周策略最优解: 下周有可能持续强势或呼之欲出或反转的板块及板块内的潜力个股（注意获利盘风险）。不要编造资讯，不要罗列股票数据。
 """
         # Call LLM
         _, _, model = get_openai_config()
@@ -506,7 +506,6 @@ def generate_market_cycle_analysis() -> Dict[str, Any]:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=3000
         )
         
         analysis_text = response.choices[0].message.content

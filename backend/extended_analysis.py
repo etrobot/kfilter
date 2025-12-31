@@ -111,7 +111,8 @@ def get_sector_analysis_with_hotspot_stocks(session, top_n: int = 5, on_progress
     """
     from sqlmodel import select, func
     from models import ConceptInfo, ConceptStock
-    from market_data.data_fetcher import fetch_hot_spot,fetch_dragon_tiger_data
+    from utils.quotation import fetch_hot_spot
+    from market_data.data_fetcher import fetch_dragon_tiger_data
     
     # Get real-time hotspot stocks
     if on_progress:

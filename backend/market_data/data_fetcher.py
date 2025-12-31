@@ -6,9 +6,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 from utils import update_task_progress
-import requests
-import json
 import datetime as dt
+from utils.quotation import stock_zh_a_hist_tx_period
 
 # Try to import akshare, handle gracefully if not available
 try:
@@ -19,149 +18,6 @@ except ImportError:
     ak = None
 
 logger = logging.getLogger(__name__)
-
-
-def fetch_hot_spot() -> pd.DataFrame:
-    """Fetch real-time stock spot data"""
-    import requests
-    import pandas as pd
-    import json
-    import re
-
-    """
-    东方财富网-沪深京 A 股-实时行情（每页100条）
-    基于新的API接口获取前两页数据
-    :return: 实时行情数据
-    :rtype: pandas.DataFrame
-    """
-    url = "https://push2.eastmoney.com/api/qt/clist/get"
-    
-    headers = {
-        'Accept': '*/*',
-        'Accept-Language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5',
-        'Connection': 'keep-alive',
-        'Referer': 'https://quote.eastmoney.com/center/gridlist.html',
-        'Sec-Fetch-Dest': 'script',
-        'Sec-Fetch-Mode': 'no-cors',
-        'Sec-Fetch-Site': 'same-site',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
-        'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"macOS"'
-    }
-    
-    base_params = {
-        'np': '1',
-        'fltt': '1', 
-        'invt': '2',
-        'fs': 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048',
-        'fields': 'f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23',
-        'fid': 'f6',
-        'pz': '100',  # 每页100条
-        'po': '1',
-        'dect': '1',
-        'ut': 'fa5fd1943c7b386f172d6893dbfba10b',
-        'wbp2u': '|0|0|0|web',
-    }
-    
-    all_data = []
-    
-    # 获取前两页数据
-    for page in [1, 2]:
-        params = base_params.copy()
-        params['pn'] = str(page)
-        
-        response = requests.get(url, params=params, headers=headers, timeout=15)
-        response.raise_for_status()
-        
-        # 获取响应文本
-        response_text = response.text
-        
-        # 如果响应是JSONP格式，需要提取JSON部分
-        if response_text.startswith('jQuery'):
-            # 提取JSON数据（去掉JSONP回调函数包装）
-            json_match = re.search(r'jQuery\w+\((.*)\)', response_text)
-            if json_match:
-                json_str = json_match.group(1)
-                data_json = json.loads(json_str)
-            else:
-                raise ValueError("无法解析JSONP响应")
-        else:
-            # 直接解析JSON
-            data_json = response.json()
-        
-        # 检查数据结构
-        if 'data' not in data_json or 'diff' not in data_json['data']:
-            raise ValueError("API返回数据结构不正确")
-        
-        # 收集数据
-        page_data = data_json['data']['diff']
-        if page_data:
-            all_data.extend(page_data)
-    
-    # 创建DataFrame
-    if not all_data:
-        print("警告：获取到的数据为空")
-        return pd.DataFrame()
-    
-    temp_df = pd.DataFrame(all_data)
-    
-    # 根据fields字段顺序设置列名
-    # fields: f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23
-    column_mapping = {
-        'f12': '代码',
-        'f13': '市场',
-        'f14': '名称', 
-        'f1': '预期值',
-        'f2': '最新价',
-        'f4': '涨跌额',
-        'f3': '涨跌幅',
-        'f152': '市盈率TTM',
-        'f5': '成交量',
-        'f6': '成交额',
-        'f7': '振幅',
-        'f15': '最高',
-        'f18': '昨收',
-        'f16': '最低',
-        'f17': '今开',
-        'f10': '量比',
-        'f8': '换手率',
-        'f9': '市盈率动态',
-        'f23': '市净率'
-    }
-    
-    # 重命名列
-    temp_df.rename(columns=column_mapping, inplace=True)
-    
-    # 添加序号列
-    temp_df.reset_index(drop=True, inplace=True)
-    temp_df['序号'] = temp_df.index + 1
-    
-    # 选择需要的列并重新排序
-    columns_order = [
-        '序号', '代码', '名称', '最新价', '涨跌幅', '涨跌额', 
-        '成交量', '成交额', '振幅', '最高', '最低', '今开', '昨收',
-        '量比', '换手率', '市盈率动态', '市盈率TTM', '市净率'
-    ]
-    
-    # 只保留存在的列
-    available_columns = [col for col in columns_order if col in temp_df.columns]
-    temp_df = temp_df[available_columns]
-    
-    # 数据类型转换
-    numeric_columns = [
-        '最新价', '涨跌幅', '涨跌额', '成交量', '成交额', '振幅',
-        '最高', '最低', '今开', '昨收', '量比', '换手率',
-        '市盈率动态', '市盈率TTM', '市净率'
-    ]
-    
-    for col in numeric_columns:
-        if col in temp_df.columns:
-            temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
-    
-    return temp_df
-
-
 
 
 def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Optional[str] = None) -> Dict[str, pd.DataFrame]:
@@ -218,7 +74,7 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
         if df is None or df.empty:
             try:
                 api_symbol = to_symbol(code)
-                df = stock_zh_a_hist_tx(symbol=api_symbol, start_date=start_date, end_date=end_date, adjust="qfq")
+                df = stock_zh_a_hist_tx_period(symbol=api_symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
             except Exception as e:
                 logger.warning(f"本地腾讯实现也失败: {code}, 错误: {e}")
                 df = pd.DataFrame()
@@ -271,9 +127,6 @@ def fetch_history(codes: List[str], end_date: str, days: int = 60, task_id: Opti
     
     logger.info(f"Successfully fetched historical data for {len(history)} stocks")
     return history
-
-
-
 
 def compute_factors(top_spot: pd.DataFrame, history: Dict[str, pd.DataFrame], task_id: Optional[str] = None, selected_factors: Optional[List[str]] = None) -> pd.DataFrame:
     """Compute comprehensive factors for stock analysis via pluggable factor modules"""
@@ -528,96 +381,3 @@ def fetch_dragon_tiger_data(page_number: int = 1, page_size: int = 50, statistic
                 temp_df[col] = temp_df[col].round(2)
     
     return temp_df
-
-
-def stock_zh_a_hist_tx(
-    symbol: str = "sz000001",
-    start_date: str = "19000101",
-    end_date: str = "20500101",
-    adjust: str = "",
-    timeout: Optional[float] = None,
-) -> pd.DataFrame:
-    """
-    腾讯证券-日频-股票历史数据
-    https://gu.qq.com/sh000919/zs
-    :param symbol: 带市场标识的股票或者指数代码
-    :param start_date: 开始日期 YYYYMMDD 或 YYYY-MM-DD
-    :param end_date: 结束日期 YYYYMMDD 或 YYYY-MM-DD
-    :param adjust: {"qfq": 前复权, "hfq": 后复权, "": 不复权}
-    :param timeout: 请求超时秒数
-    :return: DataFrame: [date, open, close, high, low, amount]
-    """
-    # Normalize dates to YYYYMMDD
-    def norm_date(s: str) -> str:
-        return s.replace("-", "") if s else s
-
-    start_date_n = norm_date(start_date)
-    end_date_n = norm_date(end_date)
-
-    # Determine year range
-    try:
-        range_start = int(start_date_n[:4])
-    except Exception:
-        range_start = 1900
-    try:
-        end_year = int(end_date_n[:4])
-    except Exception:
-        end_year = dt.date.today().year
-
-    current_year = dt.date.today().year
-    range_end = min(end_year, current_year) + 1
-
-    url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get"
-    big_df = pd.DataFrame()
-
-    for year in range(range_start, range_end):
-        params = {
-            "_var": f"kline_day{adjust}{year}",
-            "param": f"{symbol},day,{year}-01-01,{year + 1}-12-31,640,{adjust}",
-            "r": "0.8205512681390605",
-        }
-        r = requests.get(url, params=params, timeout=timeout)
-        r.raise_for_status()
-        data_text = r.text
-        idx = data_text.find("={")
-        json_str = data_text[idx + 1 :] if idx != -1 else data_text
-        json_str = json_str.strip().rstrip(";")
-        data_json = json.loads(json_str).get("data", {}).get(symbol, {})
-
-        if not data_json:
-            continue
-
-        if adjust == "hfq" and "hfqday" in data_json:
-            tmp = pd.DataFrame(data_json["hfqday"])
-        elif adjust == "qfq" and "qfqday" in data_json:
-            tmp = pd.DataFrame(data_json["qfqday"])
-        elif "day" in data_json:
-            tmp = pd.DataFrame(data_json["day"])
-        else:
-            key = next((k for k in ["qfqday", "hfqday", "day"] if k in data_json), None)
-            tmp = pd.DataFrame(data_json[key]) if key else pd.DataFrame()
-
-        if not tmp.empty:
-            big_df = pd.concat([big_df, tmp], ignore_index=True)
-
-    if big_df.empty:
-        return pd.DataFrame()
-
-    big_df = big_df.iloc[:, :6]
-    big_df.columns = ["date", "open", "close", "high", "low", "amount"]
-
-    big_df["date"] = pd.to_datetime(big_df["date"], errors="coerce").dt.date
-    big_df["open"] = pd.to_numeric(big_df["open"], errors="coerce")
-    big_df["close"] = pd.to_numeric(big_df["close"], errors="coerce")
-    big_df["high"] = pd.to_numeric(big_df["high"], errors="coerce")
-    big_df["low"] = pd.to_numeric(big_df["low"], errors="coerce")
-    big_df["amount"] = pd.to_numeric(big_df["amount"], errors="coerce")
-    big_df.drop_duplicates(inplace=True, ignore_index=True)
-
-    big_df.index = pd.to_datetime(big_df["date"])  # index for slicing
-    sd = pd.to_datetime(start_date_n)
-    ed = pd.to_datetime(end_date_n)
-    big_df = big_df.loc[sd:ed]
-    big_df.reset_index(inplace=True, drop=True)
-
-    return big_df
