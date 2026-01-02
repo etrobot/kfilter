@@ -42,7 +42,7 @@ def stock_zh_a_hist_tx_period(
 
     # 周期映射
     period_mapping = {
-        "daily": ("day", "kline_day{adjust}{year}", "{symbol},day,{year}-01-01,{year + 1}-12-31,640,{adjust}"),
+        "daily": ("day", "kline_day{adjust}{year}", "{symbol},day,{start_date},{end_date},640,{adjust}"),
         "weekly": ("week", "kline_week{adjust}", "{symbol},week,,,320,{adjust}"),
         "monthly": ("month", "kline_month{adjust}", "{symbol},month,,,320,{adjust}")
     }
@@ -63,9 +63,9 @@ def stock_zh_a_hist_tx_period(
         try:
             end_year = int(end_date_n[:4])
         except Exception:
-            end_year = dt.date.today().year
+            end_year = dt.now().year
 
-        current_year = dt.date.today().year
+        current_year = dt.now().year
         range_end = min(end_year, current_year) + 1
 
         big_df = pd.DataFrame()
@@ -73,7 +73,12 @@ def stock_zh_a_hist_tx_period(
         for year in range(range_start, range_end):
             params = {
                 "_var": var_pattern.format(adjust=adjust, year=year),
-                "param": param_pattern.format(symbol=symbol, year=year, adjust=adjust),
+                "param": param_pattern.format(
+                    symbol=symbol, 
+                    start_date=f"{year}-01-01", 
+                    end_date=f"{year + 1}-12-31", 
+                    adjust=adjust
+                ),
                 "r": "0.8205512681390605",
             }
             try:
@@ -150,7 +155,23 @@ def stock_zh_a_hist_tx_period(
                 
             json_str = data_text[idx + 1:]
             json_str = json_str.strip().rstrip(";")
-            data_json = json.loads(json_str).get("data", {}).get(symbol, {})
+            parsed_data = json.loads(json_str)
+            
+            # 获取data字段
+            data_field = parsed_data.get("data", {})
+            
+            # 处理data字段可能是list的情况
+            if isinstance(data_field, list):
+                # 如果是list，尝试找到包含symbol的元素
+                data_json = {}
+                for item in data_field:
+                    if isinstance(item, dict) and symbol in item:
+                        data_json = item[symbol]
+                        break
+            elif isinstance(data_field, dict):
+                data_json = data_field.get(symbol, {})
+            else:
+                data_json = {}
             
             if not data_json:
                 return pd.DataFrame()
