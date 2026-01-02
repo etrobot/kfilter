@@ -56,6 +56,9 @@ def _save_weekly_data_from_df(code: str, weekly_df: pd.DataFrame) -> int:
     with Session(engine) as session:
         for _, row in weekly_df.iterrows():
             week_date = row['date']
+            # Ensure date is a Python date object
+            if isinstance(week_date, str):
+                week_date = pd.to_datetime(week_date).date()
             
             # 检查是否已存在
             existing = session.exec(
@@ -69,7 +72,7 @@ def _save_weekly_data_from_df(code: str, weekly_df: pd.DataFrame) -> int:
                 # 计算涨跌幅
                 change_pct = 0
                 if row['open'] > 0:
-                    change_pct = (row['close'] - row['open']) / row['open'] * 100
+                    change_pct = round((row['close'] - row['open']) / row['open'] * 100, 2)
                 
                 weekly_data = WeeklyMarketData(
                     code=code,
@@ -78,8 +81,8 @@ def _save_weekly_data_from_df(code: str, weekly_df: pd.DataFrame) -> int:
                     high_price=float(row['high']),
                     low_price=float(row['low']),
                     close_price=float(row['close']),
-                    volume=float(row.get('volume', 0)),
-                    amount=float(row.get('amount', 0)),
+                    volume=float(row['volume'] if 'volume' in row else 0),
+                    amount=float(row['amount'] if 'amount' in row else 0),
                     change_pct=change_pct
                 )
                 session.add(weekly_data)
@@ -148,7 +151,7 @@ def _calculate_weekly_from_daily(code: str) -> int:
                 if week_start_data is not None:
                     week_start_close = week_start_data['open']  # 周开盘价
                     if week_start_close > 0:
-                        change_pct = (row['close'] - week_start_close) / week_start_close * 100
+                        change_pct = round((row['close'] - week_start_close) / week_start_close * 100, 2)
                 
                 weekly_data = WeeklyMarketData(
                     code=code,
@@ -212,6 +215,9 @@ def _save_monthly_data_from_df(code: str, monthly_df: pd.DataFrame) -> int:
     with Session(engine) as session:
         for _, row in monthly_df.iterrows():
             month_date = row['date']
+            # Ensure date is a Python date object
+            if isinstance(month_date, str):
+                month_date = pd.to_datetime(month_date).date()
             
             # 检查是否已存在
             existing = session.exec(
@@ -225,7 +231,7 @@ def _save_monthly_data_from_df(code: str, monthly_df: pd.DataFrame) -> int:
                 # 计算涨跌幅
                 change_pct = 0
                 if row['open'] > 0:
-                    change_pct = (row['close'] - row['open']) / row['open'] * 100
+                    change_pct = round((row['close'] - row['open']) / row['open'] * 100, 2)
                 
                 monthly_data = MonthlyMarketData(
                     code=code,
@@ -234,8 +240,8 @@ def _save_monthly_data_from_df(code: str, monthly_df: pd.DataFrame) -> int:
                     high_price=float(row['high']),
                     low_price=float(row['low']),
                     close_price=float(row['close']),
-                    volume=float(row.get('volume', 0)),
-                    amount=float(row.get('amount', 0)),
+                    volume=float(row['volume'] if 'volume' in row else 0),
+                    amount=float(row['amount'] if 'amount' in row else 0),
                     change_pct=change_pct
                 )
                 session.add(monthly_data)
@@ -275,7 +281,7 @@ def _calculate_monthly_from_daily(code: str) -> int:
         df.set_index("date", inplace=True)
         
         # 按月重采样
-        monthly = df.resample('M').agg({
+        monthly = df.resample('ME').agg({
             'open': 'first',
             'high': 'max',
             'low': 'min',
@@ -304,7 +310,7 @@ def _calculate_monthly_from_daily(code: str) -> int:
                 if month_start_data is not None:
                     month_start_close = month_start_data['open']  # 月开盘价
                     if month_start_close > 0:
-                        change_pct = (row['close'] - month_start_close) / month_start_close * 100
+                        change_pct = round((row['close'] - month_start_close) / month_start_close * 100, 2)
                 
                 monthly_data = MonthlyMarketData(
                     code=code,

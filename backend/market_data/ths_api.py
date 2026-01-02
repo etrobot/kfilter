@@ -83,8 +83,8 @@ def build_limit_up_map(df: pd.DataFrame) -> Dict[str, str]:
 
     mapping: Dict[str, str] = {}
     for _, row in df.iterrows():
-        code = str(row.get(code_col, '')).strip()
-        lut = str(row.get(type_col, '')).strip() or None
+        code = str(row[code_col] if code_col in row else '').strip()
+        lut = str(row[type_col] if type_col in row else '').strip() or None
         if code and lut:
             mapping[code] = lut
     return mapping
