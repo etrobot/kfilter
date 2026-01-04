@@ -202,6 +202,27 @@ class ConceptStock(SQLModel, table=True):
     )
 
 
+class DailyHotSector(SQLModel, table=True):
+    """每日热门板块表"""
+
+    __tablename__ = "daily_hot_sector"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: dt_date = Field(description="日期", index=True)
+    sector_code: str = Field(description="板块代码")
+    sector_name: str = Field(description="板块名称")
+    change_pct: float = Field(description="涨跌幅")
+    limit_up_num: int = Field(description="涨停数量")
+    continuous_plate_num: int = Field(description="连板数量")
+    high_info: Optional[str] = Field(default=None, description="最高连板信息")
+    high_num: Optional[int] = Field(default=None, description="最高连板股票代码")
+    days: Optional[int] = Field(default=None, description="持续天数")
+    stock_list_json: str = Field(description="个股列表JSON")
+    created_at: dt_datetime = Field(
+        default_factory=dt_datetime.now, description="创建时间"
+    )
+
+
 class ConceptTask(BaseModel):
     task_id: str
     status: TaskStatus

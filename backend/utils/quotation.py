@@ -4,7 +4,7 @@ K线数据获取模块
 """
 
 import logging
-from datetime import datetime as dt
+from datetime import datetime, date
 from typing import Optional
 
 import pandas as pd
@@ -42,7 +42,7 @@ def stock_zh_a_hist_tx_period(
 
     # 周期映射
     period_mapping = {
-        "daily": ("day", "kline_day{adjust}{year}", "{symbol},day,{year}-01-01,{year + 1}-12-31,640,{adjust}"),
+        "daily": ("day", "kline_day{adjust}{year}", "{symbol},day,{start_date},{end_date},640,{adjust}"),
         "weekly": ("week", "kline_week{adjust}", "{symbol},week,,,320,{adjust}"),
         "monthly": ("month", "kline_month{adjust}", "{symbol},month,,,320,{adjust}")
     }
@@ -63,17 +63,19 @@ def stock_zh_a_hist_tx_period(
         try:
             end_year = int(end_date_n[:4])
         except Exception:
-            end_year = dt.date.today().year
+            end_year = date.today().year
 
-        current_year = dt.date.today().year
+        current_year = date.today().year
         range_end = min(end_year, current_year) + 1
 
         big_df = pd.DataFrame()
 
         for year in range(range_start, range_end):
+            year_start = f"{year}-01-01"
+            year_end = f"{year + 1}-12-31"
             params = {
                 "_var": var_pattern.format(adjust=adjust, year=year),
-                "param": param_pattern.format(symbol=symbol, year=year, adjust=adjust),
+                "param": param_pattern.format(symbol=symbol, start_date=year_start, end_date=year_end, adjust=adjust),
                 "r": "0.8205512681390605",
             }
             try:

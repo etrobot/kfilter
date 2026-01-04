@@ -277,24 +277,42 @@ async def crawl(p_url):
 
         # 提取板块名称和代码
         try:
-            gnbk_elements = await page.query_selector_all("a")
+            # 提取隐藏字段 gnSection 中的板块代码
+            gn_section_input = await page.query_selector("input#gnSection")
+            if not gn_section_input:
+                print("未找到 gnSection 隐藏字段")
+                await browser.close()
+                return
+            
+            gn_section_value = await gn_section_input.get_attribute("value")
+            if not gn_section_value:
+                print("gnSection 字段值为空")
+                await browser.close()
+                return
+            
+            # 解析 JSON 数据
+            gn_data = json.loads(gn_section_value)
+            
+            # 提取板块名称和代码
             thsgnbk = []
-            bkcode = []
-
-            for elem in gnbk_elements:
-                href = await elem.get_attribute("href")
-                if href and "/detail/code/" in href:
-                    text = await elem.text_content()
-                    if text:
-                        thsgnbk.append(text.strip())
-                        bkcode.append(href.split("/")[-2])
+            bkcode = []  # platecode - 保存到数据库
+            cid_list = []  # cid - 用于构建URL
+            
+            for key, value in gn_data.items():
+                if isinstance(value, dict) and "platecode" in value and "platename" in value and "cid" in value:
+                    platecode = value["platecode"]
+                    platename = value["platename"]
+                    cid = value["cid"]
+                    thsgnbk.append(platename)
+                    bkcode.append(platecode)
+                    cid_list.append(cid)
 
             if len(thsgnbk) != len(bkcode):
                 print(
                     f"警告: 板块名称数量({len(thsgnbk)})与代码数量({len(bkcode)})不匹配"
                 )
 
-            data = {"Name": thsgnbk}
+            data = {"Name": thsgnbk, "CID": cid_list}
             gnbk = pd.DataFrame(data, index=bkcode)
 
             bk_id = []
@@ -310,10 +328,11 @@ async def crawl(p_url):
 
                 s_id = []
                 s_name = []
-                bk_code = index
+                bk_code = index  # platecode - 保存到数据库
+                cid = row["CID"]  # cid - 用于构建URL
                 name = row["Name"]
-                url = p_url + "/detail/code/" + bk_code + "/"
-                print(f"\n处理板块: {name} ({bk_code})")
+                url = p_url + "/detail/code/" + cid + "/"
+                print(f"\n处理板块: {name} (platecode={bk_code}, cid={cid})")
                 report_rate_limit_status()
 
                 # 获取板块详情页
@@ -441,19 +460,37 @@ async def collect_concept_data(
         await page.wait_for_timeout(3000)  # 增加等待时间确保JS加载
 
         try:
-            gnbk_elements = await page.query_selector_all("a")
+            # 提取隐藏字段 gnSection 中的板块代码
+            gn_section_input = await page.query_selector("input#gnSection")
+            if not gn_section_input:
+                print("未找到 gnSection 隐藏字段")
+                await browser.close()
+                return concepts_list, stocks_list
+            
+            gn_section_value = await gn_section_input.get_attribute("value")
+            if not gn_section_value:
+                print("gnSection 字段值为空")
+                await browser.close()
+                return concepts_list, stocks_list
+            
+            # 解析 JSON 数据
+            gn_data = json.loads(gn_section_value)
+            
+            # 提取板块名称和代码
             thsgnbk = []
-            bkcode = []
-
-            for elem in gnbk_elements:
-                href = await elem.get_attribute("href")
-                if href and "/detail/code/" in href:
-                    text = await elem.text_content()
-                    if text:
-                        thsgnbk.append(text.strip())
-                        bkcode.append(href.split("/")[-2])
-
-            data = {"Name": thsgnbk}
+            bkcode = []  # platecode - 保存到数据库
+            cid_list = []  # cid - 用于构建URL
+            
+            for key, value in gn_data.items():
+                if isinstance(value, dict) and "platecode" in value and "platename" in value and "cid" in value:
+                    platecode = value["platecode"]
+                    platename = value["platename"]
+                    cid = value["cid"]
+                    thsgnbk.append(platename)
+                    bkcode.append(platecode)
+                    cid_list.append(cid)
+            
+            data = {"Name": thsgnbk, "CID": cid_list}
             gnbk = pd.DataFrame(data, index=bkcode)
 
             total_concepts_count = len(gnbk)
@@ -462,12 +499,13 @@ async def collect_concept_data(
             processed_concepts = 0
 
             for index, row in gnbk.iterrows():
-                bk_code = index
+                bk_code = index  # platecode - 保存到数据库
+                cid = row["CID"]  # cid - 用于构建URL
                 name = row["Name"]
                 stocks_data = []  # 存储股票数据，包括代码、流通市值、市盈率
 
-                url = p_url + "/detail/code/" + bk_code + "/"
-                print(f"处理板块: {name} ({bk_code})")
+                url = p_url + "/detail/code/" + cid + "/"
+                print(f"处理板块: {name} (platecode={bk_code}, cid={cid})")
                 report_rate_limit_status()
 
                 # 访问详情页

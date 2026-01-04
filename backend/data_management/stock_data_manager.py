@@ -33,11 +33,21 @@ def get_latest_trade_date_and_limit_map(use_cache: bool = True):
     
     try:
         ths_df = uplimit10jqka("")
-        if not ths_df.empty and "first_limit_up_time" in ths_df.columns:
-            # 获取最新交易日
-            timestamps = ths_df["first_limit_up_time"].dropna()
-            if not timestamps.empty:
-                latest_timestamp = timestamps.iloc[0]
+        if not ths_df.empty and "stock_list" in ths_df.columns:
+            # 新 API 返回板块数据，需要从 stock_list 中提取时间戳
+            # 遍历所有板块的股票列表，找到最新的涨停时间
+            latest_timestamp = None
+            for _, sector_row in ths_df.iterrows():
+                stock_list = sector_row.get('stock_list', [])
+                if isinstance(stock_list, list):
+                    for stock in stock_list:
+                        if isinstance(stock, dict):
+                            ts = stock.get('first_limit_up_time') or stock.get('last_limit_up_time')
+                            if ts:
+                                if latest_timestamp is None or ts > latest_timestamp:
+                                    latest_timestamp = ts
+            
+            if latest_timestamp:
                 trade_date = pd.to_datetime(int(latest_timestamp), unit='s').date()
                 
                 # 构建涨停映射
@@ -46,6 +56,13 @@ def get_latest_trade_date_and_limit_map(use_cache: bool = True):
                 # 更新到数据库（当日涨停数据）
                 if limit_map:
                     _update_limit_data_to_db(trade_date, limit_map)
+                
+                # 同时保存热门板块数据到数据库
+                try:
+                    from market_data.ths_api import save_hot_sectors_to_db
+                    save_hot_sectors_to_db(ths_df, trade_date.strftime('%Y-%m-%d'))
+                except Exception as e:
+                    logger.warning(f"Failed to save hot sectors: {e}")
                 
                 # 缓存结果
                 _latest_trade_date_cache = trade_date

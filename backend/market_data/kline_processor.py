@@ -71,6 +71,14 @@ def _save_weekly_data_from_df(code: str, weekly_df: pd.DataFrame) -> int:
                 if row['open'] > 0:
                     change_pct = (row['close'] - row['open']) / row['open'] * 100
                 
+                # 腾讯API返回的周K/月K数据：
+                # - amount字段实际是成交量（单位：手）
+                # - 没有返回成交额数据
+                # 映射关系：API的amount -> 数据库的volume
+                volume = float(row['amount']) if 'amount' in row and pd.notna(row['amount']) else 0.0
+                # 成交额数据不可用，设为0
+                amount = 0.0
+                
                 weekly_data = WeeklyMarketData(
                     code=code,
                     date=week_date,
@@ -78,8 +86,8 @@ def _save_weekly_data_from_df(code: str, weekly_df: pd.DataFrame) -> int:
                     high_price=float(row['high']),
                     low_price=float(row['low']),
                     close_price=float(row['close']),
-                    volume=float(row.get('volume', 0)),
-                    amount=float(row.get('amount', 0)),
+                    volume=volume,
+                    amount=amount,
                     change_pct=change_pct
                 )
                 session.add(weekly_data)
@@ -227,6 +235,14 @@ def _save_monthly_data_from_df(code: str, monthly_df: pd.DataFrame) -> int:
                 if row['open'] > 0:
                     change_pct = (row['close'] - row['open']) / row['open'] * 100
                 
+                # 腾讯API返回的周K/月K数据：
+                # - amount字段实际是成交量（单位：手）
+                # - 没有返回成交额数据
+                # 映射关系：API的amount -> 数据库的volume
+                volume = float(row['amount']) if 'amount' in row and pd.notna(row['amount']) else 0.0
+                # 成交额数据不可用，设为0
+                amount = 0.0
+                
                 monthly_data = MonthlyMarketData(
                     code=code,
                     date=month_date,
@@ -234,8 +250,8 @@ def _save_monthly_data_from_df(code: str, monthly_df: pd.DataFrame) -> int:
                     high_price=float(row['high']),
                     low_price=float(row['low']),
                     close_price=float(row['close']),
-                    volume=float(row.get('volume', 0)),
-                    amount=float(row.get('amount', 0)),
+                    volume=volume,
+                    amount=amount,
                     change_pct=change_pct
                 )
                 session.add(monthly_data)
