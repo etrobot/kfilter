@@ -43,6 +43,7 @@ def stock_zh_a_hist_tx_period(
     # 周期映射
     period_mapping = {
         "daily": ("day", "kline_day{adjust}{year}", "{symbol},day,{start_date},{end_date},640,{adjust}"),
+        "daily": ("day", "kline_day{adjust}{year}", "{symbol},day,{start_date},{end_date},640,{adjust}"),
         "weekly": ("week", "kline_week{adjust}", "{symbol},week,,,320,{adjust}"),
         "monthly": ("month", "kline_month{adjust}", "{symbol},month,,,320,{adjust}")
     }
@@ -152,7 +153,23 @@ def stock_zh_a_hist_tx_period(
                 
             json_str = data_text[idx + 1:]
             json_str = json_str.strip().rstrip(";")
-            data_json = json.loads(json_str).get("data", {}).get(symbol, {})
+            parsed_data = json.loads(json_str)
+            
+            # 获取data字段
+            data_field = parsed_data.get("data", {})
+            
+            # 处理data字段可能是list的情况
+            if isinstance(data_field, list):
+                # 如果是list，尝试找到包含symbol的元素
+                data_json = {}
+                for item in data_field:
+                    if isinstance(item, dict) and symbol in item:
+                        data_json = item[symbol]
+                        break
+            elif isinstance(data_field, dict):
+                data_json = data_field.get(symbol, {})
+            else:
+                data_json = {}
             
             if not data_json:
                 return pd.DataFrame()

@@ -144,7 +144,7 @@ def save_spot_as_daily_data(spot_data: pd.DataFrame) -> int:
     total_saved = 0
     with Session(engine) as session:
         for _, row in spot_data.iterrows():
-            code = row.get("代码")
+            code = row["代码"] if "代码" in row else None
             if not code:
                 continue
 
@@ -166,7 +166,7 @@ def save_spot_as_daily_data(spot_data: pd.DataFrame) -> int:
                 # 已存在则跳过（可考虑更新）
                 continue
 
-            change_pct = float(row.get("涨跌幅", 0)) if pd.notna(row.get("涨跌幅", None)) else 0
+            change_pct = round(float(row["涨跌幅"]), 2) if "涨跌幅" in row and pd.notna(row["涨跌幅"]) else 0
             # 直接使用同花顺涨停池数据判断涨停状态
             limit_status = 1 if code in limit_map else 0
             limit_text = limit_map.get(code) if limit_status == 1 else None
@@ -174,12 +174,12 @@ def save_spot_as_daily_data(spot_data: pd.DataFrame) -> int:
             daily = DailyMarketData(
                 code=code,
                 date=trade_date,
-                open_price=float(row.get("今开", 0)),
-                high_price=float(row.get("最高", 0)),
-                low_price=float(row.get("最低", 0)),
-                close_price=float(row.get("最新价", 0)),
-                volume=float(row.get("成交量", 0)),
-                amount=float(row.get("成交额", 0)),
+                open_price=float(row["今开"] if "今开" in row else 0),
+                high_price=float(row["最高"] if "最高" in row else 0),
+                low_price=float(row["最低"] if "最低" in row else 0),
+                close_price=float(row["最新价"] if "最新价" in row else 0),
+                volume=float(row["成交量"] if "成交量" in row else 0),
+                amount=float(row["成交额"] if "成交额" in row else 0),
                 change_pct=change_pct,
                 limit_status=limit_status,
                 limit_up_text=limit_text,
@@ -250,13 +250,13 @@ def save_daily_data(history_data: Dict[str, pd.DataFrame]):
                     daily_data = DailyMarketData(
                         code=code,
                         date=record_date,
-                        open_price=safe_float(row.get("开盘", 0)),
-                        high_price=safe_float(row.get("最高", 0)),
-                        low_price=safe_float(row.get("最低", 0)),
-                        close_price=safe_float(row.get("收盘", 0)),
-                        volume=safe_float(row.get("成交量", 0)),
-                        amount=safe_float(row.get("成交额", 0)) if pd.notna(row.get("成交额", None)) else None,
-                        change_pct=safe_float(row.get("涨跌幅", 0)),
+                        open_price=safe_float(row["开盘"] if "开盘" in row else 0),
+                        high_price=safe_float(row["最高"] if "最高" in row else 0),
+                        low_price=safe_float(row["最低"] if "最低" in row else 0),
+                        close_price=safe_float(row["收盘"] if "收盘" in row else 0),
+                        volume=safe_float(row["成交量"] if "成交量" in row else 0),
+                        amount=safe_float(row["成交额"] if "成交额" in row and pd.notna(row["成交额"]) else None),
+                        change_pct=round(safe_float(row["涨跌幅"] if "涨跌幅" in row else 0), 2),
                         limit_status=0,  # 默认非涨停，后续通过专门函数回填
                         limit_up_text=None,
                     )
@@ -276,7 +276,7 @@ def save_stock_basic_info(spot_data: pd.DataFrame):
     with Session(engine) as session:
         for _, row in spot_data.iterrows():
             code = row["代码"]
-            name = row.get("名称", code)
+            name = row["名称"] if "名称" in row else code
             
             # 检查是否已存在
             existing = session.exec(
