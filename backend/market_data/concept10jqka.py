@@ -116,7 +116,7 @@ def reset_forbidden_count_on_success():
     """
     global _forbidden_count, _success_count
     _success_count += 1
-    
+
     if _success_count >= _FORBIDDEN_RESET_THRESHOLD and _forbidden_count > 0:
         _forbidden_count = max(0, _forbidden_count - 1)
         _success_count = 0
@@ -147,7 +147,7 @@ async def safe_page_navigation(page, url, timeout=30000, max_retries=3):
         是否成功
     """
     global _forbidden_count
-    
+
     for attempt in range(max_retries):
         try:
             # 添加适应性页面导航延迟
@@ -223,7 +223,7 @@ async def crawl(p_url):
 
     try:
         response = safe_request(
-            "https://api2.bmob.cn/1/classes/text/mI76888D", 
+            "https://api2.bmob.cn/1/classes/text/mI76888D",
             headers=headers2,
             max_retries=3,
             base_delay=2
@@ -244,23 +244,23 @@ async def crawl(p_url):
     async with async_playwright() as p:
         # 使用 chromium headless shell（最轻量）+ 反反爬策略
         browser = await p.chromium.launch(
-            headless=True, 
+            headless=True,
             channel="chromium-headless-shell",
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--no-sandbox',
             ]
         )
-        
+
         # 创建上下文，设置真实的浏览器特征
         context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             viewport={'width': 1920, 'height': 1080},
             locale='zh-CN',
         )
-        
+
         page = await context.new_page()
-        
+
         # 隐藏 webdriver 特征
         await page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
@@ -283,25 +283,27 @@ async def crawl(p_url):
                 print("未找到 gnSection 隐藏字段")
                 await browser.close()
                 return
-            
+
             gn_section_value = await gn_section_input.get_attribute("value")
             if not gn_section_value:
                 print("gnSection 字段值为空")
                 await browser.close()
                 return
-            
+
             # 解析 JSON 数据
             gn_data = json.loads(gn_section_value)
-            
+
             # 提取板块名称和代码
             thsgnbk = []
             bkcode = []  # platecode - 保存到数据库
             cid_list = []  # cid - 用于构建URL
-            
+
             for key, value in gn_data.items():
                 if isinstance(value, dict) and "platecode" in value and "platename" in value and "cid" in value:
                     platecode = value["platecode"]
                     platename = value["platename"]
+                    if '同花顺' in platename or "其他" in platename:
+                        continue
                     cid = value["cid"]
                     thsgnbk.append(platename)
                     bkcode.append(platecode)
@@ -429,23 +431,23 @@ async def collect_concept_data(
     async with async_playwright() as p:
         # 使用 chromium headless shell（最轻量）+ 反反爬策略
         browser = await p.chromium.launch(
-            headless=True, 
+            headless=True,
             channel="chromium-headless-shell",
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--no-sandbox',
             ]
         )
-        
+
         # 创建上下文，设置真实的浏览器特征
         context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             viewport={'width': 1920, 'height': 1080},
             locale='zh-CN',
         )
-        
+
         page = await context.new_page()
-        
+
         # 隐藏 webdriver 特征
         await page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
@@ -466,21 +468,21 @@ async def collect_concept_data(
                 print("未找到 gnSection 隐藏字段")
                 await browser.close()
                 return concepts_list, stocks_list
-            
+
             gn_section_value = await gn_section_input.get_attribute("value")
             if not gn_section_value:
                 print("gnSection 字段值为空")
                 await browser.close()
                 return concepts_list, stocks_list
-            
+
             # 解析 JSON 数据
             gn_data = json.loads(gn_section_value)
-            
+
             # 提取板块名称和代码
             thsgnbk = []
             bkcode = []  # platecode - 保存到数据库
             cid_list = []  # cid - 用于构建URL
-            
+
             for key, value in gn_data.items():
                 if isinstance(value, dict) and "platecode" in value and "platename" in value and "cid" in value:
                     platecode = value["platecode"]
@@ -489,7 +491,7 @@ async def collect_concept_data(
                     thsgnbk.append(platename)
                     bkcode.append(platecode)
                     cid_list.append(cid)
-            
+
             data = {"Name": thsgnbk, "CID": cid_list}
             gnbk = pd.DataFrame(data, index=bkcode)
 
@@ -634,10 +636,10 @@ async def collect_concept_data(
                 if len(stocks_data) > 0:
                     # 计算板块总市值（亿元）
                     total_market_cap = sum(
-                        stock["market_cap"] for stock in stocks_data 
+                        stock["market_cap"] for stock in stocks_data
                         if stock["market_cap"] is not None
                     )
-                    
+
                     concept_entry = {
                         "code": bk_code,
                         "name": name,
