@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def stock_zh_a_hist_tx_period(
     symbol: str = "sz000001",
     period: str = "daily",
-    start_date: str = "19000101",
+    start_date: str = "20240101",
     end_date: str = "20500101",
     adjust: str = "",
     timeout: Optional[float] = None,

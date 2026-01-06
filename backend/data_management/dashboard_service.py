@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import random
 from sqlmodel import Session, select
-from models import engine, DailyMarketData, StockBasicInfo, get_session
+from models import engine, DailyMarketData, WeeklyMarketData, MonthlyMarketData, StockBasicInfo, get_session
 from config import CATEGORY
 import os
 import json
@@ -386,7 +386,11 @@ def _refresh_sector_info(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _calculate_price_changes(stock_code: str) -> Dict[str, float | None]:
-    """Calculate price change percentages for multiple periods."""
+    """Calculate price change percentages for multiple periods.
+    
+    Uses MonthlyMarketData for 12-month calculation, WeeklyMarketData for 1-week,
+    and DailyMarketData for 1-month calculation.
+    """
     result = {
         "近12个月涨跌幅": None,
         "近1个月涨跌幅": None,
@@ -396,34 +400,67 @@ def _calculate_price_changes(stock_code: str) -> Dict[str, float | None]:
 
     try:
         with get_session() as session:
+            # Get the most recent trading day for latest price
             stmt = (
                 select(DailyMarketData)
                 .where(DailyMarketData.code == stock_code)
                 .order_by(DailyMarketData.date.desc())
-                .limit(252)
+                .limit(1)
             )
-            records = list(session.exec(stmt).all())
-            if not records:
+            latest_record = session.exec(stmt).first()
+            if not latest_record:
                 return result
 
-            latest_record = records[0]
             latest_price = latest_record.close_price
             result["最新价"] = round(latest_price, 2) if latest_price is not None else None
 
-            if len(records) >= 250:
-                price_12m_ago = records[-1].close_price
+            # Calculate 12-month change using MonthlyMarketData
+            # Get last 13 months to ensure we have 12 months of data
+            stmt_monthly = (
+                select(MonthlyMarketData)
+                .where(MonthlyMarketData.code == stock_code)
+                .order_by(MonthlyMarketData.date.desc())
+                .limit(13)
+            )
+            monthly_records = list(session.exec(stmt_monthly).all())
+            if len(monthly_records) >= 12:
+                # Use the latest daily close price and 12 months ago monthly close price
+                price_12m_ago = monthly_records[11].close_price
                 if price_12m_ago and price_12m_ago > 0:
                     result["近12个月涨跌幅"] = round(((latest_price - price_12m_ago) / price_12m_ago) * 100, 2)
 
-            if len(records) >= 21:
-                price_1m_ago = records[min(20, len(records) - 1)].close_price
+            # Calculate 1-month change using DailyMarketData (approximately 21 trading days)
+            stmt_daily = (
+                select(DailyMarketData)
+                .where(DailyMarketData.code == stock_code)
+                .order_by(DailyMarketData.date.desc())
+                .limit(21)
+            )
+            daily_records = list(session.exec(stmt_daily).all())
+            if len(daily_records) >= 21:
+                price_1m_ago = daily_records[20].close_price
                 if price_1m_ago and price_1m_ago > 0:
                     result["近1个月涨跌幅"] = round(((latest_price - price_1m_ago) / price_1m_ago) * 100, 2)
 
-            if len(records) >= 5:
-                price_1w_ago = records[min(4, len(records) - 1)].close_price
+            # Calculate 1-week change using WeeklyMarketData
+            stmt_weekly = (
+                select(WeeklyMarketData)
+                .where(WeeklyMarketData.code == stock_code)
+                .order_by(WeeklyMarketData.date.desc())
+                .limit(2)
+            )
+            weekly_records = list(session.exec(stmt_weekly).all())
+            if len(weekly_records) >= 2:
+                # Use the latest daily close price and 1 week ago weekly close price
+                price_1w_ago = weekly_records[1].close_price
                 if price_1w_ago and price_1w_ago > 0:
                     result["近1周涨跌幅"] = round(((latest_price - price_1w_ago) / price_1w_ago) * 100, 2)
+            elif len(weekly_records) == 1:
+                # Fallback: if only one week of data, use daily data for 1 week
+                if len(daily_records) >= 5:
+                    price_1w_ago = daily_records[min(4, len(daily_records) - 1)].close_price
+                    if price_1w_ago and price_1w_ago > 0:
+                        result["近1周涨跌幅"] = round(((latest_price - price_1w_ago) / price_1w_ago) * 100, 2)
 
     except Exception as exc:
         logger.warning(f"Failed to calculate price changes for {stock_code}: {exc}")

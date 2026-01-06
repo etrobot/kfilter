@@ -176,6 +176,14 @@ def get_task_status(task_id: str) -> TaskResult:
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    # Process data if task is completed and has result data
+    data = task.result["data"] if task.result else None
+    if data and task.status == "completed":
+        # Refresh sector information from extended_analysis_results.json
+        data = _refresh_sector_info(data)
+        # Replace factor values with price changes
+        data = _replace_factors_with_price_changes(data)
+
     return TaskResult(
         task_id=task.task_id,
         status=task.status,
@@ -185,8 +193,9 @@ def get_task_status(task_id: str) -> TaskResult:
         completed_at=task.completed_at,
         top_n=task.top_n,
         selected_factors=task.selected_factors,
-        data=task.result["data"] if task.result else None,
+        data=data,
         count=task.result["count"] if task.result else None,
+        extended=task.result.get("extended") if task.result else None,
         error=task.error,
     )
 
@@ -295,13 +304,16 @@ def _refresh_sector_info(data: List[Dict]) -> List[Dict]:
 def _calculate_price_changes(stock_code: str) -> Dict[str, float]:
     """Calculate price changes for different time periods
     
+    Uses MonthlyMarketData for 12-month calculation, WeeklyMarketData for 1-week,
+    and DailyMarketData for 1-month calculation.
+    
     Args:
         stock_code: Stock code to calculate price changes for
         
     Returns:
         Dictionary with price change percentages for different periods
     """
-    from models import DailyMarketData, get_session
+    from models import DailyMarketData, WeeklyMarketData, MonthlyMarketData, get_session
     from sqlmodel import select
     
     result = {
@@ -312,7 +324,7 @@ def _calculate_price_changes(stock_code: str) -> Dict[str, float]:
     
     try:
         with get_session() as session:
-            # Get the most recent trading day
+            # Get the most recent trading day for latest price
             stmt = select(DailyMarketData).where(
                 DailyMarketData.code == stock_code
             ).order_by(DailyMarketData.date.desc()).limit(1)
@@ -321,32 +333,49 @@ def _calculate_price_changes(stock_code: str) -> Dict[str, float]:
             if not latest_record:
                 return result
             
-            latest_date = latest_record.date
             latest_price = latest_record.close_price
             
-            # Calculate 12-month change (approximately 252 trading days)
-            stmt_12m = select(DailyMarketData).where(
-                DailyMarketData.code == stock_code,
-                DailyMarketData.date <= latest_date
-            ).order_by(DailyMarketData.date.desc()).limit(252)
+            # Calculate 12-month change using MonthlyMarketData
+            # Get last 13 months to ensure we have 12 months of data
+            stmt_monthly = select(MonthlyMarketData).where(
+                MonthlyMarketData.code == stock_code
+            ).order_by(MonthlyMarketData.date.desc()).limit(13)
             
-            records_12m = list(session.exec(stmt_12m).all())
-            if len(records_12m) >= 250:  # Need at least ~250 days for 12 months
-                price_12m_ago = records_12m[-1].close_price
-                if price_12m_ago > 0:
+            monthly_records = list(session.exec(stmt_monthly).all())
+            if len(monthly_records) >= 12:
+                # Use the latest daily close price and 12 months ago monthly close price
+                price_12m_ago = monthly_records[11].close_price
+                if price_12m_ago and price_12m_ago > 0:
                     result["近12个月涨跌幅"] = round(((latest_price - price_12m_ago) / price_12m_ago) * 100, 2)
             
-            # Calculate 1-month change (approximately 21 trading days)
-            if len(records_12m) >= 21:
-                price_1m_ago = records_12m[min(20, len(records_12m) - 1)].close_price
-                if price_1m_ago > 0:
+            # Calculate 1-month change using DailyMarketData (approximately 21 trading days)
+            stmt_daily = select(DailyMarketData).where(
+                DailyMarketData.code == stock_code
+            ).order_by(DailyMarketData.date.desc()).limit(21)
+            
+            daily_records = list(session.exec(stmt_daily).all())
+            if len(daily_records) >= 21:
+                price_1m_ago = daily_records[20].close_price
+                if price_1m_ago and price_1m_ago > 0:
                     result["近1个月涨跌幅"] = round(((latest_price - price_1m_ago) / price_1m_ago) * 100, 2)
             
-            # Calculate 1-week change (approximately 5 trading days)
-            if len(records_12m) >= 5:
-                price_1w_ago = records_12m[min(4, len(records_12m) - 1)].close_price
-                if price_1w_ago > 0:
+            # Calculate 1-week change using WeeklyMarketData
+            stmt_weekly = select(WeeklyMarketData).where(
+                WeeklyMarketData.code == stock_code
+            ).order_by(WeeklyMarketData.date.desc()).limit(2)
+            
+            weekly_records = list(session.exec(stmt_weekly).all())
+            if len(weekly_records) >= 2:
+                # Use the latest daily close price and 1 week ago weekly close price
+                price_1w_ago = weekly_records[1].close_price
+                if price_1w_ago and price_1w_ago > 0:
                     result["近1周涨跌幅"] = round(((latest_price - price_1w_ago) / price_1w_ago) * 100, 2)
+            elif len(weekly_records) == 1:
+                # Fallback: if only one week of data, use daily data for 1 week
+                if len(daily_records) >= 5:
+                    price_1w_ago = daily_records[min(4, len(daily_records) - 1)].close_price
+                    if price_1w_ago and price_1w_ago > 0:
+                        result["近1周涨跌幅"] = round(((latest_price - price_1w_ago) / price_1w_ago) * 100, 2)
                     
     except Exception as e:
         logger.warning(f"Failed to calculate price changes for {stock_code}: {e}")
